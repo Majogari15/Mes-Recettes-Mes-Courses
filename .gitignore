@@ -1,0 +1,31 @@
+# --- Données personnelles créées automatiquement par l'application ---
+# Ne pas publier vos propres recettes, photos, prix, etc. sur GitHub.
+recipes.json
+ingredients.json
+ingredient_prices.json
+ingredient_custom_data.json
+ingredient_dismissed_pairs.json
+weekly_plan.json
+weekly_plan_history.json
+weekly_plan_templates.json
+menus.json
+saved_shopping_lists.json
+pantry.json
+trash.json
+recent_views.json
+settings.json
+images/
+backups/
+
+# --- Fichiers générés par Python ---
+__pycache__/
+*.pyc
+
+# --- Fichiers générés par PyInstaller (construction du .exe) ---
+build/
+dist/
+*.spec
+
+# --- Fichiers système ---
+.DS_Store
+Thumbs.db
