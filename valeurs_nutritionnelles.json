@@ -1,15 +1,33 @@
 {
   "Abricot": {
-    "kcal": 48,
-    "protein_g": 0.8,
-    "carbs_g": 11,
-    "fat_g": 0.2
+    "kcal": 44.1,
+    "protein_g": 0.81,
+    "carbs_g": 9.01,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13000",
+      "food": "Abricot, dénoyauté, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Abricot sec": {
-    "kcal": 280,
-    "protein_g": 3.0,
-    "carbs_g": 65,
-    "fat_g": 0.5
+    "kcal": 239.0,
+    "protein_g": 2.88,
+    "carbs_g": 59.1,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13001",
+      "food": "Abricot, dénoyauté, sec",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Agar-agar": {
     "kcal": 300,
@@ -24,10 +42,20 @@
     "fat_g": 15.0
   },
   "Ail": {
-    "kcal": 40,
-    "protein_g": 1.5,
-    "carbs_g": 8,
-    "fat_g": 0.1
+    "kcal": 109.0,
+    "protein_g": 5.31,
+    "carbs_g": 18.6,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11000",
+      "food": "Ail, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Ail confit": {
     "kcal": 40,
@@ -42,10 +70,18 @@
     "fat_g": 0.6
   },
   "Ail en poudre": {
-    "kcal": 40,
-    "protein_g": 1.5,
-    "carbs_g": 8,
-    "fat_g": 0.1
+    "kcal": 346.0,
+    "protein_g": 16.6,
+    "carbs_g": 63.7,
+    "fat_g": 0.73,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11023",
+      "food": "Ail séché, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Aile de poulet": {
     "kcal": 165,
@@ -96,10 +132,18 @@
     "fat_g": 52.0
   },
   "Amande émondée": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 631.0,
+    "protein_g": 25.8,
+    "carbs_g": 8.76,
+    "fat_g": 52.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15041",
+      "food": "Amande, émondée, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Amande grillée": {
     "kcal": 600,
@@ -108,16 +152,32 @@
     "fat_g": 52.0
   },
   "Amandes": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 615.0,
+    "protein_g": 22.6,
+    "carbs_g": 9.51,
+    "fat_g": 51.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15000",
+      "food": "Amande, avec peau, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Amarante": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 369.0,
+    "protein_g": 14.5,
+    "carbs_g": 58.6,
+    "fat_g": 7.02,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9345",
+      "food": "Amarante, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Amaretto": {
     "kcal": 250,
@@ -126,10 +186,20 @@
     "fat_g": 0
   },
   "Ananas": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 51.6,
+    "protein_g": 0.25,
+    "carbs_g": 11.7,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13002",
+      "food": "Ananas, chair sans peau, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Anchoïade": {
     "kcal": 120,
@@ -156,10 +226,18 @@
     "fat_g": 13.0
   },
   "Andouille": {
-    "kcal": 300,
-    "protein_g": 18.0,
-    "carbs_g": 1,
-    "fat_g": 25.0
+    "kcal": 211.0,
+    "protein_g": 18.4,
+    "carbs_g": 0.3,
+    "fat_g": 15.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "8500",
+      "food": "Andouille",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Andouillette": {
     "kcal": 300,
@@ -168,16 +246,32 @@
     "fat_g": 25.0
   },
   "Aneth": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 48.2,
+    "protein_g": 3.93,
+    "carbs_g": 3.9,
+    "fat_g": 1.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11093",
+      "food": "Aneth, frais",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Anguille": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 240.0,
+    "protein_g": 16.1,
+    "carbs_g": 2.06,
+    "fat_g": 18.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "27016",
+      "food": "Anguille, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Anguille fumée": {
     "kcal": 200,
@@ -198,10 +292,18 @@
     "fat_g": 8.0
   },
   "Arachide": {
-    "kcal": 570,
-    "protein_g": 25.0,
-    "carbs_g": 16,
-    "fat_g": 48.0
+    "kcal": 623.0,
+    "protein_g": 26.1,
+    "carbs_g": 14.8,
+    "fat_g": 49.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15001",
+      "food": "Cacahuète, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Araignée de mer": {
     "kcal": 95,
@@ -222,10 +324,18 @@
     "fat_g": 52.0
   },
   "Artichaut": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 45.4,
+    "protein_g": 3.27,
+    "carbs_g": 4.84,
+    "fat_g": 0.15,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20052",
+      "food": "Artichaut, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Asafoetida": {
     "kcal": 300,
@@ -258,10 +368,18 @@
     "fat_g": 0.3
   },
   "Aubergine": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 22.9,
+    "protein_g": 0.98,
+    "carbs_g": 2.7,
+    "fat_g": 0.18,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20053",
+      "food": "Aubergine, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Avocat": {
     "kcal": 160,
@@ -294,22 +412,48 @@
     "fat_g": 8.0
   },
   "Banane": {
-    "kcal": 90,
-    "protein_g": 1.1,
-    "carbs_g": 21,
-    "fat_g": 0.3
+    "kcal": 87.6,
+    "protein_g": 1.06,
+    "carbs_g": 19.7,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13005",
+      "food": "Banane, chair sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Banane plantain": {
-    "kcal": 90,
-    "protein_g": 1.1,
-    "carbs_g": 21,
-    "fat_g": 0.3
+    "kcal": 132.0,
+    "protein_g": 1.3,
+    "carbs_g": 29.6,
+    "fat_g": 0.37,
+    "_ciqual": {
+      "version": "2025",
+      "code": "53100",
+      "food": "Banane plantain, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Banane séchée": {
-    "kcal": 90,
-    "protein_g": 1.1,
-    "carbs_g": 21,
-    "fat_g": 0.3
+    "kcal": 365.0,
+    "protein_g": 3.89,
+    "carbs_g": 78.4,
+    "fat_g": 1.81,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13089",
+      "food": "Banane, chair sans peau, sèche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Bar": {
     "kcal": 90,
@@ -318,16 +462,32 @@
     "fat_g": 1.0
   },
   "Basilic": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 35.2,
+    "protein_g": 3.15,
+    "carbs_g": 3.4,
+    "fat_g": 0.64,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11033",
+      "food": "Basilic, frais",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Basilic séché": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 244.0,
+    "protein_g": 23.0,
+    "carbs_g": 10.1,
+    "fat_g": 4.07,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11032",
+      "food": "Basilic, séché",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Basilic thaï": {
     "kcal": 35,
@@ -336,10 +496,20 @@
     "fat_g": 0.6
   },
   "Batavia": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 14.9,
+    "protein_g": 1.25,
+    "carbs_g": 1.78,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20123",
+      "food": "Batavia, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Bâtonnet de poisson": {
     "kcal": 90,
@@ -348,10 +518,18 @@
     "fat_g": 1.0
   },
   "Bâtonnet de surimi": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 117.0,
+    "protein_g": 7.54,
+    "carbs_g": 11.8,
+    "fat_g": 4.33,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26046",
+      "food": "Surimi, bâtonnets, tranche ou râpé saveur crabe",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Baudroie": {
     "kcal": 165,
@@ -366,10 +544,18 @@
     "fat_g": 15.0
   },
   "Beaufort": {
-    "kcal": 380,
-    "protein_g": 27.0,
-    "carbs_g": 1,
-    "fat_g": 30.0
+    "kcal": 404.0,
+    "protein_g": 26.1,
+    "carbs_g": 0.72,
+    "fat_g": 33.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12105",
+      "food": "Beaufort",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Bergamote": {
     "kcal": 42,
@@ -390,10 +576,18 @@
     "fat_g": 0.2
   },
   "Beurre": {
-    "kcal": 717,
-    "protein_g": 0.9,
-    "carbs_g": 0.1,
-    "fat_g": 81.0
+    "kcal": 753.0,
+    "protein_g": 0.63,
+    "carbs_g": 0.71,
+    "fat_g": 83.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "16400",
+      "food": "Beurre à 80% MG minimum, doux",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Beurre clarifié": {
     "kcal": 717,
@@ -402,10 +596,18 @@
     "fat_g": 81.0
   },
   "Beurre de cacahuète": {
-    "kcal": 570,
-    "protein_g": 25.0,
-    "carbs_g": 16,
-    "fat_g": 48.0
+    "kcal": 643.0,
+    "protein_g": 25.4,
+    "carbs_g": 17.3,
+    "fat_g": 51.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15202",
+      "food": "Beurre de cacahuète ou pâte d'arachide",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Beurre de karité alimentaire": {
     "kcal": 717,
@@ -414,16 +616,32 @@
     "fat_g": 81.0
   },
   "Beurre demi-sel": {
-    "kcal": 717,
-    "protein_g": 0.9,
-    "carbs_g": 0.1,
-    "fat_g": 81.0
+    "kcal": 725.0,
+    "protein_g": 0.75,
+    "carbs_g": 0.5,
+    "fat_g": 80.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "16402",
+      "food": "Beurre à 80% MG, demi-sel",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Beurre doux": {
-    "kcal": 717,
-    "protein_g": 0.9,
-    "carbs_g": 0.1,
-    "fat_g": 81.0
+    "kcal": 753.0,
+    "protein_g": 0.63,
+    "carbs_g": 0.71,
+    "fat_g": 83.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "16400",
+      "food": "Beurre à 80% MG minimum, doux",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Beurre fondu": {
     "kcal": 717,
@@ -438,16 +656,32 @@
     "fat_g": 81.0
   },
   "Beurre salé": {
-    "kcal": 717,
-    "protein_g": 0.9,
-    "carbs_g": 0.1,
-    "fat_g": 81.0
+    "kcal": 732.0,
+    "protein_g": 0.5,
+    "carbs_g": 0.68,
+    "fat_g": 80.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "16403",
+      "food": "Beurre à 80% MG, salé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Bicarbonate de soude": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 0.4,
+    "protein_g": 0.1,
+    "carbs_g": 0.0,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11507",
+      "food": "Bicarbonate de soude",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Bière blonde": {
     "kcal": 43,
@@ -612,16 +846,32 @@
     "fat_g": 0
   },
   "Brie": {
-    "kcal": 300,
-    "protein_g": 20.0,
-    "carbs_g": 1,
-    "fat_g": 24.0
+    "kcal": 345.0,
+    "protein_g": 17.3,
+    "carbs_g": 0.68,
+    "fat_g": 30.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12020",
+      "food": "Brie, sans précision",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Brochet": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 87.7,
+    "protein_g": 18.8,
+    "carbs_g": 1.0,
+    "fat_g": 0.94,
+    "_ciqual": {
+      "version": "2025",
+      "code": "27011",
+      "food": "Brochet, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Brocolis": {
     "kcal": 30,
@@ -636,16 +886,32 @@
     "fat_g": 24.0
   },
   "Bulot": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 131.0,
+    "protein_g": 23.8,
+    "carbs_g": 7.61,
+    "fat_g": 0.57,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10019",
+      "food": "Bulot ou buccin, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Burrata": {
-    "kcal": 300,
-    "protein_g": 20.0,
-    "carbs_g": 1,
-    "fat_g": 24.0
+    "kcal": 259.0,
+    "protein_g": 10.6,
+    "carbs_g": 0.93,
+    "fat_g": 23.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12072",
+      "food": "Burrata",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cabillaud": {
     "kcal": 90,
@@ -654,16 +920,32 @@
     "fat_g": 1.0
   },
   "Cacahuète": {
-    "kcal": 570,
-    "protein_g": 25.0,
-    "carbs_g": 16,
-    "fat_g": 48.0
+    "kcal": 623.0,
+    "protein_g": 26.1,
+    "carbs_g": 14.8,
+    "fat_g": 49.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15001",
+      "food": "Cacahuète, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cacahuète grillée salée": {
-    "kcal": 570,
-    "protein_g": 25.0,
-    "carbs_g": 16,
-    "fat_g": 48.0
+    "kcal": 635.0,
+    "protein_g": 26.2,
+    "carbs_g": 14.2,
+    "fat_g": 50.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15002",
+      "food": "Cacahuète, grillée, salée",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cacao en poudre": {
     "kcal": 535,
@@ -684,10 +966,18 @@
     "fat_g": 0
   },
   "Café expresso": {
-    "kcal": 1,
-    "protein_g": 0.1,
-    "carbs_g": 0.2,
-    "fat_g": 0
+    "kcal": 6.54,
+    "protein_g": 0.25,
+    "carbs_g": 1.16,
+    "fat_g": 0.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "18071",
+      "food": "Café expresso, non instantané, sans sucres ajoutés,\nprêt à boire",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Caille": {
     "kcal": 150,
@@ -732,10 +1022,18 @@
     "fat_g": 8.0
   },
   "Cannelle en poudre": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 243.0,
+    "protein_g": 3.99,
+    "carbs_g": 27.5,
+    "fat_g": 1.24,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11025",
+      "food": "Cannelle, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cantal": {
     "kcal": 380,
@@ -756,10 +1054,18 @@
     "fat_g": 7.0
   },
   "Carambole": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 28.4,
+    "protein_g": 1.04,
+    "carbs_g": 3.83,
+    "fat_g": 0.33,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13054",
+      "food": "Carambole, chair et peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Caramel": {
     "kcal": 400,
@@ -786,16 +1092,34 @@
     "fat_g": 8.0
   },
   "Cardon": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 13.7,
+    "protein_g": 0.7,
+    "carbs_g": 1.7,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20054",
+      "food": "Cardon, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Carotte": {
-    "kcal": 35,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.2
+    "kcal": 30.2,
+    "protein_g": 0.78,
+    "carbs_g": 5.16,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20009",
+      "food": "Carotte, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Carotte nouvelle": {
     "kcal": 35,
@@ -816,10 +1140,18 @@
     "fat_g": 1.0
   },
   "Cassis": {
-    "kcal": 45,
-    "protein_g": 0.8,
-    "carbs_g": 9,
-    "fat_g": 0.4
+    "kcal": 70.2,
+    "protein_g": 1.4,
+    "carbs_g": 9.68,
+    "fat_g": 0.41,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13007",
+      "food": "Cassis, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cassonade": {
     "kcal": 400,
@@ -834,10 +1166,20 @@
     "fat_g": 1.5
   },
   "Céleri branche": {
-    "kcal": 35,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.2
+    "kcal": 15.4,
+    "protein_g": 0.63,
+    "carbs_g": 2.41,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20023",
+      "food": "Céleri branche, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Céleri rave": {
     "kcal": 35,
@@ -852,10 +1194,18 @@
     "fat_g": 0.3
   },
   "Cerfeuil": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 48.3,
+    "protein_g": 3.31,
+    "carbs_g": 6.25,
+    "fat_g": 0.55,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11002",
+      "food": "Cerfeuil, frais",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cerise": {
     "kcal": 48,
@@ -888,22 +1238,46 @@
     "fat_g": 1.5
   },
   "Champagne": {
-    "kcal": 85,
-    "protein_g": 0.1,
-    "carbs_g": 2.5,
-    "fat_g": 0
+    "kcal": 76.1,
+    "protein_g": 0.3,
+    "carbs_g": 1.4,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "5207",
+      "food": "Champagne",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Champignon": {
-    "kcal": 25,
-    "protein_g": 3.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 24.3,
+    "protein_g": 2.42,
+    "carbs_g": 2.25,
+    "fat_g": 0.34,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20010",
+      "food": "Champignon, tout type, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Champignon de Paris": {
-    "kcal": 25,
-    "protein_g": 3.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 21.0,
+    "protein_g": 2.11,
+    "carbs_g": 1.83,
+    "fat_g": 0.36,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20056",
+      "food": "Champignon de Paris ou champignon de couche, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Champignon shiitaké": {
     "kcal": 25,
@@ -912,22 +1286,46 @@
     "fat_g": 0.3
   },
   "Champignons en boîte": {
-    "kcal": 25,
-    "protein_g": 3.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 24.9,
+    "protein_g": 1.87,
+    "carbs_g": 2.56,
+    "fat_g": 0.29,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20011",
+      "food": "Champignon, tout type, appertisé, égoutté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chapelure": {
-    "kcal": 265,
-    "protein_g": 9.0,
-    "carbs_g": 49,
-    "fat_g": 3.0
+    "kcal": 365.0,
+    "protein_g": 10.3,
+    "carbs_g": 74.3,
+    "fat_g": 1.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "7500",
+      "food": "Chapelure",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Châtaigne": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 189.0,
+    "protein_g": 2.39,
+    "carbs_g": 36.8,
+    "fat_g": 1.76,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15024",
+      "food": "Châtaigne, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chayotte": {
     "kcal": 20,
@@ -936,16 +1334,32 @@
     "fat_g": 0.2
   },
   "Cheddar": {
-    "kcal": 380,
-    "protein_g": 27.0,
-    "carbs_g": 1,
-    "fat_g": 30.0
+    "kcal": 399.0,
+    "protein_g": 24.2,
+    "carbs_g": 1.2,
+    "fat_g": 32.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12726",
+      "food": "Cheddar",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cheval": {
-    "kcal": 220,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 15.0
+    "kcal": 132.0,
+    "protein_g": 20.2,
+    "carbs_g": 0.5,
+    "fat_g": 5.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "6900",
+      "food": "Cheval, viande crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chèvre frais": {
     "kcal": 300,
@@ -954,10 +1368,18 @@
     "fat_g": 24.0
   },
   "Chevreuil": {
-    "kcal": 150,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 6.0
+    "kcal": 110.0,
+    "protein_g": 23.0,
+    "carbs_g": 0.0,
+    "fat_g": 2.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "14005",
+      "food": "Chevreuil, viande crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chicorée": {
     "kcal": 20,
@@ -984,22 +1406,46 @@
     "fat_g": 1.2
   },
   "Chocolat": {
-    "kcal": 535,
-    "protein_g": 7.0,
-    "carbs_g": 57,
-    "fat_g": 30.0
+    "kcal": 552.0,
+    "protein_g": 7.57,
+    "carbs_g": 50.4,
+    "fat_g": 34.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31120",
+      "food": "Chocolat, tablette (aliment moyen)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chocolat au lait": {
-    "kcal": 535,
-    "protein_g": 7.0,
-    "carbs_g": 57,
-    "fat_g": 30.0
+    "kcal": 550.0,
+    "protein_g": 7.5,
+    "carbs_g": 58.9,
+    "fat_g": 30.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31004",
+      "food": "Chocolat au lait, tablette",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chocolat blanc": {
-    "kcal": 535,
-    "protein_g": 7.0,
-    "carbs_g": 57,
-    "fat_g": 30.0
+    "kcal": 563.0,
+    "protein_g": 6.16,
+    "carbs_g": 57.1,
+    "fat_g": 34.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31010",
+      "food": "Chocolat blanc, tablette",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chocolat noir": {
     "kcal": 550,
@@ -1008,16 +1454,32 @@
     "fat_g": 35.0
   },
   "Chorizo": {
-    "kcal": 300,
-    "protein_g": 18.0,
-    "carbs_g": 1,
-    "fat_g": 25.0
+    "kcal": 425.0,
+    "protein_g": 23.5,
+    "carbs_g": 1.24,
+    "fat_g": 36.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "30315",
+      "food": "Chorizo",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chou blanc": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 35.2,
+    "protein_g": 1.38,
+    "carbs_g": 4.63,
+    "fat_g": 0.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20116",
+      "food": "Chou blanc, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chou chinois": {
     "kcal": 30,
@@ -1026,10 +1488,18 @@
     "fat_g": 0.3
   },
   "Chou de Bruxelles": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 43.9,
+    "protein_g": 3.38,
+    "carbs_g": 4.59,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20058",
+      "food": "Chou de Bruxelles, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chou de Milan": {
     "kcal": 30,
@@ -1038,16 +1508,32 @@
     "fat_g": 0.3
   },
   "Chou frisé": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 49.5,
+    "protein_g": 4.28,
+    "carbs_g": 4.2,
+    "fat_g": 0.93,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20218",
+      "food": "Chou frisé, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chou kale": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 34.6,
+    "protein_g": 2.92,
+    "carbs_g": 0.32,
+    "fat_g": 1.49,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20346",
+      "food": "Chou kale, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chou pak-choï": {
     "kcal": 30,
@@ -1056,28 +1542,62 @@
     "fat_g": 0.3
   },
   "Chou romanesco": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 29.7,
+    "protein_g": 2.95,
+    "carbs_g": 2.2,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20280",
+      "food": "Chou romanesco ou brocoli à pomme, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chou rouge": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 26.4,
+    "protein_g": 1.13,
+    "carbs_g": 4.33,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20014",
+      "food": "Chou rouge, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Chou vert": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 24.4,
+    "protein_g": 1.43,
+    "carbs_g": 2.74,
+    "fat_g": 0.14,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20069",
+      "food": "Chou vert, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Chou-fleur": {
-    "kcal": 30,
-    "protein_g": 2.5,
-    "carbs_g": 5,
-    "fat_g": 0.3
+    "kcal": 24.9,
+    "protein_g": 1.81,
+    "carbs_g": 2.13,
+    "fat_g": 0.7,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20016",
+      "food": "Chou-fleur, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Choucroute": {
     "kcal": 120,
@@ -1098,10 +1618,18 @@
     "fat_g": 0.6
   },
   "Cidre brut": {
-    "kcal": 85,
-    "protein_g": 0.1,
-    "carbs_g": 2.5,
-    "fat_g": 0
+    "kcal": 35.9,
+    "protein_g": 0.0,
+    "carbs_g": 2.62,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "5006",
+      "food": "Cidre brut",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cinq-épices": {
     "kcal": 300,
@@ -1110,10 +1638,20 @@
     "fat_g": 8.0
   },
   "Citron": {
-    "kcal": 42,
-    "protein_g": 0.8,
-    "carbs_g": 10,
-    "fat_g": 0.2
+    "kcal": 24.3,
+    "protein_g": 0.25,
+    "carbs_g": 1.56,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13009",
+      "food": "Citron, chair sans peau, sans pépins, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Citron confit": {
     "kcal": 42,
@@ -1122,16 +1660,36 @@
     "fat_g": 0.2
   },
   "Citron jaune": {
-    "kcal": 42,
-    "protein_g": 0.8,
-    "carbs_g": 10,
-    "fat_g": 0.2
+    "kcal": 24.3,
+    "protein_g": 0.25,
+    "carbs_g": 1.56,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13009",
+      "food": "Citron, chair sans peau, sans pépins, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Citron vert": {
-    "kcal": 42,
-    "protein_g": 0.8,
-    "carbs_g": 10,
-    "fat_g": 0.2
+    "kcal": 39.3,
+    "protein_g": 1.13,
+    "carbs_g": 3.14,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13067",
+      "food": "Citron vert ou lime, chair sans peau, sans pépins, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.3"
+      }
+    }
   },
   "Citronnelle": {
     "kcal": 35,
@@ -1140,16 +1698,34 @@
     "fat_g": 0.6
   },
   "Citrouille": {
-    "kcal": 30,
+    "kcal": 29.7,
     "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.1
+    "carbs_g": 5.79,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20166",
+      "food": "Citrouille, chair sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Clémentine": {
-    "kcal": 42,
-    "protein_g": 0.8,
-    "carbs_g": 10,
-    "fat_g": 0.2
+    "kcal": 45.5,
+    "protein_g": 0.81,
+    "carbs_g": 9.17,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13024",
+      "food": "Clémentine ou mandarine, chair sans peau, sans\npépins, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Clotted cream": {
     "kcal": 90,
@@ -1158,10 +1734,18 @@
     "fat_g": 1.0
   },
   "Clou de girofle": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 335.0,
+    "protein_g": 5.97,
+    "carbs_g": 31.6,
+    "fat_g": 13.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11052",
+      "food": "Clou de girofle",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Coeurs d'artichaut": {
     "kcal": 20,
@@ -1182,10 +1766,18 @@
     "fat_g": 0
   },
   "Coing": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 59.0,
+    "protein_g": 0.4,
+    "carbs_g": 12.5,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13010",
+      "food": "Coing, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cointreau": {
     "kcal": 250,
@@ -1218,10 +1810,18 @@
     "fat_g": 0.2
   },
   "Compote de pomme": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 93.5,
+    "protein_g": 0.25,
+    "carbs_g": 22.4,
+    "fat_g": 0.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13212",
+      "food": "Compote de pomme, sans précision sur la teneur en\nsucres ni sur le rayon (aliment moyen)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Comté": {
     "kcal": 380,
@@ -1236,10 +1836,18 @@
     "fat_g": 7.0
   },
   "Concombre": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 16.8,
+    "protein_g": 0.65,
+    "carbs_g": 2.87,
+    "fat_g": 0.11,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20019",
+      "food": "Concombre, chair et peau, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Confit d'échalote": {
     "kcal": 40,
@@ -1272,10 +1880,18 @@
     "fat_g": 7.0
   },
   "Congre": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 127.0,
+    "protein_g": 18.3,
+    "carbs_g": 3.15,
+    "fat_g": 4.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26127",
+      "food": "Congre ou congre commun, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Coq": {
     "kcal": 165,
@@ -1290,10 +1906,18 @@
     "fat_g": 8.0
   },
   "Coquille Saint-Jacques": {
-    "kcal": 165,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 8.0
+    "kcal": 83.0,
+    "protein_g": 17.0,
+    "carbs_g": 0.78,
+    "fat_g": 1.31,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10003",
+      "food": "Coquille Saint-Jacques, noix et corail, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cordon bleu": {
     "kcal": 300,
@@ -1320,16 +1944,36 @@
     "fat_g": 0.6
   },
   "Cornichon": {
-    "kcal": 120,
-    "protein_g": 2.0,
-    "carbs_g": 12,
-    "fat_g": 7.0
+    "kcal": 16.0,
+    "protein_g": 1.06,
+    "carbs_g": 0.78,
+    "fat_g": 0.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11004",
+      "food": "Cornichon, au vinaigre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.6"
+      }
+    }
   },
   "Cornichons au vinaigre": {
-    "kcal": 20,
-    "protein_g": 0,
-    "carbs_g": 1,
-    "fat_g": 0
+    "kcal": 16.0,
+    "protein_g": 1.06,
+    "carbs_g": 0.78,
+    "fat_g": 0.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11004",
+      "food": "Cornichon, au vinaigre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.6"
+      }
+    }
   },
   "Cornichons en bocal": {
     "kcal": 120,
@@ -1368,10 +2012,18 @@
     "fat_g": 5.0
   },
   "Coulis de tomate": {
-    "kcal": 120,
-    "protein_g": 2.0,
-    "carbs_g": 12,
-    "fat_g": 7.0
+    "kcal": 45.5,
+    "protein_g": 2.05,
+    "carbs_g": 7.57,
+    "fat_g": 0.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20260",
+      "food": "Tomate, coulis, appertisé (purée de tomates\nmi-réduite à 11%)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Coulommiers": {
     "kcal": 300,
@@ -1386,22 +2038,46 @@
     "fat_g": 0.1
   },
   "Courge musquée": {
-    "kcal": 30,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.1
+    "kcal": 23.5,
+    "protein_g": 0.55,
+    "carbs_g": 4.6,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20128",
+      "food": "Courge musquée, chair sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Courge spaghetti": {
-    "kcal": 30,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.1
+    "kcal": 32.3,
+    "protein_g": 0.64,
+    "carbs_g": 5.41,
+    "fat_g": 0.57,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20145",
+      "food": "Courge spaghetti, chair sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Courgette": {
-    "kcal": 30,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.1
+    "kcal": 16.7,
+    "protein_g": 1.21,
+    "carbs_g": 1.75,
+    "fat_g": 0.32,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20020",
+      "food": "Courgette, chair et peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Couscous": {
     "kcal": 355,
@@ -1416,10 +2092,18 @@
     "fat_g": 1.5
   },
   "Crabe": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 104.0,
+    "protein_g": 19.5,
+    "carbs_g": 0.027,
+    "fat_g": 2.86,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10039",
+      "food": "Crabe, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Cracker": {
     "kcal": 450,
@@ -1464,10 +2148,18 @@
     "fat_g": 30.0
   },
   "Crème de marron": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 278.0,
+    "protein_g": 1.12,
+    "carbs_g": 65.9,
+    "fat_g": 0.66,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15013",
+      "food": "Crème de marron ou confiture de châtaigne,\npréemballée",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Crème de tartre": {
     "kcal": 300,
@@ -1530,10 +2222,18 @@
     "fat_g": 0.3
   },
   "Crevette": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 99.0,
+    "protein_g": 19.7,
+    "carbs_g": 3.21,
+    "fat_g": 0.84,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10021",
+      "food": "Crevette, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Crevette rose": {
     "kcal": 95,
@@ -1548,10 +2248,18 @@
     "fat_g": 0.2
   },
   "Crottin de chèvre": {
-    "kcal": 300,
-    "protein_g": 20.0,
-    "carbs_g": 1,
-    "fat_g": 24.0
+    "kcal": 344.0,
+    "protein_g": 21.9,
+    "carbs_g": 1.0,
+    "fat_g": 28.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12833",
+      "food": "Crottin de chèvre, sans précision sur le type de lait -\npasteurisé ou cru -",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Croûton à l'ail": {
     "kcal": 40,
@@ -1614,10 +2322,18 @@
     "fat_g": 8.0
   },
   "Curcuma en poudre": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 291.0,
+    "protein_g": 9.68,
+    "carbs_g": 44.4,
+    "fat_g": 3.25,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11089",
+      "food": "Curcuma, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Curcuma frais": {
     "kcal": 300,
@@ -1644,10 +2360,18 @@
     "fat_g": 13.0
   },
   "Datte": {
-    "kcal": 280,
-    "protein_g": 3.0,
-    "carbs_g": 65,
-    "fat_g": 0.5
+    "kcal": 287.0,
+    "protein_g": 1.81,
+    "carbs_g": 64.7,
+    "fat_g": 0.25,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13011",
+      "food": "Datte, chair et peau, sans noyau, sèche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Datte medjool": {
     "kcal": 280,
@@ -1692,10 +2416,20 @@
     "fat_g": 0
   },
   "Eau de coco": {
-    "kcal": 0,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 0
+    "kcal": 11.8,
+    "protein_g": 0.25,
+    "carbs_g": 3.33,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "18011",
+      "food": "Eau de coco",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.3"
+      }
+    }
   },
   "Eau de fleur d'oranger": {
     "kcal": 300,
@@ -1722,10 +2456,20 @@
     "fat_g": 0
   },
   "Échalote": {
-    "kcal": 40,
-    "protein_g": 1.5,
-    "carbs_g": 8,
-    "fat_g": 0.1
+    "kcal": 61.7,
+    "protein_g": 1.81,
+    "carbs_g": 12.2,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20097",
+      "food": "Échalote, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Échine de porc": {
     "kcal": 240,
@@ -1764,10 +2508,18 @@
     "fat_g": 30.0
   },
   "Emmental râpé": {
-    "kcal": 380,
-    "protein_g": 27.0,
-    "carbs_g": 1,
-    "fat_g": 30.0
+    "kcal": 368.0,
+    "protein_g": 27.1,
+    "carbs_g": 0.58,
+    "fat_g": 28.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12118",
+      "food": "Emmental ou emmenthal, râpé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Encornet": {
     "kcal": 95,
@@ -1776,10 +2528,20 @@
     "fat_g": 1.5
   },
   "Endive": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 16.6,
+    "protein_g": 1.19,
+    "carbs_g": 2.83,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20026",
+      "food": "Endive, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Endive rouge": {
     "kcal": 20,
@@ -1800,10 +2562,18 @@
     "fat_g": 15.0
   },
   "Épeautre": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 344.0,
+    "protein_g": 15.6,
+    "carbs_g": 59.5,
+    "fat_g": 2.43,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9001",
+      "food": "Épeautre, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Épices à colombo": {
     "kcal": 300,
@@ -1878,16 +2648,32 @@
     "fat_g": 15.0
   },
   "Escargot": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 77.9,
+    "protein_g": 16.1,
+    "carbs_g": 1.29,
+    "fat_g": 0.92,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10008",
+      "food": "Escargot, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Espadon": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 134.0,
+    "protein_g": 18.9,
+    "carbs_g": 1.0,
+    "fat_g": 5.97,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26082",
+      "food": "Espadon, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Estragon": {
     "kcal": 35,
@@ -1932,34 +2718,74 @@
     "fat_g": 52.0
   },
   "Farine de blé complète": {
-    "kcal": 355,
-    "protein_g": 8.0,
-    "carbs_g": 78,
-    "fat_g": 1.0
+    "kcal": 342.0,
+    "protein_g": 12.2,
+    "carbs_g": 64.9,
+    "fat_g": 1.52,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9415",
+      "food": "Farine de blé tendre ou froment T150",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de blé T45": {
-    "kcal": 355,
-    "protein_g": 8.0,
-    "carbs_g": 78,
-    "fat_g": 1.0
+    "kcal": 355.0,
+    "protein_g": 9.25,
+    "carbs_g": 76.5,
+    "fat_g": 0.82,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9440",
+      "food": "Farine de blé tendre ou froment T45 (pour pâtisserie)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de blé T55": {
-    "kcal": 355,
-    "protein_g": 8.0,
-    "carbs_g": 78,
-    "fat_g": 1.0
+    "kcal": 350.0,
+    "protein_g": 9.9,
+    "carbs_g": 73.7,
+    "fat_g": 1.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9436",
+      "food": "Farine de blé tendre ou froment T55 (pour pains)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de blé T65": {
-    "kcal": 355,
-    "protein_g": 8.0,
-    "carbs_g": 78,
-    "fat_g": 1.0
+    "kcal": 346.0,
+    "protein_g": 11.0,
+    "carbs_g": 71.5,
+    "fat_g": 1.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9435",
+      "food": "Farine de blé tendre ou froment T65",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de châtaigne": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 362.0,
+    "protein_g": 6.1,
+    "carbs_g": 70.4,
+    "fat_g": 3.43,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9570",
+      "food": "Farine de châtaigne",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de coco": {
     "kcal": 355,
@@ -1974,22 +2800,46 @@
     "fat_g": 1.0
   },
   "Farine de maïs": {
-    "kcal": 86,
-    "protein_g": 3.2,
-    "carbs_g": 19,
-    "fat_g": 1.2
+    "kcal": 362.0,
+    "protein_g": 5.59,
+    "carbs_g": 80.9,
+    "fat_g": 1.39,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9545",
+      "food": "Farine de maïs",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de millet": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 350.0,
+    "protein_g": 10.2,
+    "carbs_g": 63.2,
+    "fat_g": 4.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9555",
+      "food": "Farine de millet",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de pois chiche": {
-    "kcal": 340,
-    "protein_g": 22.0,
-    "carbs_g": 60,
-    "fat_g": 2.0
+    "kcal": 359.0,
+    "protein_g": 22.4,
+    "carbs_g": 47.0,
+    "fat_g": 6.69,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9580",
+      "food": "Farine de pois chiche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de quinoa": {
     "kcal": 350,
@@ -1998,16 +2848,32 @@
     "fat_g": 5.0
   },
   "Farine de riz": {
-    "kcal": 355,
+    "kcal": 357.0,
     "protein_g": 8.0,
-    "carbs_g": 78,
-    "fat_g": 1.0
+    "carbs_g": 73.9,
+    "fat_g": 2.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9520",
+      "food": "Farine de riz",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de sarrasin": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 348.0,
+    "protein_g": 11.5,
+    "carbs_g": 68.4,
+    "fat_g": 2.19,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9540",
+      "food": "Farine de sarrasin",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Farine de seigle": {
     "kcal": 355,
@@ -2040,22 +2906,48 @@
     "fat_g": 1.2
   },
   "Fécule de pomme de terre": {
-    "kcal": 77,
-    "protein_g": 2.0,
-    "carbs_g": 17,
-    "fat_g": 0.1
+    "kcal": 348.0,
+    "protein_g": 0.0,
+    "carbs_g": 86.3,
+    "fat_g": 0.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "4090",
+      "food": "Fécule de pomme de terre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Fenouil": {
-    "kcal": 20,
+    "kcal": 18.2,
     "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "carbs_g": 2.63,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20028",
+      "food": "Fenouil, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Feta": {
-    "kcal": 300,
-    "protein_g": 20.0,
-    "carbs_g": 1,
-    "fat_g": 24.0
+    "kcal": 284.0,
+    "protein_g": 14.8,
+    "carbs_g": 0.45,
+    "fat_g": 24.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12066",
+      "food": "Feta, au lait de brebis 70% minimum et lait de chèvre\n30% maximum",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Feuille de combava": {
     "kcal": 35,
@@ -2100,10 +2992,20 @@
     "fat_g": 0.5
   },
   "Figue": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 67.6,
+    "protein_g": 1.19,
+    "carbs_g": 13.5,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13012",
+      "food": "Figue, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Figue sèche": {
     "kcal": 280,
@@ -2148,16 +3050,32 @@
     "fat_g": 0.1
   },
   "Fleur de sel": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 0.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11082",
+      "food": "Fleur de sel, non iodée, non fluorée",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Flocons d'avoine": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 369.0,
+    "protein_g": 11.4,
+    "carbs_g": 57.7,
+    "fat_g": 7.82,
+    "_ciqual": {
+      "version": "2025",
+      "code": "32140",
+      "food": "Flocons d'avoine",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Foie de veau": {
     "kcal": 150,
@@ -2208,10 +3126,20 @@
     "fat_g": 30.0
   },
   "Fraise": {
-    "kcal": 45,
-    "protein_g": 0.8,
-    "carbs_g": 9,
-    "fat_g": 0.4
+    "kcal": 35.1,
+    "protein_g": 0.63,
+    "carbs_g": 6.03,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13014",
+      "food": "Fraise, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Fraise des bois": {
     "kcal": 45,
@@ -2220,10 +3148,18 @@
     "fat_g": 0.4
   },
   "Framboise": {
-    "kcal": 45,
-    "protein_g": 0.8,
-    "carbs_g": 9,
-    "fat_g": 0.4
+    "kcal": 47.9,
+    "protein_g": 1.19,
+    "carbs_g": 5.83,
+    "fat_g": 0.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13015",
+      "food": "Framboise, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Freekeh": {
     "kcal": 350,
@@ -2286,10 +3222,18 @@
     "fat_g": 30.0
   },
   "Fruit de la passion": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 102.0,
+    "protein_g": 2.13,
+    "carbs_g": 10.9,
+    "fat_g": 3.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13016",
+      "food": "Fruit de la passion ou maracudja, chair sans peau,\navec pépins, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Fruit du dragon": {
     "kcal": 65,
@@ -2340,10 +3284,18 @@
     "fat_g": 8.0
   },
   "Gélatine": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 348.0,
+    "protein_g": 86.9,
+    "carbs_g": 0.0,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11007",
+      "food": "Gélatine, sèche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Gelée de groseille": {
     "kcal": 120,
@@ -2364,10 +3316,18 @@
     "fat_g": 20.0
   },
   "Germe de blé": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 375.0,
+    "protein_g": 29.2,
+    "carbs_g": 35.1,
+    "fat_g": 9.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9660",
+      "food": "Germe de blé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Germe de haricot": {
     "kcal": 20,
@@ -2400,28 +3360,60 @@
     "fat_g": 15.0
   },
   "Gin": {
-    "kcal": 250,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 0
+    "kcal": 265.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "1002",
+      "food": "Gin",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Gingembre": {
-    "kcal": 250,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 0
+    "kcal": 33.3,
+    "protein_g": 1.1,
+    "carbs_g": 3.4,
+    "fat_g": 1.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11074",
+      "food": "Gingembre, racine fraîche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Gingembre en poudre": {
-    "kcal": 250,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 0
+    "kcal": 335.0,
+    "protein_g": 8.98,
+    "carbs_g": 58.3,
+    "fat_g": 4.24,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11006",
+      "food": "Gingembre, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Gingembre frais": {
-    "kcal": 250,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 0
+    "kcal": 33.3,
+    "protein_g": 1.1,
+    "carbs_g": 3.4,
+    "fat_g": 1.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11074",
+      "food": "Gingembre, racine fraîche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Gingembre mariné": {
     "kcal": 250,
@@ -2472,10 +3464,18 @@
     "fat_g": 8.0
   },
   "Goyave": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 68.3,
+    "protein_g": 2.55,
+    "carbs_g": 9.02,
+    "fat_g": 0.95,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13083",
+      "food": "Goyave, chair sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Graines de chia": {
     "kcal": 550,
@@ -2526,22 +3526,46 @@
     "fat_g": 0.3
   },
   "Graisse d'oie": {
-    "kcal": 165,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 8.0
+    "kcal": 898.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 99.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "16560",
+      "food": "Graisse d'oie",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Graisse de canard": {
-    "kcal": 165,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 8.0
+    "kcal": 898.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 99.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "16550",
+      "food": "Graisse de canard",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Grana Padano": {
-    "kcal": 380,
-    "protein_g": 27.0,
-    "carbs_g": 1,
-    "fat_g": 30.0
+    "kcal": 399.0,
+    "protein_g": 33.2,
+    "carbs_g": 1.17,
+    "fat_g": 28.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12123",
+      "food": "Grana Padano",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Grand Marnier": {
     "kcal": 250,
@@ -2550,10 +3574,18 @@
     "fat_g": 0
   },
   "Grenade": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 81.0,
+    "protein_g": 1.44,
+    "carbs_g": 14.3,
+    "fat_g": 1.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13018",
+      "food": "Grenade, chair sans peau, avec pépins, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Grenouille": {
     "kcal": 90,
@@ -2574,22 +3606,46 @@
     "fat_g": 8.0
   },
   "Groseille": {
-    "kcal": 45,
-    "protein_g": 0.8,
-    "carbs_g": 9,
-    "fat_g": 0.4
+    "kcal": 67.2,
+    "protein_g": 1.56,
+    "carbs_g": 7.06,
+    "fat_g": 0.7,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13019",
+      "food": "Groseille, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Groseille à maquereau": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 39.4,
+    "protein_g": 0.88,
+    "carbs_g": 4.45,
+    "fat_g": 0.58,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13020",
+      "food": "Groseille à maquereau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Gruyère": {
-    "kcal": 380,
-    "protein_g": 27.0,
-    "carbs_g": 1,
-    "fat_g": 30.0
+    "kcal": 408.0,
+    "protein_g": 25.8,
+    "carbs_g": 0.78,
+    "fat_g": 33.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12114",
+      "food": "Gruyère, sans précision (origine France ou Suisse)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Guacamole": {
     "kcal": 120,
@@ -2604,10 +3660,18 @@
     "fat_g": 24.0
   },
   "Hareng": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 176.0,
+    "protein_g": 17.7,
+    "carbs_g": 0.0,
+    "fat_g": 11.7,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26011",
+      "food": "Hareng, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Hareng fumé": {
     "kcal": 200,
@@ -2616,10 +3680,18 @@
     "fat_g": 13.0
   },
   "Haricot beurre": {
-    "kcal": 717,
-    "protein_g": 0.9,
-    "carbs_g": 0.1,
-    "fat_g": 81.0
+    "kcal": 37.6,
+    "protein_g": 1.82,
+    "carbs_g": 5.6,
+    "fat_g": 0.12,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20195",
+      "food": "Haricot beurre, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Haricot blanc": {
     "kcal": 340,
@@ -2640,10 +3712,18 @@
     "fat_g": 2.0
   },
   "Haricot vert": {
-    "kcal": 70,
-    "protein_g": 5.0,
-    "carbs_g": 12,
-    "fat_g": 0.5
+    "kcal": 31.9,
+    "protein_g": 1.83,
+    "carbs_g": 4.14,
+    "fat_g": 0.22,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20061",
+      "food": "Haricot vert, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Haricots en boîte": {
     "kcal": 340,
@@ -2652,16 +3732,32 @@
     "fat_g": 2.0
   },
   "Herbes de Provence": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 283.0,
+    "protein_g": 11.5,
+    "carbs_g": 23.1,
+    "fat_g": 7.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11060",
+      "food": "Herbes de Provence, séchées",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Homard": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 85.5,
+    "protein_g": 17.9,
+    "carbs_g": 0.94,
+    "fat_g": 1.15,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10010",
+      "food": "Homard, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Houmous": {
     "kcal": 300,
@@ -2676,16 +3772,32 @@
     "fat_g": 100.0
   },
   "Huile d'arachide": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 899.0,
+    "protein_g": 0.25,
+    "carbs_g": 0.0,
+    "fat_g": 99.9,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17040",
+      "food": "Huile d'arachide",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile d'avocat": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17100",
+      "food": "Huile d'avocat",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile d'olive": {
     "kcal": 884,
@@ -2712,10 +3824,18 @@
     "fat_g": 100.0
   },
   "Huile de colza": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17130",
+      "food": "Huile de colza",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de friture": {
     "kcal": 884,
@@ -2724,28 +3844,60 @@
     "fat_g": 100.0
   },
   "Huile de lin": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.018,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17180",
+      "food": "Huile de lin",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de maïs": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17190",
+      "food": "Huile de maïs",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de noisette": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17210",
+      "food": "Huile de noisette",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de noix": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17220",
+      "food": "Huile de noix",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de palme": {
     "kcal": 884,
@@ -2760,22 +3912,46 @@
     "fat_g": 100.0
   },
   "Huile de pépins de raisin": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17350",
+      "food": "Huile de pépins de raisin",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de sésame": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17400",
+      "food": "Huile de sésame",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de soja": {
-    "kcal": 884,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 100.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "17420",
+      "food": "Huile de soja",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huile de tournesol": {
     "kcal": 884,
@@ -2808,22 +3984,46 @@
     "fat_g": 100.0
   },
   "Huître": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 67.2,
+    "protein_g": 8.64,
+    "carbs_g": 3.86,
+    "fat_g": 1.91,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10011",
+      "food": "Huître, sans précision, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huître creuse": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 67.2,
+    "protein_g": 8.64,
+    "carbs_g": 3.86,
+    "fat_g": 1.91,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10035",
+      "food": "Huître creuse, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Huître plate": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 53.5,
+    "protein_g": 10.2,
+    "carbs_g": 1.16,
+    "fat_g": 0.9,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10036",
+      "food": "Huître plate, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Hysope": {
     "kcal": 35,
@@ -2832,10 +4032,18 @@
     "fat_g": 0.6
   },
   "Igname": {
-    "kcal": 80,
-    "protein_g": 2.0,
-    "carbs_g": 18,
-    "fat_g": 0.1
+    "kcal": 111.0,
+    "protein_g": 1.25,
+    "carbs_g": 23.9,
+    "fat_g": 0.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "53672",
+      "food": "Igname, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Jambon blanc": {
     "kcal": 300,
@@ -2844,10 +4052,18 @@
     "fat_g": 25.0
   },
   "Jambon cru": {
-    "kcal": 300,
-    "protein_g": 18.0,
-    "carbs_g": 1,
-    "fat_g": 25.0
+    "kcal": 239.0,
+    "protein_g": 25.9,
+    "carbs_g": 4.27,
+    "fat_g": 13.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "28800",
+      "food": "Jambon cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Jambon de Parme": {
     "kcal": 300,
@@ -2916,10 +4132,18 @@
     "fat_g": 0.3
   },
   "Jus de tomate": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 21.7,
+    "protein_g": 0.88,
+    "carbs_g": 3.73,
+    "fat_g": 0.14,
+    "_ciqual": {
+      "version": "2025",
+      "code": "2053",
+      "food": "Jus de tomate, pur jus (aliment moyen)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Jus de viande": {
     "kcal": 45,
@@ -2928,10 +4152,20 @@
     "fat_g": 0
   },
   "Kaki": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 66.0,
+    "protein_g": 0.88,
+    "carbs_g": 14.3,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13066",
+      "food": "Kaki, chair et peau, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.3"
+      }
+    }
   },
   "Kamut": {
     "kcal": 350,
@@ -2970,10 +4204,18 @@
     "fat_g": 0
   },
   "Kiwi": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 60.9,
+    "protein_g": 0.88,
+    "carbs_g": 11.0,
+    "fat_g": 0.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13021",
+      "food": "Kiwi, chair sans peau, avec pépins, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Kumquat": {
     "kcal": 42,
@@ -2982,10 +4224,18 @@
     "fat_g": 0.2
   },
   "Lait": {
-    "kcal": 50,
-    "protein_g": 3.3,
-    "carbs_g": 5,
-    "fat_g": 1.5
+    "kcal": 47.7,
+    "protein_g": 3.41,
+    "carbs_g": 4.97,
+    "fat_g": 1.57,
+    "_ciqual": {
+      "version": "2025",
+      "code": "19039",
+      "food": "Lait, sans précision sur la teneur en matière grasse,\nUHT (aliment moyen)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lait concentré non sucré": {
     "kcal": 50,
@@ -2994,10 +4244,18 @@
     "fat_g": 1.5
   },
   "Lait concentré sucré": {
-    "kcal": 50,
-    "protein_g": 3.3,
-    "carbs_g": 5,
-    "fat_g": 1.5
+    "kcal": 327.0,
+    "protein_g": 7.54,
+    "carbs_g": 56.5,
+    "fat_g": 7.87,
+    "_ciqual": {
+      "version": "2025",
+      "code": "19027",
+      "food": "Lait concentré sucré, entier",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lait d'amande": {
     "kcal": 50,
@@ -3012,10 +4270,18 @@
     "fat_g": 1.5
   },
   "Lait de coco": {
-    "kcal": 50,
-    "protein_g": 3.3,
-    "carbs_g": 5,
-    "fat_g": 1.5
+    "kcal": 199.0,
+    "protein_g": 1.94,
+    "carbs_g": 4.29,
+    "fat_g": 19.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "18041",
+      "food": "Lait de coco",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lait de coco en boîte": {
     "kcal": 50,
@@ -3036,16 +4302,32 @@
     "fat_g": 1.5
   },
   "Lait demi-écrémé": {
-    "kcal": 50,
-    "protein_g": 3.3,
-    "carbs_g": 5,
-    "fat_g": 1.5
+    "kcal": 47.7,
+    "protein_g": 3.41,
+    "carbs_g": 5.0,
+    "fat_g": 1.56,
+    "_ciqual": {
+      "version": "2025",
+      "code": "19041",
+      "food": "Lait demi-écrémé, UHT",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lait écrémé": {
-    "kcal": 50,
-    "protein_g": 3.3,
-    "carbs_g": 5,
-    "fat_g": 1.5
+    "kcal": 34.4,
+    "protein_g": 3.53,
+    "carbs_g": 5.01,
+    "fat_g": 0.021,
+    "_ciqual": {
+      "version": "2025",
+      "code": "19050",
+      "food": "Lait écrémé, UHT",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lait en poudre": {
     "kcal": 50,
@@ -3054,10 +4336,18 @@
     "fat_g": 1.5
   },
   "Lait entier": {
-    "kcal": 50,
-    "protein_g": 3.3,
-    "carbs_g": 5,
-    "fat_g": 1.5
+    "kcal": 64.6,
+    "protein_g": 3.39,
+    "carbs_g": 4.77,
+    "fat_g": 3.55,
+    "_ciqual": {
+      "version": "2025",
+      "code": "19023",
+      "food": "Lait entier, UHT",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lait ribot": {
     "kcal": 50,
@@ -3066,28 +4356,60 @@
     "fat_g": 1.5
   },
   "Laitue": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 14.7,
+    "protein_g": 1.35,
+    "carbs_g": 1.22,
+    "fat_g": 0.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20031",
+      "food": "Laitue, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Laitue iceberg": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 17.3,
+    "protein_g": 0.95,
+    "carbs_g": 2.5,
+    "fat_g": 0.14,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20200",
+      "food": "Laitue iceberg, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Langouste": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 86.9,
+    "protein_g": 17.7,
+    "carbs_g": 1.07,
+    "fat_g": 1.34,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10015",
+      "food": "Langouste, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Langoustine": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 89.8,
+    "protein_g": 19.1,
+    "carbs_g": 1.53,
+    "fat_g": 0.79,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10024",
+      "food": "Langoustine, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Langue de boeuf": {
     "kcal": 150,
@@ -3096,10 +4418,18 @@
     "fat_g": 6.0
   },
   "Lapin": {
-    "kcal": 150,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 6.0
+    "kcal": 188.0,
+    "protein_g": 20.4,
+    "carbs_g": 0.58,
+    "fat_g": 11.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "34001",
+      "food": "Lapin, viande crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lard": {
     "kcal": 300,
@@ -3120,16 +4450,32 @@
     "fat_g": 1.5
   },
   "Laurier": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 353.0,
+    "protein_g": 7.61,
+    "carbs_g": 48.6,
+    "fat_g": 8.36,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11053",
+      "food": "Laurier, feuille",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Laurier séché": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 353.0,
+    "protein_g": 7.61,
+    "carbs_g": 48.6,
+    "fat_g": 8.36,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11053",
+      "food": "Laurier, feuille",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lentille blonde": {
     "kcal": 340,
@@ -3168,10 +4514,18 @@
     "fat_g": 8.0
   },
   "Levure chimique": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 108.0,
+    "protein_g": 0.1,
+    "carbs_g": 26.9,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11046",
+      "food": "Levure chimique ou poudre à lever",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Levure chimique sans gluten": {
     "kcal": 300,
@@ -3192,22 +4546,48 @@
     "fat_g": 8.0
   },
   "Lieu jaune": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 75.5,
+    "protein_g": 17.7,
+    "carbs_g": 0.0,
+    "fat_g": 0.51,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26129",
+      "food": "Lieu jaune ou colin, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Lieu noir": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 82.5,
+    "protein_g": 18.8,
+    "carbs_g": 0.0,
+    "fat_g": 0.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26134",
+      "food": "Lieu noir, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Litchi": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 77.5,
+    "protein_g": 1.13,
+    "carbs_g": 16.1,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13023",
+      "food": "Litchi, chair sans peau, sans noyau, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Livarot": {
     "kcal": 300,
@@ -3246,10 +4626,20 @@
     "fat_g": 1.5
   },
   "Mâche": {
-    "kcal": 20,
+    "kcal": 15.0,
     "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "carbs_g": 0.5,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20099",
+      "food": "Mâche, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Madère": {
     "kcal": 85,
@@ -3276,10 +4666,18 @@
     "fat_g": 1.2
   },
   "Maïs en boîte": {
-    "kcal": 86,
-    "protein_g": 3.2,
-    "carbs_g": 19,
-    "fat_g": 1.2
+    "kcal": 105.0,
+    "protein_g": 2.66,
+    "carbs_g": 18.3,
+    "fat_g": 1.68,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20066",
+      "food": "Maïs doux, appertisé, égoutté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Maïzena": {
     "kcal": 355,
@@ -3288,10 +4686,20 @@
     "fat_g": 1.0
   },
   "Mandarine": {
-    "kcal": 42,
-    "protein_g": 0.8,
-    "carbs_g": 10,
-    "fat_g": 0.2
+    "kcal": 45.5,
+    "protein_g": 0.81,
+    "carbs_g": 9.17,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13024",
+      "food": "Clémentine ou mandarine, chair sans peau, sans\npépins, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Mangoustan": {
     "kcal": 65,
@@ -3300,10 +4708,20 @@
     "fat_g": 0.3
   },
   "Mangue": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 71.1,
+    "protein_g": 0.63,
+    "carbs_g": 14.3,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13025",
+      "food": "Mangue, chair sans peau, sans noyau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Mangue séchée": {
     "kcal": 280,
@@ -3312,16 +4730,32 @@
     "fat_g": 0.5
   },
   "Manioc": {
-    "kcal": 80,
-    "protein_g": 2.0,
-    "carbs_g": 18,
-    "fat_g": 0.1
+    "kcal": 157.0,
+    "protein_g": 1.36,
+    "carbs_g": 36.3,
+    "fat_g": 0.28,
+    "_ciqual": {
+      "version": "2025",
+      "code": "54031",
+      "food": "Manioc, racine crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Maquereau": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 198.0,
+    "protein_g": 18.1,
+    "carbs_g": 0.93,
+    "fat_g": 13.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26051",
+      "food": "Maquereau, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Margarine": {
     "kcal": 717,
@@ -3342,10 +4776,18 @@
     "fat_g": 0.6
   },
   "Marmelade d'orange": {
-    "kcal": 120,
-    "protein_g": 2.0,
-    "carbs_g": 12,
-    "fat_g": 7.0
+    "kcal": 245.0,
+    "protein_g": 0.25,
+    "carbs_g": 59.3,
+    "fat_g": 0.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31039",
+      "food": "Marmelade d'orange ou confiture d'orange (extra ou\nclassique)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Maroilles": {
     "kcal": 300,
@@ -3354,22 +4796,46 @@
     "fat_g": 24.0
   },
   "Marron glacé": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 320.0,
+    "protein_g": 0.89,
+    "carbs_g": 77.5,
+    "fat_g": 0.54,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31023",
+      "food": "Marron glacé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Marsala": {
-    "kcal": 85,
+    "kcal": 211.0,
     "protein_g": 0.1,
-    "carbs_g": 2.5,
-    "fat_g": 0
+    "carbs_g": 27.9,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "1015",
+      "food": "Marsala",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Mascarpone": {
-    "kcal": 100,
-    "protein_g": 9.0,
-    "carbs_g": 4,
-    "fat_g": 5.0
+    "kcal": 369.0,
+    "protein_g": 5.88,
+    "carbs_g": 3.1,
+    "fat_g": 37.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "19584",
+      "food": "Mascarpone",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Mayonnaise": {
     "kcal": 300,
@@ -3390,10 +4856,18 @@
     "fat_g": 52.0
   },
   "Mélange quatre épices": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 348.0,
+    "protein_g": 6.09,
+    "carbs_g": 50.5,
+    "fat_g": 8.69,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11056",
+      "food": "Quatre épices, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Mélasse": {
     "kcal": 310,
@@ -3414,10 +4888,18 @@
     "fat_g": 0.2
   },
   "Menthe": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 57.6,
+    "protein_g": 3.52,
+    "carbs_g": 5.3,
+    "fat_g": 0.84,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11027",
+      "food": "Menthe, fraîche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Menthe poivrée": {
     "kcal": 300,
@@ -3438,16 +4920,32 @@
     "fat_g": 25.0
   },
   "Meringue": {
-    "kcal": 400,
-    "protein_g": 7.0,
-    "carbs_g": 45,
-    "fat_g": 20.0
+    "kcal": 396.0,
+    "protein_g": 4.77,
+    "carbs_g": 93.2,
+    "fat_g": 0.52,
+    "_ciqual": {
+      "version": "2025",
+      "code": "24520",
+      "food": "Meringue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Merlu": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 82.6,
+    "protein_g": 17.6,
+    "carbs_g": 0.0,
+    "fat_g": 1.35,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26044",
+      "food": "Merlu, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Micro-pousse": {
     "kcal": 20,
@@ -3456,10 +4954,18 @@
     "fat_g": 0.3
   },
   "Miel": {
-    "kcal": 310,
-    "protein_g": 0.3,
-    "carbs_g": 76,
-    "fat_g": 0
+    "kcal": 331.0,
+    "protein_g": 0.65,
+    "carbs_g": 82.1,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31008",
+      "food": "Miel",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Millet": {
     "kcal": 350,
@@ -3510,16 +5016,32 @@
     "fat_g": 1.5
   },
   "Moutarde": {
-    "kcal": 120,
-    "protein_g": 2.0,
-    "carbs_g": 12,
-    "fat_g": 7.0
+    "kcal": 151.0,
+    "protein_g": 6.92,
+    "carbs_g": 4.33,
+    "fat_g": 11.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11013",
+      "food": "Moutarde",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Moutarde à l'ancienne": {
-    "kcal": 120,
-    "protein_g": 2.0,
-    "carbs_g": 12,
-    "fat_g": 7.0
+    "kcal": 142.0,
+    "protein_g": 6.6,
+    "carbs_g": 2.2,
+    "fat_g": 9.9,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11021",
+      "food": "Moutarde à l'ancienne",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Moutarde de Dijon": {
     "kcal": 120,
@@ -3564,10 +5086,18 @@
     "fat_g": 24.0
   },
   "Munster": {
-    "kcal": 300,
+    "kcal": 324.0,
     "protein_g": 20.0,
-    "carbs_g": 1,
-    "fat_g": 24.0
+    "carbs_g": 0.7,
+    "fat_g": 26.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12039",
+      "food": "Munster",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Mûre": {
     "kcal": 45,
@@ -3576,10 +5106,18 @@
     "fat_g": 0.4
   },
   "Myrtille": {
-    "kcal": 45,
-    "protein_g": 0.8,
-    "carbs_g": 9,
-    "fat_g": 0.4
+    "kcal": 57.7,
+    "protein_g": 0.87,
+    "carbs_g": 10.6,
+    "fat_g": 0.33,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13028",
+      "food": "Myrtille, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Myrtille sauvage": {
     "kcal": 45,
@@ -3606,10 +5144,18 @@
     "fat_g": 0.2
   },
   "Navet": {
-    "kcal": 35,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.2
+    "kcal": 25.6,
+    "protein_g": 0.9,
+    "carbs_g": 4.39,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20064",
+      "food": "Navet, pelé, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Navet nouveau": {
     "kcal": 220,
@@ -3618,10 +5164,20 @@
     "fat_g": 15.0
   },
   "Nectarine": {
-    "kcal": 48,
-    "protein_g": 0.8,
-    "carbs_g": 11,
-    "fat_g": 0.2
+    "kcal": 49.5,
+    "protein_g": 0.74,
+    "carbs_g": 11.3,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13399",
+      "food": "Nectarine ou brugnon, chair et peau, sans noyau, crue\n(aliment moyen)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Nèfle": {
     "kcal": 55,
@@ -3636,22 +5192,46 @@
     "fat_g": 8.0
   },
   "Noisette": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 632.0,
+    "protein_g": 17.0,
+    "carbs_g": 7.16,
+    "fat_g": 56.9,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15004",
+      "food": "Noisette, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noisette grillée": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 684.0,
+    "protein_g": 17.0,
+    "carbs_g": 8.81,
+    "fat_g": 62.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15033",
+      "food": "Noisette grillée, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noix": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 709.0,
+    "protein_g": 15.7,
+    "carbs_g": 6.88,
+    "fat_g": 67.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15005",
+      "food": "Noix, cerneau, séchée",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noix de cajou": {
     "kcal": 600,
@@ -3666,10 +5246,18 @@
     "fat_g": 52.0
   },
   "Noix de coco": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 369.0,
+    "protein_g": 4.09,
+    "carbs_g": 4.69,
+    "fat_g": 34.7,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15006",
+      "food": "Noix de coco, chair, fraîche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noix de coco râpée": {
     "kcal": 600,
@@ -3678,34 +5266,74 @@
     "fat_g": 52.0
   },
   "Noix de macadamia": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 757.0,
+    "protein_g": 9.33,
+    "carbs_g": 5.22,
+    "fat_g": 75.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15027",
+      "food": "Noix de macadamia, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noix de muscade": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 506.0,
+    "protein_g": 6.89,
+    "carbs_g": 27.4,
+    "fat_g": 36.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11048",
+      "food": "Noix de muscade",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noix de pécan": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 727.0,
+    "protein_g": 10.8,
+    "carbs_g": 4.25,
+    "fat_g": 72.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15026",
+      "food": "Noix de pécan, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noix de Saint-Jacques": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 83.6,
+    "protein_g": 17.9,
+    "carbs_g": 1.15,
+    "fat_g": 0.84,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10045",
+      "food": "Coquille Saint-Jacques, noix, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Noix du Brésil": {
-    "kcal": 600,
-    "protein_g": 18.0,
-    "carbs_g": 15,
-    "fat_g": 52.0
+    "kcal": 701.0,
+    "protein_g": 16.4,
+    "carbs_g": 4.23,
+    "fat_g": 67.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15008",
+      "food": "Noix du Brésil ou noix d'Amazonie, sans sel ajouté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Nougat": {
     "kcal": 600,
@@ -3750,16 +5378,32 @@
     "fat_g": 25.0
   },
   "Oeuf de caille": {
-    "kcal": 150,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 6.0
+    "kcal": 154.0,
+    "protein_g": 13.1,
+    "carbs_g": 0.41,
+    "fat_g": 11.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "22050",
+      "food": "Oeuf de caille, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Oeuf de cane": {
-    "kcal": 145,
-    "protein_g": 12.5,
-    "carbs_g": 1,
-    "fat_g": 10.0
+    "kcal": 181.0,
+    "protein_g": 12.8,
+    "carbs_g": 1.45,
+    "fat_g": 13.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "22060",
+      "food": "Oeuf de cane, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Oeufs": {
     "kcal": 145,
@@ -3792,10 +5436,18 @@
     "fat_g": 8.0
   },
   "Oignon": {
-    "kcal": 40,
-    "protein_g": 1.5,
-    "carbs_g": 8,
-    "fat_g": 0.1
+    "kcal": 39.0,
+    "protein_g": 1.1,
+    "carbs_g": 6.25,
+    "fat_g": 0.62,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20034",
+      "food": "Oignon, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Oignon blanc": {
     "kcal": 40,
@@ -3816,16 +5468,34 @@
     "fat_g": 0.1
   },
   "Oignon jaune": {
-    "kcal": 40,
-    "protein_g": 1.5,
-    "carbs_g": 8,
-    "fat_g": 0.1
+    "kcal": 35.9,
+    "protein_g": 1.19,
+    "carbs_g": 6.39,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20239",
+      "food": "Oignon jaune, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Oignon rouge": {
-    "kcal": 40,
-    "protein_g": 1.5,
-    "carbs_g": 8,
-    "fat_g": 0.1
+    "kcal": 35.0,
+    "protein_g": 1.31,
+    "carbs_g": 5.63,
+    "fat_g": 0.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20238",
+      "food": "Oignon rouge, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Olive farcie": {
     "kcal": 145,
@@ -3864,10 +5534,20 @@
     "fat_g": 15.0
   },
   "Orange": {
-    "kcal": 42,
-    "protein_g": 0.8,
-    "carbs_g": 10,
-    "fat_g": 0.2
+    "kcal": 42.0,
+    "protein_g": 0.75,
+    "carbs_g": 8.03,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13034",
+      "food": "Orange, chair sans peau, sans pépins, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Orange confite": {
     "kcal": 42,
@@ -3894,16 +5574,32 @@
     "fat_g": 0.6
   },
   "Ormeau": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 99.6,
+    "protein_g": 14.4,
+    "carbs_g": 8.69,
+    "fat_g": 0.83,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10041",
+      "food": "Ormeau, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Oseille": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 23.4,
+    "protein_g": 1.89,
+    "carbs_g": 1.6,
+    "fat_g": 0.65,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20111",
+      "food": "Oseille, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Oursin": {
     "kcal": 95,
@@ -3954,10 +5650,18 @@
     "fat_g": 0.2
   },
   "Panais": {
-    "kcal": 35,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.2
+    "kcal": 67.9,
+    "protein_g": 1.2,
+    "carbs_g": 12.6,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20181",
+      "food": "Panais, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pancetta": {
     "kcal": 300,
@@ -3972,10 +5676,20 @@
     "fat_g": 1.0
   },
   "Papaye": {
-    "kcal": 65,
-    "protein_g": 0.9,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 39.6,
+    "protein_g": 0.75,
+    "carbs_g": 8.53,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13035",
+      "food": "Papaye, chair sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.3"
+      }
+    }
   },
   "Papier de riz": {
     "kcal": 355,
@@ -3996,22 +5710,48 @@
     "fat_g": 8.0
   },
   "Parmesan": {
-    "kcal": 380,
-    "protein_g": 27.0,
-    "carbs_g": 1,
-    "fat_g": 30.0
+    "kcal": 411.0,
+    "protein_g": 30.5,
+    "carbs_g": 1.14,
+    "fat_g": 31.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12120",
+      "food": "Parmesan",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pastèque": {
-    "kcal": 35,
-    "protein_g": 0.7,
-    "carbs_g": 8,
-    "fat_g": 0.2
+    "kcal": 35.4,
+    "protein_g": 0.69,
+    "carbs_g": 8.33,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13036",
+      "food": "Pastèque, chair sans peau, sans pépins, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Patate douce": {
-    "kcal": 77,
-    "protein_g": 2.0,
-    "carbs_g": 17,
-    "fat_g": 0.1
+    "kcal": 81.2,
+    "protein_g": 1.57,
+    "carbs_g": 17.1,
+    "fat_g": 0.05,
+    "_ciqual": {
+      "version": "2025",
+      "code": "4101",
+      "food": "Patate douce, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pâte à choux": {
     "kcal": 350,
@@ -4122,10 +5862,18 @@
     "fat_g": 13.0
   },
   "Pêche": {
-    "kcal": 48,
-    "protein_g": 0.8,
-    "carbs_g": 11,
-    "fat_g": 0.2
+    "kcal": 37.9,
+    "protein_g": 0.91,
+    "carbs_g": 7.55,
+    "fat_g": 0.25,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13043",
+      "food": "Pêche, chair et peau, sans noyau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pecorino": {
     "kcal": 380,
@@ -4152,10 +5900,18 @@
     "fat_g": 30.0
   },
   "Perche": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 84.6,
+    "protein_g": 17.9,
+    "carbs_g": 0.6,
+    "fat_g": 1.19,
+    "_ciqual": {
+      "version": "2025",
+      "code": "27010",
+      "food": "Perche ou perche européenne, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Perles de sucre": {
     "kcal": 400,
@@ -4164,10 +5920,18 @@
     "fat_g": 0
   },
   "Persil": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 42.5,
+    "protein_g": 2.97,
+    "carbs_g": 4.1,
+    "fat_g": 0.63,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11014",
+      "food": "Persil, frais",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Persil frisé": {
     "kcal": 35,
@@ -4224,10 +5988,18 @@
     "fat_g": 5.0
   },
   "Petits pois": {
-    "kcal": 70,
-    "protein_g": 5.0,
-    "carbs_g": 12,
-    "fat_g": 0.5
+    "kcal": 81.2,
+    "protein_g": 5.42,
+    "carbs_g": 11.4,
+    "fat_g": 0.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20072",
+      "food": "Petits pois, crus",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pétoncle": {
     "kcal": 95,
@@ -4254,22 +6026,46 @@
     "fat_g": 1.5
   },
   "Pigeon": {
-    "kcal": 150,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 6.0
+    "kcal": 213.0,
+    "protein_g": 18.0,
+    "carbs_g": 0.0,
+    "fat_g": 15.7,
+    "_ciqual": {
+      "version": "2025",
+      "code": "36600",
+      "food": "Pigeon, viande crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pignon de pin": {
-    "kcal": 550,
-    "protein_g": 20.0,
-    "carbs_g": 18,
-    "fat_g": 45.0
+    "kcal": 712.0,
+    "protein_g": 16.2,
+    "carbs_g": 2.93,
+    "fat_g": 68.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "15025",
+      "food": "Pignon de pin",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Piment": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 37.4,
+    "protein_g": 1.87,
+    "carbs_g": 5.75,
+    "fat_g": 0.44,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20151",
+      "food": "Piment, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Piment banane": {
     "kcal": 90,
@@ -4356,10 +6152,18 @@
     "fat_g": 6.0
   },
   "Pissenlit": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 48.5,
+    "protein_g": 2.7,
+    "carbs_g": 6.1,
+    "fat_g": 0.7,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20038",
+      "food": "Pissenlit, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pistache": {
     "kcal": 600,
@@ -4374,22 +6178,48 @@
     "fat_g": 0.3
   },
   "Poire": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 56.6,
+    "protein_g": 0.36,
+    "carbs_g": 12.3,
+    "fat_g": 0.27,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13037",
+      "food": "Poire, chair et peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poire williams": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 50.2,
+    "protein_g": 0.25,
+    "carbs_g": 11.5,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13189",
+      "food": "Poire Williams, chair sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Poireau": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 30.4,
+    "protein_g": 1.5,
+    "carbs_g": 4.55,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20039",
+      "food": "Poireau, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poireau primeur": {
     "kcal": 55,
@@ -4404,10 +6234,18 @@
     "fat_g": 2.0
   },
   "Pois chiches en boîte": {
-    "kcal": 340,
-    "protein_g": 22.0,
-    "carbs_g": 60,
-    "fat_g": 2.0
+    "kcal": 122.0,
+    "protein_g": 6.74,
+    "carbs_g": 15.0,
+    "fat_g": 2.68,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20532",
+      "food": "Pois chiche, appertisé, égoutté",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poisson blanc": {
     "kcal": 90,
@@ -4446,10 +6284,18 @@
     "fat_g": 8.0
   },
   "Poivre blanc moulu": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 313.0,
+    "protein_g": 12.1,
+    "carbs_g": 48.3,
+    "fat_g": 2.12,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11019",
+      "food": "Poivre blanc, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poivre de Sichuan": {
     "kcal": 300,
@@ -4476,10 +6322,18 @@
     "fat_g": 8.0
   },
   "Poivre noir moulu": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 331.0,
+    "protein_g": 13.3,
+    "carbs_g": 39.9,
+    "fat_g": 7.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11015",
+      "food": "Poivre noir, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poivre rose": {
     "kcal": 300,
@@ -4494,28 +6348,64 @@
     "fat_g": 8.0
   },
   "Poivron": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 22.6,
+    "protein_g": 0.8,
+    "carbs_g": 3.5,
+    "fat_g": 0.27,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20041",
+      "food": "Poivron, vert, jaune ou rouge, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poivron jaune": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 29.4,
+    "protein_g": 0.94,
+    "carbs_g": 4.73,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20168",
+      "food": "Poivron jaune, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poivron rouge": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 33.6,
+    "protein_g": 1.06,
+    "carbs_g": 5.98,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20087",
+      "food": "Poivron rouge, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Poivron vert": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 22.5,
+    "protein_g": 0.81,
+    "carbs_g": 3.43,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20085",
+      "food": "Poivron vert, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Poivrons grillés en bocal": {
     "kcal": 20,
@@ -4542,28 +6432,64 @@
     "fat_g": 0.2
   },
   "Pomme": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 54.0,
+    "protein_g": 0.25,
+    "carbs_g": 11.6,
+    "fat_g": 0.25,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13039",
+      "food": "Pomme, chair et peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pomme de terre": {
-    "kcal": 77,
-    "protein_g": 2.0,
-    "carbs_g": 17,
-    "fat_g": 0.1
+    "kcal": 80.0,
+    "protein_g": 2.02,
+    "carbs_g": 16.2,
+    "fat_g": 0.09,
+    "_ciqual": {
+      "version": "2025",
+      "code": "4008",
+      "food": "Pomme de terre, sans peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pomme golden": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 54.1,
+    "protein_g": 0.25,
+    "carbs_g": 12.8,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13620",
+      "food": "Pomme Golden, chair et peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Pomme granny smith": {
-    "kcal": 55,
-    "protein_g": 0.3,
-    "carbs_g": 14,
-    "fat_g": 0.2
+    "kcal": 48.6,
+    "protein_g": 0.25,
+    "carbs_g": 10.7,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13122",
+      "food": "Pomme Granny Smith, chair et peau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Pomme reinette": {
     "kcal": 55,
@@ -4596,10 +6522,18 @@
     "fat_g": 0
   },
   "Potiron": {
-    "kcal": 30,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.1
+    "kcal": 20.1,
+    "protein_g": 1.05,
+    "carbs_g": 3.5,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20044",
+      "food": "Potiron, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poudre à flan": {
     "kcal": 400,
@@ -4608,10 +6542,18 @@
     "fat_g": 0
   },
   "Poudre à lever": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 108.0,
+    "protein_g": 0.1,
+    "carbs_g": 26.9,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11046",
+      "food": "Levure chimique ou poudre à lever",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Poudre d'amande": {
     "kcal": 600,
@@ -4680,10 +6622,18 @@
     "fat_g": 8.0
   },
   "Poulpe": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 60.1,
+    "protein_g": 12.9,
+    "carbs_g": 0.97,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10018",
+      "food": "Poulpe, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pousse d'épinard": {
     "kcal": 20,
@@ -4728,22 +6678,46 @@
     "fat_g": 2.0
   },
   "Provolone": {
-    "kcal": 380,
-    "protein_g": 27.0,
-    "carbs_g": 1,
-    "fat_g": 30.0
+    "kcal": 340.0,
+    "protein_g": 25.1,
+    "carbs_g": 0.0,
+    "fat_g": 26.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "12716",
+      "food": "Provolone",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Prune": {
-    "kcal": 48,
-    "protein_g": 0.8,
-    "carbs_g": 11,
-    "fat_g": 0.2
+    "kcal": 51.6,
+    "protein_g": 0.7,
+    "carbs_g": 9.92,
+    "fat_g": 0.28,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13100",
+      "food": "Prune, sans noyau, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Pruneau": {
-    "kcal": 280,
-    "protein_g": 3.0,
-    "carbs_g": 65,
-    "fat_g": 0.5
+    "kcal": 229.0,
+    "protein_g": 1.63,
+    "carbs_g": 55.4,
+    "fat_g": 0.4,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13042",
+      "food": "Pruneau, sans noyau, sec",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Prunelle": {
     "kcal": 48,
@@ -4770,16 +6744,32 @@
     "fat_g": 52.0
   },
   "Purée de tomate": {
-    "kcal": 120,
-    "protein_g": 2.0,
-    "carbs_g": 12,
-    "fat_g": 7.0
+    "kcal": 47.6,
+    "protein_g": 1.5,
+    "carbs_g": 8.42,
+    "fat_g": 0.2,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20170",
+      "food": "Tomate, purée, appertisée",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Quatre épices": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 348.0,
+    "protein_g": 6.09,
+    "carbs_g": 50.5,
+    "fat_g": 8.69,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11056",
+      "food": "Quatre épices, poudre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Queue de boeuf": {
     "kcal": 220,
@@ -4788,10 +6778,18 @@
     "fat_g": 15.0
   },
   "Quinoa": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 358.0,
+    "protein_g": 14.1,
+    "carbs_g": 58.1,
+    "fat_g": 6.07,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9340",
+      "food": "Quinoa, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Râble de lapin": {
     "kcal": 150,
@@ -4812,22 +6810,48 @@
     "fat_g": 0.2
   },
   "Radis noir": {
-    "kcal": 35,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.2
+    "kcal": 28.2,
+    "protein_g": 0.94,
+    "carbs_g": 5.52,
+    "fat_g": 0.3,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20089",
+      "food": "Radis noir, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.3"
+      }
+    }
   },
   "Raie": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 91.9,
+    "protein_g": 21.4,
+    "carbs_g": 0.5,
+    "fat_g": 0.47,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26052",
+      "food": "Raie, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Raifort": {
-    "kcal": 120,
-    "protein_g": 2.0,
-    "carbs_g": 12,
-    "fat_g": 7.0
+    "kcal": 73.2,
+    "protein_g": 5.25,
+    "carbs_g": 7.79,
+    "fat_g": 0.45,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11016",
+      "food": "Raifort, frais",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Raisin": {
     "kcal": 65,
@@ -4836,16 +6860,34 @@
     "fat_g": 0.3
   },
   "Raisin blanc": {
-    "kcal": 65,
-    "protein_g": 0.6,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 71.6,
+    "protein_g": 0.75,
+    "carbs_g": 16.6,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13044",
+      "food": "Raisin blanc, à gros grain (type Italia ou Dattier), cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Raisin noir": {
-    "kcal": 65,
-    "protein_g": 0.6,
-    "carbs_g": 16,
-    "fat_g": 0.3
+    "kcal": 69.5,
+    "protein_g": 0.57,
+    "carbs_g": 15.6,
+    "fat_g": 0.25,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13045",
+      "food": "Raisin noir, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Raisins secs": {
     "kcal": 65,
@@ -4890,10 +6932,18 @@
     "fat_g": 0.2
   },
   "Rhubarbe": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 18.1,
+    "protein_g": 0.73,
+    "carbs_g": 1.12,
+    "fat_g": 0.16,
+    "_ciqual": {
+      "version": "2025",
+      "code": "13047",
+      "food": "Rhubarbe, tige, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Rhum ambré": {
     "kcal": 250,
@@ -4944,10 +6994,18 @@
     "fat_g": 1.0
   },
   "Riz complet": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 350.0,
+    "protein_g": 7.38,
+    "carbs_g": 71.4,
+    "fat_g": 2.8,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9102",
+      "food": "Riz complet, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Riz gluant": {
     "kcal": 355,
@@ -4974,16 +7032,32 @@
     "fat_g": 1.0
   },
   "Riz rouge": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 352.0,
+    "protein_g": 8.38,
+    "carbs_g": 70.6,
+    "fat_g": 3.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9109",
+      "food": "Riz rouge, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Riz sauvage": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 344.0,
+    "protein_g": 11.7,
+    "carbs_g": 69.2,
+    "fat_g": 0.94,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9108",
+      "food": "Riz sauvage, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Riz thaï": {
     "kcal": 355,
@@ -4998,10 +7072,18 @@
     "fat_g": 6.0
   },
   "Romarin": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 121.0,
+    "protein_g": 3.31,
+    "carbs_g": 6.6,
+    "fat_g": 5.86,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11068",
+      "food": "Romarin, frais",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Roquefort": {
     "kcal": 350,
@@ -5010,10 +7092,18 @@
     "fat_g": 30.0
   },
   "Roquette": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 27.9,
+    "protein_g": 2.58,
+    "carbs_g": 2.1,
+    "fat_g": 0.66,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20217",
+      "food": "Roquette, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Roquette sauvage": {
     "kcal": 20,
@@ -5046,16 +7136,32 @@
     "fat_g": 15.0
   },
   "Rutabaga": {
-    "kcal": 35,
-    "protein_g": 1.0,
-    "carbs_g": 7,
-    "fat_g": 0.2
+    "kcal": 33.2,
+    "protein_g": 1.08,
+    "carbs_g": 5.7,
+    "fat_g": 0.16,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20201",
+      "food": "Rutabaga, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Safran": {
-    "kcal": 300,
-    "protein_g": 12.0,
-    "carbs_g": 50,
-    "fat_g": 8.0
+    "kcal": 352.0,
+    "protein_g": 11.4,
+    "carbs_g": 61.5,
+    "fat_g": 5.85,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11039",
+      "food": "Safran",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Safran en filaments": {
     "kcal": 300,
@@ -5064,10 +7170,18 @@
     "fat_g": 8.0
   },
   "Saindoux": {
-    "kcal": 890,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 99.0
+    "kcal": 900.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 100.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "16520",
+      "food": "Saindoux",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Saint-pierre": {
     "kcal": 90,
@@ -5076,10 +7190,18 @@
     "fat_g": 1.0
   },
   "Salade verte": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 13.5,
+    "protein_g": 1.01,
+    "carbs_g": 1.5,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "25604",
+      "food": "Salade verte, crue, sans assaisonnement",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Salsifis": {
     "kcal": 80,
@@ -5088,22 +7210,46 @@
     "fat_g": 0.1
   },
   "Sandre": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 87.2,
+    "protein_g": 18.3,
+    "carbs_g": 1.06,
+    "fat_g": 1.08,
+    "_ciqual": {
+      "version": "2025",
+      "code": "27024",
+      "food": "Sandre, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sanglier": {
-    "kcal": 150,
-    "protein_g": 22.0,
-    "carbs_g": 0,
-    "fat_g": 6.0
+    "kcal": 150.0,
+    "protein_g": 21.5,
+    "carbs_g": 0.0,
+    "fat_g": 7.14,
+    "_ciqual": {
+      "version": "2025",
+      "code": "14002",
+      "food": "Sanglier, viande crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sardine": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 160.0,
+    "protein_g": 19.5,
+    "carbs_g": 0.0,
+    "fat_g": 9.17,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26065",
+      "food": "Sardine, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sardines en boîte": {
     "kcal": 200,
@@ -5310,22 +7456,48 @@
     "fat_g": 25.0
   },
   "Saucisson à l'ail": {
-    "kcal": 300,
-    "protein_g": 18.0,
-    "carbs_g": 1,
-    "fat_g": 25.0
+    "kcal": 276.0,
+    "protein_g": 15.0,
+    "carbs_g": 0.56,
+    "fat_g": 23.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "30700",
+      "food": "Saucisson à l'ail",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Saucisson sec": {
-    "kcal": 300,
-    "protein_g": 18.0,
-    "carbs_g": 1,
-    "fat_g": 25.0
+    "kcal": 418.0,
+    "protein_g": 24.2,
+    "carbs_g": 5.48,
+    "fat_g": 33.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "30300",
+      "food": "Saucisson sec",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sauge": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 34.9,
+    "protein_g": 4.0,
+    "carbs_g": 0.97,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11069",
+      "food": "Sauge, fraîche",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Saumon": {
     "kcal": 200,
@@ -5334,22 +7506,46 @@
     "fat_g": 13.0
   },
   "Saumon fumé": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 184.0,
+    "protein_g": 22.2,
+    "carbs_g": 0.13,
+    "fat_g": 10.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26037",
+      "food": "Saumon fumé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Scarole": {
-    "kcal": 20,
-    "protein_g": 2.0,
-    "carbs_g": 3,
-    "fat_g": 0.3
+    "kcal": 20.5,
+    "protein_g": 1.44,
+    "carbs_g": 2.0,
+    "fat_g": 0.23,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20090",
+      "food": "Scarole, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Seiche": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 76.3,
+    "protein_g": 16.2,
+    "carbs_g": 0.51,
+    "fat_g": 1.05,
+    "_ciqual": {
+      "version": "2025",
+      "code": "10016",
+      "food": "Seiche, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Seitan": {
     "kcal": 90,
@@ -5448,10 +7644,18 @@
     "fat_g": 0
   },
   "Sirop d'érable": {
-    "kcal": 310,
-    "protein_g": 0.3,
-    "carbs_g": 76,
-    "fat_g": 0
+    "kcal": 269.0,
+    "protein_g": 0.04,
+    "carbs_g": 67.2,
+    "fat_g": 0.06,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31034",
+      "food": "Sirop d'érable",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sirop de fruits": {
     "kcal": 45,
@@ -5508,16 +7712,32 @@
     "fat_g": 1.0
   },
   "Son d'avoine": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 361.0,
+    "protein_g": 16.8,
+    "carbs_g": 50.6,
+    "fat_g": 6.52,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9640",
+      "food": "Son d'avoine",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Son de blé": {
-    "kcal": 350,
-    "protein_g": 12.0,
-    "carbs_g": 65,
-    "fat_g": 5.0
+    "kcal": 270.0,
+    "protein_g": 14.7,
+    "carbs_g": 22.7,
+    "fat_g": 3.88,
+    "_ciqual": {
+      "version": "2025",
+      "code": "9621",
+      "food": "Son de blé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sorgho": {
     "kcal": 350,
@@ -5538,10 +7758,18 @@
     "fat_g": 1.5
   },
   "Spéculoos": {
-    "kcal": 450,
-    "protein_g": 7.0,
-    "carbs_g": 65,
-    "fat_g": 18.0
+    "kcal": 476.0,
+    "protein_g": 5.63,
+    "carbs_g": 71.2,
+    "fat_g": 18.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "24009",
+      "food": "Spéculoos",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Spiruline": {
     "kcal": 45,
@@ -5574,10 +7802,18 @@
     "fat_g": 0
   },
   "Sucre blanc": {
-    "kcal": 400,
-    "protein_g": 0,
-    "carbs_g": 100,
-    "fat_g": 0
+    "kcal": 399.0,
+    "protein_g": 0.0,
+    "carbs_g": 99.7,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31016",
+      "food": "Sucre blanc",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sucre candi": {
     "kcal": 400,
@@ -5628,10 +7864,18 @@
     "fat_g": 0
   },
   "Sucre roux": {
-    "kcal": 400,
-    "protein_g": 0,
-    "carbs_g": 100,
-    "fat_g": 0
+    "kcal": 393.0,
+    "protein_g": 0.12,
+    "carbs_g": 98.1,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31017",
+      "food": "Sucre roux",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Sucre semoule": {
     "kcal": 95,
@@ -5640,10 +7884,18 @@
     "fat_g": 1.5
   },
   "Sucre vanillé": {
-    "kcal": 400,
-    "protein_g": 0,
-    "carbs_g": 100,
-    "fat_g": 0
+    "kcal": 397.0,
+    "protein_g": 0.1,
+    "carbs_g": 98.6,
+    "fat_g": 0.33,
+    "_ciqual": {
+      "version": "2025",
+      "code": "31044",
+      "food": "Sucre vanillé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Suif": {
     "kcal": 890,
@@ -5664,10 +7916,18 @@
     "fat_g": 0
   },
   "Surimi": {
-    "kcal": 95,
-    "protein_g": 18.0,
-    "carbs_g": 2,
-    "fat_g": 1.5
+    "kcal": 117.0,
+    "protein_g": 7.54,
+    "carbs_g": 11.8,
+    "fat_g": 4.33,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26046",
+      "food": "Surimi, bâtonnets, tranche ou râpé saveur crabe",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Tagliatelles": {
     "kcal": 350,
@@ -5718,10 +7978,18 @@
     "fat_g": 15.0
   },
   "Tempeh": {
-    "kcal": 90,
-    "protein_g": 10.0,
-    "carbs_g": 2,
-    "fat_g": 5.0
+    "kcal": 157.0,
+    "protein_g": 17.6,
+    "carbs_g": 7.89,
+    "fat_g": 4.7,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20917",
+      "food": "Tempeh",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Thé noir": {
     "kcal": 1,
@@ -5736,10 +8004,18 @@
     "fat_g": 0
   },
   "Thon": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 155.0,
+    "protein_g": 24.0,
+    "carbs_g": 2.72,
+    "fat_g": 5.38,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26053",
+      "food": "Thon, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Thon blanc": {
     "kcal": 200,
@@ -5754,16 +8030,32 @@
     "fat_g": 13.0
   },
   "Thon rouge": {
-    "kcal": 200,
-    "protein_g": 20.0,
-    "carbs_g": 0,
-    "fat_g": 13.0
+    "kcal": 157.0,
+    "protein_g": 23.3,
+    "carbs_g": 0.59,
+    "fat_g": 6.81,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26069",
+      "food": "Thon rouge, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Thym": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 107.0,
+    "protein_g": 5.56,
+    "carbs_g": 10.5,
+    "fat_g": 1.68,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11070",
+      "food": "Thym, frais",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Thym citron": {
     "kcal": 35,
@@ -5772,10 +8064,18 @@
     "fat_g": 0.6
   },
   "Thym séché": {
-    "kcal": 35,
-    "protein_g": 3.0,
-    "carbs_g": 5,
-    "fat_g": 0.6
+    "kcal": 285.0,
+    "protein_g": 9.11,
+    "carbs_g": 26.9,
+    "fat_g": 7.43,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11038",
+      "food": "Thym, séché",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Tilapia": {
     "kcal": 90,
@@ -5802,22 +8102,52 @@
     "fat_g": 5.0
   },
   "Tomate": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 19.2,
+    "protein_g": 0.6,
+    "carbs_g": 3.69,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20385",
+      "food": "Tomate sans précision, crue (aliment moyen)",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Tomate cerise": {
-    "kcal": 48,
-    "protein_g": 0.8,
-    "carbs_g": 11,
-    "fat_g": 0.2
+    "kcal": 31.8,
+    "protein_g": 1.31,
+    "carbs_g": 5.62,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20172",
+      "food": "Tomate cerise, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Tomate en grappe": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 19.8,
+    "protein_g": 0.5,
+    "carbs_g": 3.67,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20584",
+      "food": "Tomate grappe, crue",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Tomate séchée": {
     "kcal": 20,
@@ -5826,10 +8156,18 @@
     "fat_g": 0.2
   },
   "Tomates pelées en boîte": {
-    "kcal": 20,
-    "protein_g": 1.0,
-    "carbs_g": 4,
-    "fat_g": 0.2
+    "kcal": 21.8,
+    "protein_g": 0.79,
+    "carbs_g": 3.15,
+    "fat_g": 0.25,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20137",
+      "food": "Tomate, pelée, appertisée, au jus, non égouttée",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Tomme de Savoie": {
     "kcal": 165,
@@ -5838,10 +8176,18 @@
     "fat_g": 8.0
   },
   "Topinambour": {
-    "kcal": 80,
+    "kcal": 74.7,
     "protein_g": 2.0,
-    "carbs_g": 18,
-    "fat_g": 0.1
+    "carbs_g": 15.8,
+    "fat_g": 0.01,
+    "_ciqual": {
+      "version": "2025",
+      "code": "20196",
+      "food": "Topinambour, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Tortilla de blé": {
     "kcal": 265,
@@ -5910,10 +8256,18 @@
     "fat_g": 13.0
   },
   "Turbot": {
-    "kcal": 90,
-    "protein_g": 19.0,
-    "carbs_g": 0,
-    "fat_g": 1.0
+    "kcal": 85.5,
+    "protein_g": 17.9,
+    "carbs_g": 0.0,
+    "fat_g": 1.55,
+    "_ciqual": {
+      "version": "2025",
+      "code": "26174",
+      "food": "Turbot, cru",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Vanille": {
     "kcal": 300,
@@ -6012,28 +8366,64 @@
     "fat_g": 0
   },
   "Vin rosé": {
-    "kcal": 85,
-    "protein_g": 0.1,
-    "carbs_g": 2.5,
-    "fat_g": 0
+    "kcal": 69.2,
+    "protein_g": 0.15,
+    "carbs_g": 1.4,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "5216",
+      "food": "Vin rosé",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Vin rouge": {
-    "kcal": 85,
-    "protein_g": 0.1,
-    "carbs_g": 2.5,
-    "fat_g": 0
+    "kcal": 75.7,
+    "protein_g": 0.16,
+    "carbs_g": 0.0,
+    "fat_g": 0.5,
+    "_ciqual": {
+      "version": "2025",
+      "code": "5214",
+      "food": "Vin rouge",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.5"
+      }
+    }
   },
   "Vinaigre": {
-    "kcal": 20,
-    "protein_g": 0,
-    "carbs_g": 1,
-    "fat_g": 0
+    "kcal": 22.5,
+    "protein_g": 0.04,
+    "carbs_g": 0.95,
+    "fat_g": 0.1,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11018",
+      "food": "Vinaigre",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Vinaigre balsamique": {
-    "kcal": 20,
-    "protein_g": 0,
-    "carbs_g": 1,
-    "fat_g": 0
+    "kcal": 91.7,
+    "protein_g": 0.69,
+    "carbs_g": 18.0,
+    "fat_g": 0.6,
+    "_ciqual": {
+      "version": "2025",
+      "code": "11091",
+      "food": "Vinaigre balsamique",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {
+        "fat_g": "< 0.6"
+      }
+    }
   },
   "Vinaigre balsamique blanc": {
     "kcal": 20,
@@ -6102,10 +8492,18 @@
     "fat_g": 0
   },
   "Vodka": {
-    "kcal": 250,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 0
+    "kcal": 250.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "1008",
+      "food": "Vodka",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Wasabi": {
     "kcal": 120,
@@ -6120,10 +8518,18 @@
     "fat_g": 7.0
   },
   "Whisky": {
-    "kcal": 250,
-    "protein_g": 0,
-    "carbs_g": 0,
-    "fat_g": 0
+    "kcal": 252.0,
+    "protein_g": 0.0,
+    "carbs_g": 0.096,
+    "fat_g": 0.0,
+    "_ciqual": {
+      "version": "2025",
+      "code": "1005",
+      "food": "Whisky",
+      "basis": "100g",
+      "url": "https://doi.org/10.57745/RDMHWY",
+      "qualifiers": {}
+    }
   },
   "Yaourt": {
     "kcal": 60,

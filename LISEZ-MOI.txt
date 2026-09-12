@@ -1,15 +1,19 @@
 ====================================================
-  MON LIVRE DE RECETTES — Guide d'utilisation (.exe)
+  MES RECETTES, MES COURSES — Guide d'utilisation (.exe)
 ====================================================
 
-Cette version ne nécessite RIEN d'autre à installer : ni Python, ni aucun
-module. Double-cliquez simplement sur MesRecettes.exe pour lancer
-l'application.
+Cette version inclut Python et les modules nécessaires à l'application.
+Double-cliquez sur MesRecettes.exe pour la lancer. L'import depuis une
+photo nécessite toutefois Tesseract OCR installé séparément (section 2).
 
 Au tout premier lancement, une fenêtre affiche une clause de responsabilité
 (notamment sur la gestion des allergènes) que vous devez lire et accepter
 (case à cocher) pour pouvoir continuer. Cette étape n'apparaît qu'une seule
 fois ; votre acceptation est mémorisée automatiquement.
+
+
+Les archives de développement ne sont pas nécessaires au fonctionnement : elles
+sont rangées dans le dossier `docs/history` du dossier source.
 
 
 --------------------------------------------------
@@ -19,17 +23,24 @@ fois ; votre acceptation est mémorisée automatiquement.
 Ce dossier contient, à côté de MesRecettes.exe, plusieurs fichiers
 indispensables à son bon fonctionnement :
 
+  - i18n_desktop.json
+      Tous les textes de l'interface dans les 4 langues (français,
+      anglais, espagnol, allemand). Sans lui, l'application démarre
+      quand même (un petit noyau français minimal de secours est prévu
+      pour ça), mais la plupart des textes et les 3 langues autres que
+      le français ne s'afficheront pas correctement.
+
   - ingredients_par_defaut.json
-      Liste d'environ 1000 ingrédients de cuisine courants, utilisée pour
+      Liste d'1030 ingrédients de cuisine courants, utilisée pour
       pré-remplir vos listes déroulantes au premier lancement.
 
   - valeurs_nutritionnelles.json
       Base de valeurs nutritionnelles estimées (calories, protéines,
-      glucides, lipides) pour ces ~1000 ingrédients, utilisée pour
+      glucides, lipides) pour ces 1030 ingrédients, utilisée pour
       l'estimation nutritionnelle de vos recettes.
 
   - ingredient_allergenes.json
-      Base des allergènes présents dans ces ~1000 ingrédients, utilisée
+      Base des allergènes présents dans ces 1030 ingrédients, utilisée
       pour la détection automatique des allergènes dans vos recettes.
 
   - ingredient_substitutions.json
@@ -38,7 +49,7 @@ indispensables à son bon fonctionnement :
 
   - ingredient_translations_en.json / ingredient_translations_es.json /
     ingredient_translations_de.json
-      Traduction anglaise / espagnole / allemande des ~1000 ingrédients
+      Traduction anglaise / espagnole / allemande des 1030 ingrédients
       courants, utilisée pour l'affichage multilingue (voir section 3
       ci-dessous).
 
@@ -60,8 +71,11 @@ indispensables à son bon fonctionnement :
 >>> charger leurs données au démarrage.
 
 Au fur et à mesure de votre utilisation, l'application créera
-automatiquement, toujours dans ce même dossier, d'autres fichiers et
-dossiers pour stocker vos données personnelles :
+automatiquement d'autres fichiers et dossiers pour vos données personnelles.
+Ils sont placés à côté de l'exécutable si ce dossier est accessible en
+écriture ; sinon, l'application utilise le dossier du profil utilisateur
+%LocalAppData%\MesRecettesMesCourses\. L'écran Diagnostic permet de voir
+et d'ouvrir le dossier effectivement utilisé :
 
   recipes.json            vos recettes
   ingredients.json        votre liste d'ingrédients personnelle
@@ -69,6 +83,8 @@ dossiers pour stocker vos données personnelles :
   ingredient_custom_data.json  vos modifications d'ingrédients (facultatif)
   ingredient_dismissed_pairs.json  doublons d'ingrédients ignorés (facultatif)
   weekly_plan.json        votre planning de la semaine
+  weekly_plan_history.json  l'historique de vos anciens plannings (facultatif)
+  weekly_plan_templates.json  vos modèles de planning enregistrés (facultatif)
   menus.json              vos menus enregistrés
   saved_shopping_lists.json  vos listes de courses enregistrées (facultatif)
   pantry.json              le contenu de votre garde-manger (facultatif)
@@ -106,6 +122,11 @@ photo" reste accessible mais vous indiquera clairement ce qu'il manque
 plutôt que de planter. Toutes les autres fonctionnalités (y compris
 l'import de recette depuis un LIEN internet) n'ont besoin de rien de plus.
 
+L'import photo peut traiter plusieurs pages dans l'ordre, corriger leur
+orientation, découper les fiches de préparation en grille et préremplir le
+titre, les portions, les ingrédients et les étapes. Relisez toujours le
+résultat : une fraction ou un caractère peut encore être mal reconnu.
+
 
 --------------------------------------------------
 3. CHANGER DE LANGUE
@@ -114,7 +135,7 @@ l'import de recette depuis un LIEN internet) n'ont besoin de rien de plus.
 Un menu déroulant en haut à droite de la page d'accueil (et de l'écran de
 clause de responsabilité au tout premier lancement) permet de choisir
 entre français, anglais, espagnol et allemand. Toute l'interface bascule
-immédiatement, y compris les ~1000 ingrédients courants, les rayons de
+immédiatement, y compris les 1030 ingrédients courants, les rayons de
 courses, les catégories, les difficultés, les allergènes, les jours de
 la semaine et créneaux de repas, les options de tri des recettes, les
 unités de mesure (pièce, cuillère à soupe/café...) et les substituts
@@ -143,7 +164,7 @@ pouvez la changer à tout moment.
   magasin, avec un mode "cocher au fur et à mesure"
 - Recherche par ingrédient (quelles recettes utilisent tel ingrédient ?),
   avec ouverture directe de la recette trouvée
-- Comparer deux recettes côte à côte
+- Comparer deux ou trois recettes côte à côte
 - Filtre "je veux / je ne veux pas" certains ingrédients
 - Filtres rapides sur la page d'accueil (favoris, recettes rapides,
   végétarien, liste d'envies)
@@ -161,7 +182,8 @@ pouvez la changer à tout moment.
 - Mes menus (combinaisons de plusieurs recettes)
 - Mode cuisine plein écran et minuteurs multiples réglables (avec alarme
   sonore et clignotante)
-- QR code d'une recette, à scanner avec un téléphone
+- QR code de recette compatible avec l'application mobile dans les deux sens
+  (export bureau → mobile et import de QR mobile depuis une image)
 - Journal de cuisine (notes et photos à chaque fois que vous cuisinez)
 - Coût et valeurs nutritionnelles estimés par recette
 - Statistiques (recettes les plus cuisinées, coût moyen, calories
@@ -189,10 +211,9 @@ petites explications.
 5. PROBLÈME AU LANCEMENT ?
 --------------------------------------------------
 
-- "Windows a protégé votre ordinateur" (SmartScreen) : cliquez sur
-  "Informations complémentaires" puis "Exécuter quand même". Ce message
-  apparaît simplement parce que l'exécutable n'est pas signé
-  numériquement (une démarche payante), pas parce qu'il est dangereux.
+- "Windows a protégé votre ordinateur" (SmartScreen) : vérifiez la
+  provenance du fichier avant de poursuivre. Ce message ne permet pas,
+  à lui seul, de conclure que le fichier est sûr ou dangereux.
 
 - Une fonctionnalité indique qu'un fichier manque, ou le contenu d'une
   autre langue que le français ne s'affiche pas : vérifiez que tous les
@@ -204,3 +225,15 @@ petites explications.
   s'affiche, et vérifiez qu'aucun antivirus ne bloque le fichier.
 
 Bon appétit !
+
+
+--------------------------------------------------
+6. IMPRESSION WINDOWS
+--------------------------------------------------
+
+Le bouton Imprimer ouvre la boîte d’imprimante Windows et transmet le PDF au
+pilote choisi, sans dépendre de la commande d’impression de votre lecteur PDF.
+La construction .exe inclut le moteur de rendu nécessaire. Avec main.pyw,
+exécutez python -m pip install -r requirements.txt. Si le pilote refuse le
+travail, l’application conserve le PDF et vous propose de l’ouvrir
+manuellement après confirmation.

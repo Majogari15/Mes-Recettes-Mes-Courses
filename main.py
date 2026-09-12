@@ -1,16 +1,22 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog, simpledialog
+from tkinter import ttk, messagebox, filedialog, simpledialog, font as tkfont
 import copy
+import csv
 import difflib
+import filecmp
 import html
+import itertools
 import json
+import math
 import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
 import io
 import random
+import queue
 import threading
 import webbrowser
 import tempfile
@@ -21,6 +27,7 @@ import urllib.request
 import uuid
 import zipfile
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Numéro de version de l'application — introduit ici pour la première
 # fois : aucun système de version n'existait jusqu'ici pour cette
@@ -32,11 +39,261 @@ from datetime import datetime, timedelta
 # Convention alignée sur celle déjà en place côté application mobile
 # (APP_VERSION dans app.js) : un simple entier incrémenté à chaque
 # livraison.
-APP_VERSION = 1
+PRODUCT_VERSION = "1.6.12"
+APP_BUILD = 60
+APP_VERSION = APP_BUILD
+DATA_SCHEMA_VERSION = 2
+
+
+def log_internal_error(context, exc):
+    """Journalise silencieusement une erreur interne sans bloquer l'interface."""
+    try:
+        path = os.path.join(DATA_DIR, "error.log")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {context}: {type(exc).__name__}: {exc}\n")
+    except Exception:
+        pass
+
+
+def install_tk_exception_logger(root):
+    """Journalise les exceptions de callbacks Tkinter dans error.log."""
+    def handler(exc_type, exc_value, exc_tb):
+        log_internal_error("tk_callback", exc_value)
+        try:
+            messagebox.showerror(t("common_error"), str(exc_value), parent=root)
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
+    root.report_callback_exception = handler
+
+def parse_positive_number(value, *, allow_zero=False):
+    """Parse un nombre utilisateur et refuse NaN/Inf ainsi que les valeurs invalides."""
+    number = float(str(value).strip().replace(",", "."))
+    if not math.isfinite(number):
+        raise ValueError("non-finite value")
+    if allow_zero:
+        if number < 0:
+            raise ValueError("negative value")
+    elif number <= 0:
+        raise ValueError("non-positive value")
+    return number
+
+
+def parse_optional_positive_number(value, *, allow_zero=True):
+    """Parse une quantité éventuellement non renseignée.
+
+    Le format partagé mobile encode une quantité laissée vide par ``null``.
+    Cette valeur doit rester distincte de zéro : elle signifie que la
+    quantité est inconnue ou « au goût », pas que l'ingrédient est absent.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    return parse_positive_number(value, allow_zero=allow_zero)
+
+
+def parse_finite_number(value, *, allow_negative=True):
+    """Convertit une valeur en float fini. Utilisé pour les données importées/calculées."""
+    number = float(str(value).strip().replace(",", "."))
+    if not math.isfinite(number):
+        raise ValueError("non-finite value")
+    if not allow_negative and number < 0:
+        raise ValueError("negative value")
+    return number
+
+
+def ingredient_quantity_for_persons(ingredient, persons):
+    """Recalcule une quantité interne (stockée par personne) pour ``persons``."""
+    raw_quantity = ingredient.get("quantity", 0)
+    if raw_quantity is None or (isinstance(raw_quantity, str) and not raw_quantity.strip()):
+        return None
+    quantity = parse_finite_number(raw_quantity, allow_negative=False)
+    person_count = parse_positive_number(persons)
+    return round(quantity * person_count, 2)
+# --- Robustness & performance helpers v35 ---
+
+class CorruptDataError(RuntimeError):
+    """Empêche l'écrasement d'un fichier utilisateur détecté comme corrompu."""
+
+
+class OperationCancelled(RuntimeError):
+    """Interruption demandée par l'utilisateur pendant une opération longue."""
+
+
+def _check_cancelled(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise OperationCancelled("operation_cancelled")
+
+
+_CORRUPTED_DATA_FILES = {}
+_ALLOW_CORRUPT_OVERWRITE = set()
+
+
+def _corruption_key(path):
+    return os.path.normcase(os.path.abspath(os.fspath(path)))
+
+
+def _register_corrupt_json(path, exc):
+    """Conserve une copie de secours et mémorise le blocage d'écriture."""
+    key = _corruption_key(path)
+    if key in _CORRUPTED_DATA_FILES:
+        return _CORRUPTED_DATA_FILES[key]
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    source = Path(path)
+    quarantine = source.with_name(f"{source.stem}.corrompu_{stamp}{source.suffix}")
+    counter = 2
+    while quarantine.exists():
+        quarantine = source.with_name(
+            f"{source.stem}.corrompu_{stamp}_{counter}{source.suffix}"
+        )
+        counter += 1
+    try:
+        shutil.copy2(source, quarantine)
+    except OSError as copy_exc:
+        log_internal_error("quarantine_corrupt_json", copy_exc)
+        quarantine = None
+    info = {
+        "path": str(source),
+        "backup": str(quarantine) if quarantine else "",
+        "error": f"{type(exc).__name__}: {exc}",
+    }
+    _CORRUPTED_DATA_FILES[key] = info
+    log_internal_error(f"corrupt_json:{source.name}", exc)
+    return info
+
+
+def get_corrupted_data_files():
+    return [dict(info) for info in _CORRUPTED_DATA_FILES.values()]
+
+
+def _clear_corruption_guards(paths=None):
+    if paths is None:
+        _CORRUPTED_DATA_FILES.clear()
+        return
+    for path in paths:
+        _CORRUPTED_DATA_FILES.pop(_corruption_key(path), None)
+
+
+def _read_user_json(path, expected_type, default, *, label=None):
+    """Lit un JSON personnel sans confondre absence, type invalide et corruption."""
+    if not os.path.exists(path):
+        return copy.deepcopy(default)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, expected_type):
+            raise ValueError(
+                f"{os.path.basename(path)} must contain {expected_type.__name__}"
+            )
+        return data
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        _register_corrupt_json(path, exc)
+        return copy.deepcopy(default)
+
+def _atomic_write_json(path, data):
+    path = Path(path)
+    key = _corruption_key(path)
+    if key in _CORRUPTED_DATA_FILES and key not in _ALLOW_CORRUPT_OVERWRITE:
+        raise CorruptDataError(f"blocked_corrupt_file:{path.name}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2, allow_nan=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def _run_json_transaction(paths, action):
+    """Exécute plusieurs écritures JSON avec restauration exacte en cas d'échec."""
+    paths = [os.path.abspath(os.fspath(p)) for p in dict.fromkeys(paths)]
+    snapshot = tempfile.mkdtemp(prefix="mesrecettes_transaction_")
+    existed = set()
+    try:
+        for index, path in enumerate(paths):
+            if os.path.isfile(path):
+                existed.add(path)
+                shutil.copy2(path, os.path.join(snapshot, str(index)))
+        return action()
+    except Exception:
+        for index, path in enumerate(paths):
+            try:
+                if path in existed:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    rollback_tmp = path + ".rollback.tmp"
+                    shutil.copy2(os.path.join(snapshot, str(index)), rollback_tmp)
+                    os.replace(rollback_tmp, path)
+                elif os.path.isfile(path):
+                    os.remove(path)
+            except OSError as rollback_exc:
+                log_internal_error("json_transaction_rollback", rollback_exc)
+        raise
+    finally:
+        shutil.rmtree(snapshot, ignore_errors=True)
+
+
+def _count_orphan_images(recipes, images_dir):
+    refs = set()
+    for recipe in recipes or []:
+        for name in get_all_recipe_image_refs(recipe):
+            if name:
+                refs.add(name)
+    missing = []
+    orphan = []
+    try:
+        for name in refs:
+            if not (Path(images_dir) / name).exists():
+                missing.append(name)
+        for p in Path(images_dir).iterdir():
+            if p.is_file() and p.name not in refs:
+                orphan.append(p.name)
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
+    return missing, orphan
+
+
+# --- UI polish v9 ---
+
+
+def _ui_apply_window_defaults(win, geometry=None, resizable=True):
+    try:
+        if geometry:
+            win.geometry(geometry)
+        safe_minsize(win, 420, 260)
+        win.resizable(resizable, resizable)
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
+
+
+def _ui_bind_escape(win):
+    try:
+        win.bind("<Escape>", lambda e: win.destroy())
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
+
+def _ui_show_toast(parent, message, duration=2200):
+    """Non-blocking success/info notification."""
+    try:
+        tw = tk.Toplevel(parent)
+        tw.wm_overrideredirect(True)
+        tw.attributes("-topmost", True)
+        tw.configure(bg="#2f2f2f")
+        lbl = tk.Label(tw, text=message, bg="#2f2f2f", fg="white",
+                       padx=14, pady=9, font=("Segoe UI", 10))
+        lbl.pack()
+        parent.update_idletasks()
+        tw.update_idletasks()
+        x = parent.winfo_rootx() + max(10, parent.winfo_width() - tw.winfo_width() - 24)
+        y = parent.winfo_rooty() + max(10, parent.winfo_height() - tw.winfo_height() - 48)
+        tw.geometry(f"+{x}+{y}")
+        tw.after(duration, tw.destroy)
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
+
 
 # Pillow est nécessaire pour afficher les photos des recettes.
 try:
-    from PIL import Image, ImageTk
+    from PIL import Image, ImageTk, ImageGrab, ImageOps
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -65,6 +322,15 @@ try:
 except ImportError:
     QRCODE_AVAILABLE = False
 
+# pyzbar est utilisé uniquement pour lire des QR codes enregistrés sous forme
+# d'image (notamment ceux générés par l'application mobile). Il s'appuie sur
+# Pillow déjà utilisé par l'application et reste bien plus léger qu'OpenCV.
+try:
+    from pyzbar.pyzbar import decode as decode_barcodes
+    QRCODE_READER_AVAILABLE = True
+except (ImportError, OSError):
+    QRCODE_READER_AVAILABLE = False
+
 # pytesseract est nécessaire pour importer une recette depuis une photo (OCR).
 # Il ne suffit pas de l'installer via pip : il nécessite aussi le programme
 # Tesseract OCR installé séparément sur le système (voir le LISEZ-MOI).
@@ -82,6 +348,23 @@ try:
     PYTTSX3_AVAILABLE = True
 except ImportError:
     PYTTSX3_AVAILABLE = False
+
+# Glisser-déposer natif de fichiers.
+# tkinterdnd2 utilise l'extension TkDnD2/OLE2 et évite le remplacement manuel
+# du WindowProc Windows effectué par l'ancien module windnd, qui provoquait
+# des fermetures natives de Tcl/Tk sur certains PC.
+try:
+    from tkinterdnd2 import DND_FILES, COPY, TkinterDnD
+    TKDND_AVAILABLE = True
+except ImportError:
+    DND_FILES = None
+    COPY = "copy"
+    TkinterDnD = None
+    TKDND_AVAILABLE = False
+
+# Classe de base de l'application : si tkinterdnd2 est installé, son Tk charge
+# automatiquement l'extension tkdnd pour tous les widgets descendants.
+APP_TK_BASE = TkinterDnD.Tk if TKDND_AVAILABLE else tk.Tk
 
 
 if getattr(sys, "frozen", False):
@@ -173,6 +456,82 @@ TESSERACT_LANG_CODES = {
     "es": "spa",
     "de": "deu",
 }
+
+
+def detect_tesseract(required_lang=None):
+    """Détecte Tesseract, sa version et ses langues disponibles.
+
+    Sous Windows, essaie aussi les emplacements d'installation les plus
+    courants lorsque tesseract.exe n'est pas dans le PATH.
+    """
+    status = {
+        "pytesseract": PYTESSERACT_AVAILABLE,
+        "executable": None,
+        "version": None,
+        "languages": [],
+        "required_lang": required_lang,
+        "ready": False,
+        "reason": "pytesseract_missing",
+    }
+    if not PYTESSERACT_AVAILABLE:
+        return status
+
+    candidates = []
+    try:
+        configured = getattr(pytesseract.pytesseract, "tesseract_cmd", None)
+        if configured and configured != "tesseract":
+            candidates.append(configured)
+    except Exception:
+        pass
+
+    if os.name == "nt":
+        candidates.extend([
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        ])
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            candidates.append(
+                os.path.join(local, "Programs", "Tesseract-OCR", "tesseract.exe")
+            )
+
+    # Si le binaire est déjà dans le PATH, pytesseract le trouvera sans chemin.
+    candidates.append("tesseract")
+
+    seen = set()
+    for candidate in candidates:
+        key = os.path.normcase(str(candidate))
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            if candidate != "tesseract" and not os.path.isfile(candidate):
+                continue
+            pytesseract.pytesseract.tesseract_cmd = candidate
+            version = str(pytesseract.get_tesseract_version()).splitlines()[0]
+            languages = sorted(set(pytesseract.get_languages(config="")))
+            status.update({
+                "executable": candidate,
+                "version": version,
+                "languages": languages,
+                "reason": None,
+            })
+            if required_lang and required_lang not in languages:
+                status["reason"] = "language_missing"
+                status["ready"] = False
+            else:
+                status["ready"] = True
+            return status
+        except Exception as exc:
+            status["reason"] = str(exc)
+
+    status["reason"] = "tesseract_not_found"
+    return status
+
+
+def current_tesseract_status():
+    return detect_tesseract(TESSERACT_LANG_CODES.get(CURRENT_LANGUAGE, "fra"))
+
 INGREDIENT_OVERRIDES_FILE = os.path.join(DATA_DIR, "ingredient_custom_data.json")
 INGREDIENT_PRICES_FILE = os.path.join(DATA_DIR, "ingredient_prices.json")
 IMAGES_DIR = os.path.join(DATA_DIR, "images")
@@ -182,10 +541,15 @@ WEEKLY_PLAN_TEMPLATES_FILE = os.path.join(DATA_DIR, "weekly_plan_templates.json"
 MENUS_FILE = os.path.join(DATA_DIR, "menus.json")
 TRASH_FILE = os.path.join(DATA_DIR, "trash.json")
 BACKUPS_DIR = os.path.join(DATA_DIR, "backups")
+DRAFTS_DIR = os.path.join(DATA_DIR, "drafts")
+IMPORT_TEMP_DIR = os.path.join(DATA_DIR, "import_temp")
+os.makedirs(IMPORT_TEMP_DIR, exist_ok=True)
+
 RECENT_VIEWS_FILE = os.path.join(DATA_DIR, "recent_views.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 
 os.makedirs(IMAGES_DIR, exist_ok=True)
+os.makedirs(DRAFTS_DIR, exist_ok=True)
 
 # Fichiers de données personnelles inclus dans une sauvegarde complète (tout
 # ce qui n'est pas fourni avec l'application elle-même : les bases
@@ -194,8 +558,33 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 # Limites de taille pour une restauration de sauvegarde — alignées avec
 # l'application mobile (voir MAX_BACKUP_FILE_SIZE / BACKUP_WARNING_SIZE côté
 # app.js), qui avait ces limites alors qu'aucune n'existait ici auparavant.
-BACKUP_WARNING_SIZE = 50 * 1024 * 1024  # 50 Mo — avertissement, mais pas de refus
-MAX_BACKUP_FILE_SIZE = 100 * 1024 * 1024  # 100 Mo — refus définitif
+BACKUP_WARNING_SIZE = 50 * 1024 * 1024  # format partagé mobile
+MAX_BACKUP_FILE_SIZE = 100 * 1024 * 1024  # format partagé mobile
+MAX_BACKUP_UNCOMPRESSED_SIZE = 500 * 1024 * 1024
+MAX_BACKUP_ENTRY_SIZE = 100 * 1024 * 1024
+FULL_BACKUP_WARNING_SIZE = 1024 * 1024 * 1024  # 1 Go : avertissement seulement
+FULL_BACKUP_MAX_FILE_SIZE = 4 * 1024 * 1024 * 1024  # 4 Go
+FULL_BACKUP_MAX_UNCOMPRESSED_SIZE = 8 * 1024 * 1024 * 1024
+FULL_BACKUP_MAX_ENTRY_SIZE = 256 * 1024 * 1024  # aucune photo/JSON ne doit approcher 4 Gio
+
+def _validate_backup_zip(zf, *, max_entry=MAX_BACKUP_ENTRY_SIZE,
+                         max_total=MAX_BACKUP_UNCOMPRESSED_SIZE,
+                         verify_crc=True):
+    total = 0
+    for info in zf.infolist():
+        name = info.filename.replace("\\", "/")
+        if name.startswith("/") or "../" in f"/{name}" or name.startswith("../"):
+            raise ValueError("unsafe_archive_path")
+        if info.file_size > max_entry:
+            raise ValueError("archive_entry_too_large")
+        total += info.file_size
+        if total > max_total:
+            raise ValueError("archive_uncompressed_too_large")
+    if verify_crc:
+        bad = zf.testzip()
+        if bad is not None:
+            raise ValueError("corrupt_archive")
+
 
 USER_DATA_FILES = [
     "recipes.json", "ingredients.json", "ingredient_custom_data.json",
@@ -206,34 +595,73 @@ USER_DATA_FILES = [
 ]
 
 
-def export_full_backup(zip_path):
-    """Crée une sauvegarde complète (.zip) de toutes les données
-    utilisateur : recettes, ingrédients personnalisés, garde-manger,
-    planning (+ historique et modèles), menus, listes de courses
-    enregistrées, corbeille, réglages, et le dossier des photos."""
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for filename in USER_DATA_FILES:
-            filepath = os.path.join(DATA_DIR, filename)
-            if os.path.exists(filepath):
-                zf.write(filepath, filename)
-        if os.path.isdir(IMAGES_DIR):
-            for root, dirs, files in os.walk(IMAGES_DIR):
-                for f in files:
-                    full = os.path.join(root, f)
-                    rel = os.path.relpath(full, BASE_DIR)
-                    zf.write(full, rel)
-
-
-def import_full_backup(zip_path):
-    """Restaure une sauvegarde complète : extrait tous les fichiers dans le
-    dossier de l'application, en écrasant les fichiers existants de même
-    nom (les recettes/photos/réglages actuels seront remplacés)."""
+def inspect_backup_archive(zip_path):
+    """Retourne un résumé non destructif d'une sauvegarde ZIP avant import.
+    Aucun fichier n'est extrait pendant cette inspection."""
+    summary = {
+        "recipes": 0, "images": 0, "ingredients": 0, "pantry": 0,
+        "prices": 0, "menus": 0, "shopping_lists": 0,
+        "size_mb": round(os.path.getsize(zip_path) / (1024 * 1024), 1),
+    }
     with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(BASE_DIR)
+        _validate_backup_zip(
+            zf, max_entry=FULL_BACKUP_MAX_ENTRY_SIZE,
+            max_total=FULL_BACKUP_MAX_UNCOMPRESSED_SIZE, verify_crc=False
+        )
+        names = set(zf.namelist())
+        def read_json(name, default):
+            if name not in names:
+                return default
+            try:
+                return json.loads(zf.read(name).decode("utf-8"))
+            except Exception as exc:
+                raise ValueError(f"invalid_json:{name}") from exc
+        recipes = read_json("recipes.json", [])
+        ingredients = read_json("ingredients.json", [])
+        pantry = read_json("pantry.json", {})
+        prices = read_json("ingredient_prices.json", {})
+        menus = read_json("menus.json", [])
+        shopping = read_json("saved_shopping_lists.json", [])
+        preview_payloads = {}
+        for _name, _value in (("recipes.json", recipes), ("ingredients.json", ingredients),
+                              ("pantry.json", pantry), ("ingredient_prices.json", prices),
+                              ("menus.json", menus), ("saved_shopping_lists.json", shopping)):
+            if _name in names:
+                preview_payloads[_name] = _value
+        validate_backup_payloads(preview_payloads)
+        summary["recipes"] = len(recipes) if isinstance(recipes, list) else 0
+        summary["ingredients"] = len(ingredients) if isinstance(ingredients, list) else 0
+        summary["pantry"] = len(pantry) if isinstance(pantry, (dict, list)) else 0
+        summary["prices"] = len(prices) if isinstance(prices, dict) else 0
+        summary["menus"] = len(menus) if isinstance(menus, list) else 0
+        summary["shopping_lists"] = len(shopping) if isinstance(shopping, list) else 0
+        summary["images"] = sum(1 for n in names if n.startswith("images/") and not n.endswith("/"))
+    return summary
+
+
+def format_backup_preview(summary):
+    return t(
+        "importexport_preview_message",
+        size=summary.get("size_mb", 0), recipes=summary.get("recipes", 0),
+        photos=summary.get("images", 0), ingredients=summary.get("ingredients", 0),
+        pantry=summary.get("pantry", 0), prices=summary.get("prices", 0),
+        menus=summary.get("menus", 0), lists=summary.get("shopping_lists", 0),
+    )
+
+
+def confirm_backup_preview(parent, zip_path):
+    try:
+        summary = inspect_backup_archive(zip_path)
+    except Exception as e:
+        messagebox.showerror(t("common_error"), t("importexport_preview_failed", error=e), parent=parent)
+        return False
+    return messagebox.askyesno(
+        t("importexport_preview_title"), format_backup_preview(summary), parent=parent
+    )
 
 
 def load_default_ingredients():
-    """Charge la liste des ~1000 ingrédients de cuisine les plus courants,
+    """Charge la liste des 1030 ingrédients de cuisine les plus courants,
     fournie avec l'application (fichier ingredients_par_defaut.json)."""
     if os.path.exists(DEFAULT_INGREDIENTS_FILE):
         try:
@@ -263,55 +691,172 @@ def ingredient_sort_key(text):
 
 
 def print_file(path):
-    """Tente d'envoyer un fichier directement à l'imprimante par défaut du
-    système. Si ce n'est pas possible (aucune application n'ayant enregistré
-    de « impression silencieuse » pour ce type de fichier — un cas fréquent
-    sur Windows selon le lecteur PDF installé), ouvre le fichier dans
-    l'application par défaut à la place, pour que l'utilisateur puisse
-    l'imprimer d'un clic depuis celle-ci.
-
-    Retourne "printed" (envoyé directement à l'imprimante), "opened" (ouvert
-    dans l'application par défaut, à imprimer manuellement), ou None (échec
-    complet)."""
-    if os.name == "nt":
+    """Chemin d'impression POSIX ; Windows utilise print_document()."""
+    try:
+        subprocess.run(["lp", path], check=True)
+        return "printed"
+    except Exception:
         try:
-            os.startfile(path, "print")
-            return "printed"
-        except OSError:
-            try:
-                os.startfile(path)
-                return "opened"
-            except OSError:
-                return None
-    else:
-        try:
-            subprocess.run(["lp", path], check=True)
-            return "printed"
+            subprocess.run(["xdg-open", path], check=True)
+            return "opened"
         except Exception:
-            try:
-                subprocess.run(["xdg-open", path], check=True)
-                return "opened"
-            except Exception:
-                return None
+            return None
 
 
-def report_print_result(result, temp_path, subject):
-    """Affiche le message adapté selon le résultat de print_file()."""
+def report_print_result(result, temp_path, subject, parent=None):
+    if result == "cancelled":
+        return
     if result == "printed":
-        messagebox.showinfo("Impression", f"Envoyé à l'imprimante : {subject}.")
+        messagebox.showinfo(t("print_title"), t("print_sent", subject=subject), parent=parent)
     elif result == "opened":
-        messagebox.showinfo(
-            "Ouvert pour impression",
-            f"Impossible d'envoyer directement à l'imprimante depuis l'application.\n\n"
-            f"Le PDF ({subject}) a été ouvert dans votre lecteur habituel : "
-            "utilisez Ctrl+P (ou le bouton Imprimer) pour l'imprimer depuis là."
+        messagebox.showinfo(t("print_title"), t("print_reader_opened", subject=subject), parent=parent)
+    else:
+        messagebox.showerror(t("print_title"), t("print_failed_path", path=temp_path), parent=parent)
+
+
+def _report_native_print_error(parent, path, error):
+    from windows_printing import PrintDependencyError
+    log_internal_error("windows_print", error)
+    if isinstance(error, PrintDependencyError):
+        # ``main.pyw`` peut être associé à un autre Python que celui utilisé
+        # pour installer les dépendances. Afficher l'interpréteur exact évite
+        # un aller-retour inutile avec la commande ``python`` par défaut.
+        interpreter = sys.executable or "python"
+        detail = (
+            f"{t('print_dependency_missing')}\n\n"
+            f"Interpréteur utilisé : {interpreter}\n"
+            f"Commande : \"{interpreter}\" -m pip install -r requirements.txt\n"
+            f"Diagnostic : {error}"
         )
     else:
-        messagebox.showerror(
-            "Impression impossible",
-            f"Impossible d'ouvrir ou d'imprimer automatiquement.\n"
-            f"Le PDF a tout de même été généré ici, vous pouvez l'ouvrir et l'imprimer manuellement :\n{temp_path}"
-        )
+        detail = str(error)
+    if messagebox.askyesno(t("print_title"), t("print_native_failed", error=detail, path=path), parent=parent):
+        try:
+            os.startfile(path)
+        except OSError as exc:
+            log_internal_error("print_open_pdf", exc)
+            messagebox.showerror(t("print_title"), t("print_failed_path", path=path), parent=parent)
+
+
+def print_document(parent, path, subject):
+    """Ouvre la boîte d'impression classique Windows puis imprime le PDF."""
+    if os.name != "nt":
+        report_print_result(print_file(path), path, subject, parent)
+        return
+    from windows_printing import prepare_windows_print, PrintCancelled
+    try:
+        parent.update_idletasks()
+        job = prepare_windows_print(path, owner=parent.winfo_id())
+    except Exception as exc:
+        _report_native_print_error(parent, path, exc)
+        return
+    if job is None:
+        return
+    cancelled = threading.Event()
+    messages = queue.Queue()
+    try:
+        previous_grab = parent.grab_current()
+        progress_window = tk.Toplevel(parent)
+        progress_window.title(t("print_title"))
+        progress_window.transient(parent)
+        progress_window.resizable(False, False)
+        body = ttk.Frame(progress_window, padding=18)
+        body.pack(fill="both", expand=True)
+        label = ttk.Label(body, text=t("print_preparing"), wraplength=440)
+        label.pack(fill="x", pady=(0, 12))
+        bar = ttk.Progressbar(body, mode="indeterminate", length=360)
+        bar.pack(fill="x", pady=(0, 12))
+        bar.start(30)
+        def request_cancel():
+            cancelled.set()
+            label.configure(text=t("print_cancelling"))
+            cancel_button.configure(state="disabled")
+        cancel_button = ttk.Button(body, text=t("common_cancel"), command=request_cancel)
+        cancel_button.pack(anchor="e")
+        progress_window.protocol("WM_DELETE_WINDOW", request_cancel)
+        progress_window.bind("<Destroy>", lambda event: cancelled.set()
+                             if event.widget is progress_window else None, add="+")
+        progress_window.grab_set()
+    except Exception:
+        job.close()
+        raise
+
+    def worker():
+        try:
+            result = job.run(cancelled.is_set, lambda done, total: messages.put(("progress", (done, total))))
+            messages.put(("done", result))
+        except PrintCancelled:
+            messages.put(("done", "cancelled"))
+        except Exception as exc:
+            messages.put(("error", exc))
+
+    def finish(kind, value):
+        bar.stop()
+        progress_window.grab_release()
+        progress_window.destroy()
+        if parent.winfo_exists():
+            if previous_grab is not None and previous_grab.winfo_exists():
+                previous_grab.grab_set()
+            parent.lift()
+            parent.focus_set()
+            if kind == "error":
+                _report_native_print_error(parent, path, value)
+            else:
+                report_print_result(value, path, subject, parent)
+
+    def poll():
+        if not progress_window.winfo_exists():
+            cancelled.set()
+            return
+        while True:
+            try:
+                kind, value = messages.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "progress":
+                if not cancelled.is_set():
+                    label.configure(text=t("print_page_progress", done=value[0], total=value[1]))
+            else:
+                finish(kind, value)
+                return
+        progress_window.after(100, poll)
+
+    try:
+        threading.Thread(target=worker, daemon=True).start()
+    except Exception:
+        job.close()
+        progress_window.destroy()
+        if previous_grab is not None and previous_grab.winfo_exists():
+            previous_grab.grab_set()
+        raise
+    progress_window.after(100, poll)
+
+
+_WINDOWS_RESERVED_FILENAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+
+def sanitize_windows_filename(name, fallback="recette", max_length=120):
+    """Nettoie un nom proposé à l'enregistrement sous Windows.
+
+    Retire les caractères interdits <>:"/\\|?*, les caractères de contrôle,
+    les espaces/points finaux et protège aussi les noms réservés (CON, AUX,
+    COM1...). Le contenu de la recette n'est évidemment pas modifié.
+    """
+    value = str(name or "").strip()
+    value = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "_", value)
+    value = re.sub(r"\s+", " ", value).strip(" .")
+    if not value:
+        value = fallback
+    stem = value.split(".", 1)[0].upper()
+    if stem in _WINDOWS_RESERVED_FILENAMES:
+        value = "_" + value
+    if len(value) > max_length:
+        value = value[:max_length].rstrip(" .")
+    return value or fallback
 
 
 def get_temp_pdf_path(prefix):
@@ -613,23 +1158,32 @@ SORT_OPTION_TRANSLATIONS = {
     "en": {
         "nom (a-z)": "Name (A-Z)",
         "temps de préparation": "Prep time",
+        "temps total": "Total time",
         "difficulté": "Difficulty",
         "note": "Rating",
         "ajoutées récemment": "Recently added",
+        "plus cuisinées": "Most cooked",
+        "dernière cuisson": "Last cooked",
     },
     "es": {
         "nom (a-z)": "Nombre (A-Z)",
         "temps de préparation": "Tiempo de preparación",
+        "temps total": "Tiempo total",
         "difficulté": "Dificultad",
         "note": "Valoración",
         "ajoutées récemment": "Añadidas recientemente",
+        "plus cuisinées": "Más cocinadas",
+        "dernière cuisson": "Última preparación",
     },
     "de": {
         "nom (a-z)": "Name (A-Z)",
         "temps de préparation": "Zubereitungszeit",
+        "temps total": "Gesamtzeit",
         "difficulté": "Schwierigkeit",
         "note": "Bewertung",
         "ajoutées récemment": "Kürzlich hinzugefügt",
+        "plus cuisinées": "Am häufigsten gekocht",
+        "dernière cuisson": "Zuletzt gekocht",
     },
 }
 
@@ -871,7 +1425,7 @@ def recipe_matches_search(recipe, search_key):
     return False
 
 
-RECIPE_SORT_OPTIONS = ["Nom (A-Z)", "Temps de préparation", "Difficulté", "Note", "Ajoutées récemment"]
+RECIPE_SORT_OPTIONS = ["Nom (A-Z)", "Temps de préparation", "Temps total", "Difficulté", "Note", "Ajoutées récemment", "Plus cuisinées", "Dernière cuisson"]
 _DIFFICULTY_ORDER = {"Facile": 1, "Moyen": 2, "Difficile": 3}
 
 
@@ -912,12 +1466,26 @@ def recipe_sort_key(recipe, option):
             return float(recipe.get("prep_time") or 0)
         except (TypeError, ValueError):
             return 0.0
+    if option == "Temps total":
+        try:
+            return float(recipe.get("prep_time") or 0) + float(recipe.get("cook_time") or 0)
+        except (TypeError, ValueError):
+            return 0.0
     if option == "Difficulté":
         return _DIFFICULTY_ORDER.get(recipe.get("difficulty"), 0)
     if option == "Note":
         return -int(recipe.get("rating", 0) or 0)  # négatif : meilleure note en premier
     if option == "Ajoutées récemment":
         return recipe.get("created_at") or ""
+    if option == "Plus cuisinées":
+        return -int(recipe.get("times_cooked", 0) or 0)
+    if option == "Dernière cuisson":
+        dates = recipe.get("cooked_dates") or []
+        value = max(dates) if dates else ""
+        try:
+            return -datetime.fromisoformat(value).timestamp() if value else 0
+        except (TypeError, ValueError):
+            return 0
     return ingredient_sort_key(recipe["name"])
 
 
@@ -955,47 +1523,209 @@ def format_recipe_list_label(recipe):
     return label
 
 
-def load_recipes():
-    """Charge les recettes depuis le fichier JSON local."""
-    if os.path.exists(DATA_FILE):
+
+SAFE_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff"}
+
+
+def safe_image_filename(value):
+    """Retourne un nom de fichier image sûr et local, sinon None."""
+    if not isinstance(value, str):
+        return None
+    raw = value.strip().replace("\\", "/")
+    if not raw or raw.startswith("/") or "/" in raw or raw in (".", ".."):
+        return None
+    name = os.path.basename(raw)
+    if name != raw or name in ("", ".", ".."):
+        return None
+    if any(ord(c) < 32 for c in name):
+        return None
+    ext = os.path.splitext(name)[1].lower()
+    if ext and ext not in SAFE_IMAGE_EXTENSIONS:
+        return None
+    return name
+
+
+def image_store_path(value):
+    """Construit un chemin garanti à l'intérieur d'IMAGES_DIR."""
+    name = safe_image_filename(value)
+    if not name:
+        return None
+    root = os.path.realpath(IMAGES_DIR)
+    path = os.path.realpath(os.path.join(root, name))
+    try:
+        if os.path.commonpath([root, path]) != root:
+            return None
+    except ValueError:
+        return None
+    return path
+
+
+def recipe_ref_key(recipe):
+    if isinstance(recipe, dict):
+        rid = str(recipe.get("id") or "").strip()
+        if rid:
+            return rid
+        return str(recipe.get("name") or "").strip().casefold()
+    return str(recipe or "").strip().casefold()
+
+
+def find_recipe_by_id(recipes, recipe_id):
+    rid = str(recipe_id or "").strip()
+    if not rid:
+        return None
+    return next((r for r in recipes if isinstance(r, dict) and str(r.get("id") or "") == rid), None)
+
+
+def find_recipe_by_ref(recipes, ref):
+    """Résout une référence moderne (recipe_id) ou l'ancien nom."""
+    if isinstance(ref, dict):
+        recipe = find_recipe_by_id(recipes, ref.get("recipe_id") or ref.get("id"))
+        if recipe is not None:
+            return recipe
+        name = ref.get("recipe_name") or ref.get("name")
+    else:
+        name = ref
+    return next((r for r in recipes if isinstance(r, dict) and r.get("name") == name), None)
+
+
+def _normalize_recipe_inplace(recipe, *, assign_id=True, strict=False):
+    """Valide/normalise une recette sans supprimer les champs inconnus."""
+    if not isinstance(recipe, dict):
+        raise ValueError("recipe_not_object")
+    name = recipe.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("recipe_name_missing")
+    recipe["name"] = name.strip()
+    if assign_id and not str(recipe.get("id") or "").strip():
+        recipe["id"] = uuid.uuid4().hex
+    elif recipe.get("id") is not None and not isinstance(recipe.get("id"), str):
+        recipe["id"] = str(recipe.get("id"))
+
+    persons = recipe.get("default_persons", 4)
+    try:
+        recipe["default_persons"] = parse_positive_number(persons)
+    except (ValueError, TypeError):
+        if strict:
+            raise ValueError("invalid_default_persons")
+        recipe["default_persons"] = 4
+
+    ingredients = recipe.get("ingredients", [])
+    if not isinstance(ingredients, list):
+        raise ValueError("recipe_ingredients_not_list")
+    clean_ingredients = []
+    for ing in ingredients:
+        if not isinstance(ing, dict):
+            continue
+        ing_name = ing.get("name")
+        if not isinstance(ing_name, str) or not ing_name.strip():
+            continue
+        out = copy.deepcopy(ing)
+        out["name"] = ing_name.strip()
         try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                recipes = json.load(f)
-        except Exception:
-            return []
-        # Migration silencieuse : une recette créée avant l'ajout de
-        # l'identifiant stable (nécessaire pour la compatibilité avec
-        # l'application mobile) en reçoit un nouveau ici, sauvegardé
-        # immédiatement pour que cette migration ne s'exécute qu'une
-        # seule fois par recette plutôt qu'à chaque chargement.
+            # ``null`` est la représentation officielle d'une quantité
+            # laissée vide dans les sauvegardes mobiles (« au goût »).
+            raw_quantity = out["quantity"] if "quantity" in out else 1
+            out["quantity"] = parse_optional_positive_number(raw_quantity, allow_zero=True)
+        except (ValueError, TypeError):
+            if strict:
+                raise ValueError("invalid_ingredient_quantity")
+            continue
+        unit = out.get("unit", "")
+        out["unit"] = str(unit or "").strip()
+        clean_ingredients.append(out)
+    recipe["ingredients"] = clean_ingredients
+
+    # Noms d'images principaux sûrs uniquement.
+    imgs = recipe.get("images")
+    if isinstance(imgs, list):
+        recipe["images"] = [n for n in (safe_image_filename(x) for x in imgs) if n]
+    elif imgs is not None:
+        recipe["images"] = []
+    legacy = safe_image_filename(recipe.get("image"))
+    if recipe.get("image") and not legacy:
+        recipe.pop("image", None)
+    elif legacy:
+        recipe["image"] = legacy
+
+    # Photos du journal de cuisine.
+    cook_log = recipe.get("cook_log", [])
+    if not isinstance(cook_log, list):
+        recipe["cook_log"] = []
+    else:
+        for entry in cook_log:
+            if isinstance(entry, dict) and entry.get("photo"):
+                safe = safe_image_filename(entry.get("photo"))
+                if safe:
+                    entry["photo"] = safe
+                else:
+                    entry.pop("photo", None)
+    return recipe
+
+
+def validate_recipes_payload(data, *, assign_ids=True):
+    if not isinstance(data, list):
+        raise ValueError("recipes_not_list")
+    out = []
+    for recipe in data:
+        out.append(_normalize_recipe_inplace(copy.deepcopy(recipe), assign_id=assign_ids, strict=True))
+    return out
+
+
+def enrich_recipe_reference(ref, recipes):
+    """Ajoute recipe_id et synchronise le nom tout en lisant les anciens fichiers."""
+    if not isinstance(ref, dict):
+        return ref
+    recipe = find_recipe_by_ref(recipes, ref)
+    if recipe is not None:
+        ref["recipe_id"] = recipe.get("id")
+        ref["recipe_name"] = recipe.get("name")
+    return ref
+
+def load_recipes():
+    """Charge les recettes; un JSON corrompu est sauvegardé et protégé."""
+    raw = _read_user_json(DATA_FILE, list, [], label="recipes")
+    if _corruption_key(DATA_FILE) in _CORRUPTED_DATA_FILES:
+        return []
+    try:
+        recipes = []
         migrated = False
-        for r in recipes:
-            if isinstance(r, dict) and not r.get("id"):
-                r["id"] = uuid.uuid4().hex
-                migrated = True
-        if migrated:
+        invalid_entries = []
+        for index, item in enumerate(raw):
+            try:
+                before_id = item.get("id") if isinstance(item, dict) else None
+                normalized = _normalize_recipe_inplace(copy.deepcopy(item), assign_id=True)
+                if not before_id and normalized.get("id"):
+                    migrated = True
+                recipes.append(normalized)
+            except Exception as exc:
+                log_internal_error(f"invalid_recipe_{index}", exc)
+                invalid_entries.append((index, exc))
+        if invalid_entries:
+            first_index, first_error = invalid_entries[0]
+            _register_corrupt_json(
+                DATA_FILE,
+                ValueError(f"invalid recipe at index {first_index}: {first_error}")
+            )
+        # On n'écrase jamais le fichier si des entrées ont été rejetées : cela
+        # préserve le contenu original pour récupération manuelle éventuelle.
+        if migrated and len(recipes) == len(raw):
             save_recipes(recipes)
         return recipes
-    return []
+    except Exception as exc:
+        log_internal_error("load_recipes_failed", exc)
+        return []
 
 
 def save_recipes(recipes):
-    """Sauvegarde la liste des recettes dans le fichier JSON local."""
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(recipes, f, ensure_ascii=False, indent=2)
+    """Sauvegarde uniquement une structure de recettes valide et JSON standard."""
+    validated = validate_recipes_payload(recipes, assign_ids=True)
+    _atomic_write_json(DATA_FILE, validated)
 
 
 def load_ingredients():
     """Charge la liste des ingrédients connus (triée, sans doublons)."""
-    if os.path.exists(INGREDIENTS_FILE):
-        try:
-            with open(INGREDIENTS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return sorted(dict.fromkeys(normalize_oe(i) for i in data), key=ingredient_sort_key)
-        except Exception:
-            return []
-    return []
+    data = _read_user_json(INGREDIENTS_FILE, list, [], label="ingredients")
+    return sorted(dict.fromkeys(normalize_oe(i) for i in data if isinstance(i, str)), key=ingredient_sort_key)
 
 
 def save_ingredients(ingredients):
@@ -1006,8 +1736,7 @@ def save_ingredients(ingredients):
         if name:
             cleaned_map.setdefault(name.lower(), name)
     cleaned = sorted(cleaned_map.values(), key=ingredient_sort_key)
-    with open(INGREDIENTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(cleaned, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(INGREDIENTS_FILE, cleaned)
     return cleaned
 
 
@@ -1016,10 +1745,12 @@ def sync_ingredients_from_recipes():
     figure bien dans la liste des ingrédients connus (utile lors de la
     première utilisation de cette fonctionnalité, ou après import de
     données). Lors du tout premier lancement (aucun ingredients.json), la
-    liste des ~1000 ingrédients courants fournis avec l'application est
+    liste des 1030 ingrédients courants fournis avec l'application est
     utilisée comme point de départ."""
     first_run = not os.path.exists(INGREDIENTS_FILE)
     known = load_default_ingredients() if first_run else load_ingredients()
+    if _corruption_key(INGREDIENTS_FILE) in _CORRUPTED_DATA_FILES:
+        return load_default_ingredients()
     known_lower = {i.lower() for i in known}
     changed = first_run
     for recipe in load_recipes():
@@ -1086,20 +1817,11 @@ PRICE_UNIT_OPTIONS = ["kg", "L", "pièce", "cuillère à soupe", "cuillère à c
 
 def load_ingredient_prices():
     """Retourne {nom_ingredient_en_minuscules: {"name":, "price":, "unit":}}."""
-    if os.path.exists(INGREDIENT_PRICES_FILE):
-        try:
-            with open(INGREDIENT_PRICES_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return data
-        except Exception:
-            return {}
-    return {}
+    return _read_user_json(INGREDIENT_PRICES_FILE, dict, {}, label="ingredient_prices")
 
 
 def save_ingredient_prices(prices):
-    with open(INGREDIENT_PRICES_FILE, "w", encoding="utf-8") as f:
-        json.dump(prices, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(INGREDIENT_PRICES_FILE, prices)
 
 
 def get_ingredient_price(name):
@@ -1118,29 +1840,45 @@ def set_ingredient_price(name, price, unit):
 
 
 def compute_recipe_cost(recipe, persons):
-    """Retourne (coût_total_estimé, nb_ingrédients_avec_prix_connu,
-    nb_ingrédients_total). Un ingrédient sans prix renseigné, ou dont
-    l'unité ne peut pas être convertie vers celle du prix, est ignoré
-    (le coût rendu est donc une estimation partielle si des prix manquent)."""
+    """Retourne (coût_total_estimé, connus, total).
+
+    Les unités compatibles sont converties correctement : g/kg et ml/cl/L.
+    Les unités discrètes (pièce, cuillères...) restent comparées exactement.
+    """
     prices = load_ingredient_prices()
     total = 0.0
     known = 0
-    total_count = len(recipe["ingredients"])
-    for ing in recipe["ingredients"]:
-        price_info = prices.get(ing["name"].strip().lower())
+    total_count = len(recipe.get("ingredients", []))
+    try:
+        persons = parse_positive_number(persons)
+    except (ValueError, TypeError):
+        return 0.0, 0, total_count
+
+    for ing in recipe.get("ingredients", []):
+        price_info = prices.get(str(ing.get("name", "")).strip().lower())
         if not price_info:
             continue
-        qty = ing["quantity"] * persons
-        unit_lower = ing["unit"].strip().lower()
-        price = price_info["price"]
-        price_unit = price_info["unit"]
+        try:
+            qty = float(ing.get("quantity", 0)) * persons
+            price = float(price_info.get("price", 0))
+        except (TypeError, ValueError):
+            continue
+        ing_unit = str(ing.get("unit", "")).strip()
+        price_unit = str(price_info.get("unit", "")).strip()
         contribution = None
-        if price_unit == "kg" and unit_lower in ("gr", "g", "gramme", "grammes"):
-            contribution = (qty / 1000.0) * price
-        elif price_unit == "L" and unit_lower == "cl":
-            contribution = (qty / 100.0) * price
-        elif price_unit.lower() == unit_lower:
+
+        # Prix au kg / litre : conversion via la base commune.
+        if price_unit.lower() == "kg":
+            converted = unit_dimension_value(qty, ing_unit)
+            if converted and converted[0] == "mass":
+                contribution = (converted[1] / 1000.0) * price
+        elif price_unit.lower() in ("l", "litre", "litres"):
+            converted = unit_dimension_value(qty, ing_unit)
+            if converted and converted[0] == "volume":
+                contribution = (converted[1] / 1000.0) * price
+        elif canonical_unit(price_unit) == canonical_unit(ing_unit):
             contribution = qty * price
+
         if contribution is not None:
             total += contribution
             known += 1
@@ -1161,12 +1899,73 @@ _nutrition_cache = None
 # d'une "pièce" dépend trop de l'ingrédient pour être généralisé.
 UNIT_TO_GRAMS = {
     "gr": 1.0, "g": 1.0, "gramme": 1.0, "grammes": 1.0,
-    "kilo": 1000.0, "kg": 1000.0,
-    "cl": 10.0,
-    "litre": 1000.0, "l": 1000.0,
+    "kilo": 1000.0, "kg": 1000.0, "kilogramme": 1000.0, "kilogrammes": 1000.0,
+    "ml": 1.0, "millilitre": 1.0, "millilitres": 1.0,
+    "cl": 10.0, "centilitre": 10.0, "centilitres": 10.0,
+    "litre": 1000.0, "litres": 1000.0, "l": 1000.0,
     "cuillère à soupe": 15.0,
     "cuillère à café": 5.0,
 }
+
+# Conversion dimensionnelle utilisée pour les courses, le garde-manger et les prix.
+# Masse => grammes, volume => millilitres. Les unités non convertibles restent exactes.
+UNIT_DIMENSIONS = {
+    "gr": ("mass", 1.0), "g": ("mass", 1.0), "gramme": ("mass", 1.0), "grammes": ("mass", 1.0),
+    "kilo": ("mass", 1000.0), "kg": ("mass", 1000.0), "kilogramme": ("mass", 1000.0), "kilogrammes": ("mass", 1000.0),
+    "ml": ("volume", 1.0), "millilitre": ("volume", 1.0), "millilitres": ("volume", 1.0),
+    "cl": ("volume", 10.0), "centilitre": ("volume", 10.0), "centilitres": ("volume", 10.0),
+    "l": ("volume", 1000.0), "litre": ("volume", 1000.0), "litres": ("volume", 1000.0),
+}
+
+UNIT_CANONICAL_ALIASES = {
+    "g": "gr", "gr": "gr", "gramme": "gr", "grammes": "gr",
+    "kg": "kg", "kilo": "kg", "kilos": "kg", "kilogramme": "kg", "kilogrammes": "kg",
+    "ml": "ml", "millilitre": "ml", "millilitres": "ml",
+    "cl": "cl", "centilitre": "cl", "centilitres": "cl",
+    "l": "l", "litre": "l", "litres": "l",
+    "piece": "pièce", "pieces": "pièce", "pièce": "pièce", "pièces": "pièce",
+    "cuillere a soupe": "cuillère à soupe", "cuillère à soupe": "cuillère à soupe",
+    "cuilleres a soupe": "cuillère à soupe", "cuillères à soupe": "cuillère à soupe",
+    "cas": "cuillère à soupe", "c.a.s": "cuillère à soupe", "c. à soupe": "cuillère à soupe",
+    "c à s": "cuillère à soupe", "c. à s": "cuillère à soupe", "c a s": "cuillère à soupe",
+    "cuillere a cafe": "cuillère à café", "cuillère à café": "cuillère à café",
+    "cuilleres a cafe": "cuillère à café", "cuillères à café": "cuillère à café",
+    "cac": "cuillère à café", "c. à café": "cuillère à café",
+    "au gout": "au goût", "au goût": "au goût",
+}
+
+
+def canonical_unit(unit):
+    """Nom canonique d'une unité pour tous les moteurs de calcul."""
+    raw = str(unit or "").strip()
+    if not raw:
+        return ""
+    key = ingredient_sort_key(raw)
+    # ingredient_sort_key retire les accents/casse ; compare donc aussi les alias normalisés.
+    for alias, canonical in UNIT_CANONICAL_ALIASES.items():
+        if ingredient_sort_key(alias) == key:
+            return canonical
+    return raw.lower()
+
+
+
+def unit_dimension_value(quantity, unit):
+    info = UNIT_DIMENSIONS.get(canonical_unit(unit))
+    if info is None:
+        return None
+    try:
+        return info[0], float(quantity) * info[1]
+    except (TypeError, ValueError):
+        return None
+
+
+def compatible_unit_quantities(quantity_a, unit_a, quantity_b, unit_b):
+    """Retourne les quantités dans une base commune si les unités sont compatibles."""
+    a = unit_dimension_value(quantity_a, unit_a)
+    b = unit_dimension_value(quantity_b, unit_b)
+    if a is None or b is None or a[0] != b[0]:
+        return None
+    return a[0], a[1], b[1]
 
 
 PANTRY_FILE = os.path.join(DATA_DIR, "pantry.json")
@@ -1174,29 +1973,53 @@ PANTRY_FILE = os.path.join(DATA_DIR, "pantry.json")
 
 def load_pantry():
     """Charge le garde-manger : dict {clé normalisée: {"name","quantity","unit"}}."""
-    if os.path.exists(PANTRY_FILE):
-        try:
-            with open(PANTRY_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return data
-        except Exception:
-            pass
-    return {}
+    return _read_user_json(PANTRY_FILE, dict, {}, label="pantry")
 
 
 def save_pantry(pantry):
-    with open(PANTRY_FILE, "w", encoding="utf-8") as f:
-        json.dump(pantry, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(PANTRY_FILE, pantry)
 
 
-def set_pantry_item(name, quantity, unit, threshold=None):
+def set_pantry_item(name, quantity, unit, threshold=None, expiration_date=None):
     pantry = load_pantry()
     pantry[ingredient_sort_key(name)] = {
-        "name": name, "quantity": quantity, "unit": unit, "threshold": threshold
+        "name": name,
+        "quantity": quantity,
+        "unit": unit,
+        "threshold": threshold,
+        "expiration_date": expiration_date or None,
     }
     save_pantry(pantry)
     return pantry
+
+
+def parse_pantry_expiration(value):
+    """Retourne une date pour les formats YYYY-MM-DD ou JJ/MM/AAAA."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
+def get_expiring_pantry_items(days=5, include_expired=True):
+    """Articles arrivant à expiration dans ``days`` jours (ou déjà expirés)."""
+    today = datetime.now().date()
+    result = []
+    for entry in load_pantry().values():
+        expiry = parse_pantry_expiration(entry.get("expiration_date"))
+        if expiry is None:
+            continue
+        delta = (expiry - today).days
+        if (include_expired and delta < 0) or 0 <= delta <= days:
+            item = dict(entry)
+            item["_days_to_expiry"] = delta
+            result.append(item)
+    return sorted(result, key=lambda e: (e.get("_days_to_expiry", 99999), ingredient_sort_key(e.get("name", ""))))
 
 
 def get_low_stock_pantry_items():
@@ -1217,75 +2040,59 @@ def remove_pantry_item(name):
     return pantry
 
 
-def convert_to_grams_equivalent(quantity, unit):
-    """Convertit une quantité vers un équivalent en grammes si l'unité est
-    connue (voir UNIT_TO_GRAMS), sinon retourne None (comparaison impossible,
-    par exemple pour « pièce » ou une unité personnalisée)."""
-    factor = UNIT_TO_GRAMS.get((unit or "").strip().lower())
-    if factor is None:
-        return None
-    try:
-        return float(quantity) * factor
-    except (TypeError, ValueError):
-        return None
 
 
 def pantry_stock_status(ingredient_name, needed_qty, needed_unit, pantry):
-    """Compare la quantité nécessaire d'un ingrédient à celle disponible dans
-    le garde-manger. Retourne :
-    - "absent" : l'ingrédient n'est pas du tout dans le garde-manger
-    - "suffisant" : la quantité en stock couvre le besoin
-    - "insuffisant" : l'ingrédient est en stock mais pas en quantité suffisante
-    - "inconnu" : l'ingrédient est en stock mais les unités ne sont pas
-      comparables (ex. « pièce » contre « Gr »), impossible de conclure
-    """
     entry = pantry.get(ingredient_sort_key(ingredient_name))
     if entry is None:
         return "absent"
-    have_qty, have_unit = entry.get("quantity", 0), entry.get("unit", "")
-    if (have_unit or "").strip().lower() == (needed_unit or "").strip().lower():
-        return "suffisant" if have_qty >= needed_qty else "insuffisant"
-    have_grams = convert_to_grams_equivalent(have_qty, have_unit)
-    needed_grams = convert_to_grams_equivalent(needed_qty, needed_unit)
-    if have_grams is None or needed_grams is None:
+    try:
+        have_qty = float(entry.get("quantity", 0))
+        needed_qty = float(needed_qty)
+    except (TypeError, ValueError):
         return "inconnu"
-    return "suffisant" if have_grams >= needed_grams else "insuffisant"
+    have_unit = entry.get("unit", "")
+    if str(have_unit).strip().lower() == str(needed_unit or "").strip().lower():
+        return "suffisant" if have_qty >= needed_qty else "insuffisant"
+    converted = compatible_unit_quantities(have_qty, have_unit, needed_qty, needed_unit)
+    if converted is None:
+        return "inconnu"
+    _, have_base, needed_base = converted
+    return "suffisant" if have_base >= needed_base else "insuffisant"
 
 
 def decrement_pantry_for_recipe(recipe, persons):
-    """Décompte du garde-manger les ingrédients d'une recette qui viennent
-    d'être cuisinée, dans la limite du raisonnable : ne fait rien pour un
-    ingrédient absent du garde-manger ou dont l'unité n'est pas comparable
-    (ne devine jamais), et ne descend jamais sous zéro. Retourne le nombre
-    d'ingrédients réellement décomptés."""
-    pantry = load_pantry()
-    default_persons = recipe.get("default_persons", 1) or 1
+    """Décompte exactement ``quantité par personne × personnes`` du garde-manger."""
     try:
-        ratio = float(persons) / float(default_persons)
-    except (TypeError, ValueError, ZeroDivisionError):
-        ratio = 1
+        persons = parse_positive_number(persons)
+    except (ValueError, TypeError):
+        return 0
+    pantry = load_pantry()
     decremented = 0
     for ing in recipe.get("ingredients", []):
-        key = ingredient_sort_key(ing["name"])
+        key = ingredient_sort_key(ing.get("name", ""))
         entry = pantry.get(key)
         if entry is None:
             continue
-        needed_qty = ing["quantity"] * ratio
-        have_unit = (entry.get("unit") or "").strip().lower()
-        needed_unit = (ing.get("unit") or "").strip().lower()
-        if have_unit == needed_unit:
-            entry["quantity"] = max(0, entry.get("quantity", 0) - needed_qty)
+        try:
+            needed_qty = float(ing.get("quantity", 0)) * persons
+            have_qty = float(entry.get("quantity", 0))
+        except (TypeError, ValueError):
+            continue
+        have_unit = entry.get("unit", "")
+        needed_unit = ing.get("unit", "")
+        if str(have_unit).strip().lower() == str(needed_unit).strip().lower():
+            entry["quantity"] = max(0.0, have_qty - needed_qty)
             decremented += 1
             continue
-        have_grams = convert_to_grams_equivalent(entry.get("quantity", 0), entry.get("unit", ""))
-        needed_grams = convert_to_grams_equivalent(needed_qty, ing.get("unit", ""))
-        if have_grams is not None and needed_grams is not None:
-            new_grams = max(0, have_grams - needed_grams)
-            # Reconvertit dans l'unité d'origine du garde-manger (toujours
-            # en grammes-équivalent ici, donc conversion directe possible).
-            factor = UNIT_TO_GRAMS.get(have_unit, 1.0)
-            entry["quantity"] = new_grams / factor if factor else new_grams
-            decremented += 1
+        converted = compatible_unit_quantities(have_qty, have_unit, needed_qty, needed_unit)
+        if converted is None:
+            continue
+        family, have_base, needed_base = converted
+        remaining_base = max(0.0, have_base - needed_base)
+        factor = UNIT_DIMENSIONS.get(canonical_unit(have_unit), (None, 1.0))[1]
+        entry["quantity"] = remaining_base / factor if factor else remaining_base
+        decremented += 1
     if decremented:
         save_pantry(pantry)
     return decremented
@@ -1310,6 +2117,18 @@ def load_nutrition_data():
     return _nutrition_cache
 
 
+def _lookup_ingredient_data(data, name):
+    """Exact lookup, then unique spelling normalization (never fuzzy matching)."""
+    key = str(name or '').strip().lower()
+    if key in data:
+        return data[key]
+    def normalized(value):
+        return ' '.join(ingredient_sort_key(value).replace('’', "'").split())
+    target = normalized(key)
+    matches = [value for stored, value in data.items() if normalized(stored) == target]
+    return matches[0] if len(matches) == 1 else None
+
+
 def get_ingredient_nutrition(name):
     """Retourne le dict nutrition {kcal, protein_g, carbs_g, fat_g} pour un
     ingrédient (pour 100 g/100 ml), ou None si inconnu. Une surcharge
@@ -1317,25 +2136,37 @@ def get_ingredient_nutrition(name):
     override = get_ingredient_override(name)
     if override and "nutrition" in override and override["nutrition"]:
         return override["nutrition"]
-    return load_nutrition_data().get(name.strip().lower())
+    return _lookup_ingredient_data(load_nutrition_data(), name)
 
 
 def compute_recipe_nutrition(recipe, persons):
-    """Retourne (totaux {kcal, protein_g, carbs_g, fat_g}, nb_ingrédients pris
-    en compte, nb_ingrédients_total). Les ingrédients inconnus de la base, ou
-    exprimés en "pièce"/unité personnalisée, sont exclus du total (estimation
-    partielle dans ce cas)."""
+    """Retourne les totaux nutritionnels pour un nombre positif de personnes."""
     totals = {"kcal": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+    try:
+        persons = parse_positive_number(persons)
+    except (ValueError, TypeError):
+        return totals, 0, len(recipe.get("ingredients", []))
     converted = 0
     total_count = len(recipe["ingredients"])
     for ing in recipe["ingredients"]:
         nutri = get_ingredient_nutrition(ing["name"])
-        if not nutri:
+        if not nutri or not all(
+            isinstance(nutri.get(key), (int, float))
+            and not isinstance(nutri.get(key), bool)
+            and math.isfinite(nutri[key]) and nutri[key] >= 0
+            for key in totals
+        ):
             continue
         grams_per_unit = UNIT_TO_GRAMS.get(ing["unit"].strip().lower())
         if grams_per_unit is None:
             continue
-        grams = ing["quantity"] * persons * grams_per_unit
+        quantity = ing.get("quantity")
+        if quantity is None:
+            # Une quantité inconnue ne peut pas contribuer à une estimation
+            # nutritionnelle, mais l'ingrédient reste compté dans le total
+            # afin d'indiquer que l'estimation est partielle.
+            continue
+        grams = quantity * persons * grams_per_unit
         factor = grams / 100.0
         totals["kcal"] += nutri.get("kcal", 0) * factor
         totals["protein_g"] += nutri.get("protein_g", 0) * factor
@@ -1347,7 +2178,7 @@ def compute_recipe_nutrition(recipe, persons):
 
 # ---------------------------------------------------------------------------
 # Allergènes présents dans chaque ingrédient, à partir d'une base fournie
-# avec l'application (les ~1000 ingrédients courants). Sert à détecter
+# avec l'application (les 1030 ingrédients courants). Sert à détecter
 # automatiquement les allergènes d'une recette à partir de ses ingrédients.
 # ---------------------------------------------------------------------------
 
@@ -1380,24 +2211,15 @@ def load_ingredient_allergens():
 # ---------------------------------------------------------------------------
 
 def load_ingredient_overrides():
-    if os.path.exists(INGREDIENT_OVERRIDES_FILE):
-        try:
-            with open(INGREDIENT_OVERRIDES_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return data
-        except Exception:
-            return {}
-    return {}
+    return _read_user_json(INGREDIENT_OVERRIDES_FILE, dict, {}, label="ingredient_overrides")
 
 
 def save_ingredient_overrides(overrides):
-    with open(INGREDIENT_OVERRIDES_FILE, "w", encoding="utf-8") as f:
-        json.dump(overrides, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(INGREDIENT_OVERRIDES_FILE, overrides)
 
 
 def get_ingredient_override(name):
-    return load_ingredient_overrides().get(name.strip().lower())
+    return _lookup_ingredient_data(load_ingredient_overrides(), name)
 
 
 def set_ingredient_override(name, allergens=None, nutrition=None, substitutions=None):
@@ -1461,7 +2283,7 @@ _ingredient_translations_cache = {}
 
 def load_ingredient_translations(lang):
     """Charge (une seule fois par langue, en cache) le dictionnaire de
-    correspondance des ~1000 ingrédients courants vers la langue donnée,
+    correspondance des 1030 ingrédients courants vers la langue donnée,
     fourni avec l'application. Un ingrédient absent de ce dictionnaire
     (par exemple un ingrédient personnalisé ajouté par l'utilisateur)
     n'a simplement pas de traduction : voir translate_ingredient_name()."""
@@ -1496,7 +2318,7 @@ def translate_ingredient_name(name):
     if CURRENT_LANGUAGE == "fr":
         return name
     translations = load_ingredient_translations(CURRENT_LANGUAGE)
-    translated = translations.get(name.strip().lower())
+    translated = _lookup_ingredient_data(translations, name)
     return translated if translated else name
 
 
@@ -1537,18 +2359,29 @@ def resolve_ingredient_input(typed_name, ingredient_names):
     comme l'ancienne logique de correspondance stricte au nom français."""
     if not typed_name:
         return None
-    typed_key = typed_name.strip().lower()
+    typed_key = ingredient_sort_key(typed_name.strip())
     if not typed_key:
         return None
+    # Même comparaison normalisée que pour les recherches : accents, casse et
+    # ligatures œ/oe ne doivent jamais transformer un ingrédient connu en
+    # « ingrédient inconnu » (ex. Œufs provenant d'un site Web vs Oeufs en base).
     for n in ingredient_names:
-        if n.strip().lower() == typed_key:
+        if ingredient_sort_key(n.strip()) == typed_key:
             return n
     if CURRENT_LANGUAGE != "fr":
         reverse = load_ingredient_reverse_translations(CURRENT_LANGUAGE)
-        fr_key = reverse.get(typed_key)
+        fr_key = reverse.get(typed_name.strip().lower())
+        if not fr_key:
+            # Les fichiers de traduction peuvent eux aussi contenir œ/oe ou
+            # des variantes accentuées : seconde passe normalisée.
+            for translated, canonical in reverse.items():
+                if ingredient_sort_key(translated) == typed_key:
+                    fr_key = canonical
+                    break
         if fr_key:
+            fr_norm = ingredient_sort_key(fr_key)
             for n in ingredient_names:
-                if n.strip().lower() == fr_key:
+                if ingredient_sort_key(n.strip()) == fr_norm:
                     return n
     return None
 
@@ -1658,7 +2491,7 @@ def get_ingredient_allergens(name):
     override = get_ingredient_override(name)
     if override and "allergens" in override:
         return override["allergens"]
-    return load_ingredient_allergens().get(name.strip().lower(), [])
+    return _lookup_ingredient_data(load_ingredient_allergens(), name) or []
 
 
 def compute_recipe_allergens(ingredients):
@@ -1710,23 +2543,15 @@ def load_dismissed_pairs():
     explicitement indiquées comme n'étant PAS des doublons, pour ne plus les
     proposer lors des prochaines analyses. Chaque paire est représentée par
     un tuple trié de deux clés normalisées, indépendant de l'ordre."""
-    if os.path.exists(DISMISSED_DUPLICATE_PAIRS_FILE):
-        try:
-            with open(DISMISSED_DUPLICATE_PAIRS_FILE, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-                if isinstance(raw, list):
-                    return {
-                        tuple(sorted(pair)) for pair in raw
-                        if isinstance(pair, list) and len(pair) == 2
-                    }
-        except Exception:
-            pass
-    return set()
+    raw = _read_user_json(DISMISSED_DUPLICATE_PAIRS_FILE, list, [], label="dismissed_pairs")
+    return {
+        tuple(sorted(pair)) for pair in raw
+        if isinstance(pair, list) and len(pair) == 2
+    }
 
 
 def save_dismissed_pairs(pairs_set):
-    with open(DISMISSED_DUPLICATE_PAIRS_FILE, "w", encoding="utf-8") as f:
-        json.dump([list(pair) for pair in sorted(pairs_set)], f, ensure_ascii=False, indent=2)
+    _atomic_write_json(DISMISSED_DUPLICATE_PAIRS_FILE, [list(pair) for pair in sorted(pairs_set)])
 
 
 def add_dismissed_pair(name_a, name_b):
@@ -1755,6 +2580,64 @@ def find_plural_duplicate(name, existing_names):
     return None
 
 
+def rank_close_ingredients(name, existing_names):
+    """Classe les ingrédients existants par proximité avec un nom inconnu."""
+    wanted = ingredient_sort_key(name)
+    wanted_words = {w for w in wanted.split() if w not in {"de", "du", "des", "d", "la", "le", "les"}}
+    ranked = []
+    for existing in existing_names:
+        key = ingredient_sort_key(existing)
+        score = difflib.SequenceMatcher(None, wanted, key).ratio()
+        words = set(key.split())
+        if words and words.issubset(wanted_words):
+            score = max(score, 0.88)
+        plural = find_plural_duplicate(name, [existing])
+        if plural:
+            score = max(score, 0.98)
+        ranked.append((score, existing))
+    ranked.sort(key=lambda item: (-item[0], ingredient_sort_key(item[1])))
+    return ranked
+
+
+def filter_sorted_ingredient_values(full_values, typed=""):
+    """Trie les ingrédients puis réduit la liste selon le texte saisi."""
+    values = sorted(dict.fromkeys(full_values), key=ingredient_sort_key)
+    typed_key = ingredient_sort_key((typed or "").strip())
+    if not typed_key:
+        return values
+    starts_with = [value for value in values if ingredient_sort_key(value).startswith(typed_key)]
+    if starts_with:
+        return starts_with
+    return [value for value in values if typed_key in ingredient_sort_key(value)]
+
+
+def cleanup_stale_import_temp(max_age_days=7):
+    try:
+        if not os.path.isdir(IMPORT_TEMP_DIR):
+            return
+        cutoff = datetime.now().timestamp() - max_age_days * 86400
+        for name in os.listdir(IMPORT_TEMP_DIR):
+            path = os.path.join(IMPORT_TEMP_DIR, name)
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                try: os.remove(path)
+                except OSError: pass
+    except Exception as exc:
+        log_internal_error("cleanup_import_temp", exc)
+
+
+def load_thumbnail_from_path(path, size=(240, 180)):
+    if not path or not PIL_AVAILABLE or not os.path.isfile(path):
+        return None
+    try:
+        with Image.open(path) as source:
+            img = source.copy()
+        img.thumbnail(size)
+        return ImageTk.PhotoImage(img)
+    except Exception as exc:
+        log_internal_error("load_thumbnail_from_path", exc)
+        return None
+
+
 def copy_image_to_store(source_path):
     """Copie une image choisie par l'utilisateur dans le dossier images/
     et retourne le nom de fichier généré (à stocker dans la recette)."""
@@ -1768,59 +2651,106 @@ def copy_image_to_store(source_path):
 
 
 def delete_image_file(image_filename):
-    """Supprime un fichier image du dossier images/ (si présent)."""
-    if not image_filename:
-        return
-    path = os.path.join(IMAGES_DIR, image_filename)
-    if os.path.exists(path):
+    """Supprime uniquement un fichier réellement situé dans images/."""
+    path = image_store_path(image_filename)
+    if path and os.path.isfile(path):
         try:
             os.remove(path)
-        except OSError:
-            pass
+        except OSError as exc:
+            log_internal_error("delete_image_file", exc)
 
 
 def load_thumbnail(image_filename, size=(240, 180)):
-    """Retourne un objet ImageTk.PhotoImage pour affichage, ou None si
-    l'image n'existe pas ou si Pillow n'est pas installé."""
+    """Retourne un aperçu pour un nom d'image local sûr."""
     if not image_filename or not PIL_AVAILABLE:
         return None
-    path = os.path.join(IMAGES_DIR, image_filename)
-    if not os.path.exists(path):
+    path = image_store_path(image_filename)
+    if not path or not os.path.exists(path):
         return None
     try:
-        img = Image.open(path)
+        with Image.open(path) as source:
+            img = source.copy()
         img.thumbnail(size)
         return ImageTk.PhotoImage(img)
-    except Exception:
+    except Exception as exc:
+        log_internal_error("load_thumbnail", exc)
         return None
 
 
 def get_recipe_images(recipe):
-    """Retourne la liste des noms de fichiers image d'une recette, en gérant
-    la compatibilité avec l'ancien format à une seule photo (clé 'image')."""
-    images = recipe.get("images")
-    if images:
-        return list(images)
-    legacy = recipe.get("image")
+    """Photos principales de la recette (hors journal de cuisine)."""
+    images = recipe.get("images") if isinstance(recipe, dict) else None
+    if isinstance(images, list) and images:
+        return [n for n in (safe_image_filename(x) for x in images) if n]
+    legacy = safe_image_filename(recipe.get("image")) if isinstance(recipe, dict) else None
     return [legacy] if legacy else []
 
 
-def delete_recipe_images(recipe):
-    """Supprime tous les fichiers photo associés à une recette."""
-    for fname in get_recipe_images(recipe):
-        delete_image_file(fname)
+def get_all_recipe_image_refs(recipe):
+    """Toutes les photos appartenant à une recette, journal de cuisine inclus."""
+    refs = list(get_recipe_images(recipe))
+    seen = set(refs)
+    for entry in recipe.get("cook_log", []) if isinstance(recipe, dict) else []:
+        if not isinstance(entry, dict):
+            continue
+        photo = safe_image_filename(entry.get("photo"))
+        if photo and photo not in seen:
+            refs.append(photo)
+            seen.add(photo)
+    return refs
+
+
+def remap_recipe_image_refs(recipe, rename_map):
+    if not isinstance(recipe, dict):
+        return recipe
+    if isinstance(recipe.get("images"), list):
+        recipe["images"] = [rename_map.get(x, x) for x in recipe["images"] if safe_image_filename(rename_map.get(x, x))]
+    if recipe.get("image"):
+        mapped = rename_map.get(recipe["image"], recipe["image"])
+        if safe_image_filename(mapped): recipe["image"] = mapped
+        else: recipe.pop("image", None)
+    for entry in recipe.get("cook_log", []) or []:
+        if isinstance(entry, dict) and entry.get("photo"):
+            mapped = rename_map.get(entry["photo"], entry["photo"])
+            if safe_image_filename(mapped): entry["photo"] = mapped
+            else: entry.pop("photo", None)
+    return recipe
+
+
+def delete_recipe_images(recipe, protected_recipes=None, protected_trash=None):
+    """Supprime uniquement les images qui ne sont plus référencées ailleurs."""
+    if protected_recipes is None:
+        protected_recipes = load_recipes()
+    if protected_trash is None:
+        protected_trash = load_trash()
+    protected = set()
+    for other in protected_recipes or []:
+        protected.update(get_all_recipe_image_refs(other))
+    for entry in protected_trash or []:
+        if isinstance(entry, dict):
+            protected.update(get_all_recipe_image_refs(entry.get("recipe", {})))
+    for fname in get_all_recipe_image_refs(recipe):
+        if fname not in protected:
+            delete_image_file(fname)
 
 
 def duplicate_recipe_images(recipe):
-    """Copie physiquement tous les fichiers photo d'une recette sous de
-    nouveaux noms, pour qu'une recette dupliquée ait ses propres fichiers
-    indépendants (supprimer l'une ne doit pas affecter l'autre)."""
-    new_names = []
-    for fname in get_recipe_images(recipe):
-        src = os.path.join(IMAGES_DIR, fname)
-        if os.path.exists(src):
-            new_names.append(copy_image_to_store(src))
-    return new_names
+    """Duplique toutes les photos et met à jour aussi les photos du journal."""
+    mapping = {}
+    for fname in get_all_recipe_image_refs(recipe):
+        src = image_store_path(fname)
+        if src and os.path.exists(src):
+            mapping[fname] = copy_image_to_store(src)
+    return mapping
+
+
+def apply_duplicated_image_mapping(recipe, mapping):
+    recipe["images"] = [mapping.get(x, x) for x in get_recipe_images(recipe) if mapping.get(x, x)]
+    recipe.pop("image", None)
+    for entry in recipe.get("cook_log", []) or []:
+        if isinstance(entry, dict) and entry.get("photo") in mapping:
+            entry["photo"] = mapping[entry["photo"]]
+    return recipe
 
 
 # ---------------------------------------------------------------------------
@@ -1829,38 +2759,84 @@ def duplicate_recipe_images(recipe):
 # ---------------------------------------------------------------------------
 
 def format_quantity_with_unit(qty, unit):
-    """Convertit automatiquement une grande quantité vers une unité plus
-    parlante pour un total de liste de courses : les grammes passent en
-    kilogrammes au-delà de 1000 g (1 kg = 1000 g), et les centilitres
-    passent en litres au-delà de 100 cl (1 L = 100 cl)."""
-    unit_lower = (unit or "").strip().lower()
-    if unit_lower in ("gr", "g", "gramme", "grammes") and qty >= 1000:
-        qty = qty / 1000
-        unit = "kg"
-    elif unit_lower == "cl" and qty >= 100:
-        qty = qty / 100
-        unit = "L"
+    """Affichage lisible d'une quantité tout en conservant les unités compatibles."""
+    unit_lower = canonical_unit(unit)
+    try:
+        qty = float(qty)
+    except (TypeError, ValueError):
+        return qty, unit
+    dim = UNIT_DIMENSIONS.get(unit_lower)
+    if dim:
+        family, factor = dim
+        base = qty * factor
+        if family == "mass":
+            if base >= 1000:
+                qty, unit = base / 1000.0, "kg"
+            else:
+                qty, unit = base, "Gr"
+        elif family == "volume":
+            if base >= 1000:
+                qty, unit = base / 1000.0, "L"
+            elif base >= 10:
+                qty, unit = base / 10.0, "cl"
+            else:
+                qty, unit = base, "ml"
     qty = round(qty, 2)
-    if qty == int(qty):
+    if isinstance(qty, float) and qty == int(qty):
         qty = int(qty)
     return qty, unit
 
 
 def compute_grouped_totals(recipe_persons_pairs):
-    """À partir d'une liste de (recette, nombre_de_personnes), calcule le
-    total de chaque ingrédient nécessaire, regroupé par rayon de magasin
-    (dans l'ordre RAYON_ORDER). Retourne grouped_totals :
-    [(rayon, [(nom, quantité, unité), ...]), ...]. Les grandes quantités
-    (≥ 1000 g, ≥ 100 cl) sont automatiquement affichées en kg / L."""
+    """Calcule les totaux et fusionne g/kg ainsi que ml/cl/L pour un même ingrédient."""
     totals = {}
     for recipe, persons in recipe_persons_pairs:
-        for ing in recipe["ingredients"]:
-            key = (ing["name"].strip().lower(), ing["unit"].strip().lower())
-            totals[key] = totals.get(key, 0) + ing["quantity"] * persons
+        try:
+            persons = parse_positive_number(persons)
+        except (ValueError, TypeError):
+            continue
+        for ing in recipe.get("ingredients", []):
+            name = str(ing.get("name", "")).strip()
+            unit = str(ing.get("unit", "")).strip()
+            name_key = ingredient_sort_key(name)
+            if ing.get("quantity") is None:
+                # Conserver l'ingrédient dans la liste même si sa quantité
+                # est « au goût » : il ne peut pas être additionné aux
+                # quantités chiffrées, mais il ne doit pas disparaître.
+                key = (name_key, "unknown:" + unit.lower())
+                totals.setdefault(key, {"name": name, "qty": None, "unit": "", "family": "unknown"})
+                continue
+            try:
+                raw_qty = float(ing.get("quantity", 0)) * persons
+            except (TypeError, ValueError):
+                continue
+            dim = UNIT_DIMENSIONS.get(canonical_unit(unit))
+            if dim:
+                family, factor = dim
+                key = (name_key, family)
+                totals.setdefault(key, {"name": name, "qty": 0.0, "unit": "Gr" if family == "mass" else "ml", "family": family})
+                totals[key]["qty"] += raw_qty * factor
+            else:
+                key = (name_key, "exact:" + unit.lower())
+                totals.setdefault(key, {"name": name, "qty": 0.0, "unit": unit, "family": None})
+                totals[key]["qty"] += raw_qty
 
     by_rayon = {}
-    for (name, unit), qty in totals.items():
-        display_qty, display_unit = format_quantity_with_unit(qty, unit)
+    for data in totals.values():
+        qty = data["qty"]
+        unit = data["unit"]
+        # qty est déjà en unité de base pour les dimensions reconnues.
+        if data["family"] == "mass":
+            display_qty, display_unit = format_quantity_with_unit(qty, "Gr")
+        elif data["family"] == "volume":
+            display_qty, display_unit = format_quantity_with_unit(qty, "ml")
+        elif data["family"] == "unknown":
+            # La valeur interne reste ``None`` ; la traduction est appliquée
+            # uniquement au moment de l'affichage/export.
+            display_qty, display_unit = None, ""
+        else:
+            display_qty, display_unit = format_quantity_with_unit(qty, unit)
+        name = data["name"]
         rayon = get_ingredient_rayon(name)
         by_rayon.setdefault(rayon, []).append((name.capitalize(), display_qty, display_unit))
 
@@ -1892,20 +2868,11 @@ SAVED_SHOPPING_LISTS_FILE = os.path.join(DATA_DIR, "saved_shopping_lists.json")
 
 
 def load_saved_shopping_lists():
-    if os.path.exists(SAVED_SHOPPING_LISTS_FILE):
-        try:
-            with open(SAVED_SHOPPING_LISTS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return data
-        except Exception:
-            pass
-    return []
+    return _read_user_json(SAVED_SHOPPING_LISTS_FILE, list, [], label="shopping_lists")
 
 
 def save_saved_shopping_lists(lists):
-    with open(SAVED_SHOPPING_LISTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(lists, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(SAVED_SHOPPING_LISTS_FILE, lists)
 
 
 def write_shopping_list_txt(path, title, chosen_recipes, grouped_totals):
@@ -1920,8 +2887,9 @@ def write_shopping_list_txt(path, title, chosen_recipes, grouped_totals):
         for rayon, items in grouped_totals:
             f.write(f"\n{translate_rayon_name(rayon)} :\n")
             for name, qty, unit in items:
-                unit_display = f" {translate_unit_name(unit)}" if unit else ""
-                f.write(f"- {translate_ingredient_name(name)} : {qty}{unit_display}\n")
+                quantity_display = t("quantity_unspecified") if qty is None else qty
+                unit_display = f" {translate_unit_name(unit)}" if unit and qty is not None else ""
+                f.write(f"- {translate_ingredient_name(name)} : {quantity_display}{unit_display}\n")
 
 
 def build_shopping_list_workbook(chosen_recipes, grouped_totals):
@@ -1941,53 +2909,40 @@ def build_shopping_list_workbook(chosen_recipes, grouped_totals):
     ])
     for rayon, items in grouped_totals:
         for name, qty, unit in items:
-            ws_ing.append([translate_rayon_name(rayon), translate_ingredient_name(name), qty, unit])
+            quantity_display = t("quantity_unspecified") if qty is None else qty
+            unit_display = "" if qty is None else unit
+            ws_ing.append([translate_rayon_name(rayon), translate_ingredient_name(name), quantity_display, unit_display])
     return wb
 
 
 def build_shopping_list_pdf(path, title, chosen_recipes, grouped_totals):
-    """Construit un PDF pour une liste de courses. Nécessite que
-    REPORTLAB_AVAILABLE soit vrai."""
     c = pdf_canvas.Canvas(path, pagesize=A4)
     width, height = A4
-    y = height - 2 * cm
+    left, right, bottom = 2*cm, 2*cm, 2*cm
+    usable = width-left-right
+    y = height-2*cm
 
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(2 * cm, y, title)
-    y -= 1 * cm
+    def line(text, *, bold=False, size=10, indent=0, keep=True):
+        nonlocal y
+        y = _pdf_draw_wrapped(c, text, left+indent, y, usable-indent, height,
+                              font_name="Helvetica-Bold" if bold else "Helvetica",
+                              font_size=size, line_height=(0.55 if size>=12 else 0.46)*cm,
+                              bottom=bottom, keep_together=keep)
 
-    c.setFont("Helvetica", 10)
-    c.drawString(2 * cm, y, t("shoppingexport_generated_on", date=datetime.now().strftime("%d/%m/%Y %H:%M")))
-    y -= 1 * cm
-
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2 * cm, y, t("shoppingexport_selected_recipes"))
-    y -= 0.6 * cm
-    c.setFont("Helvetica", 10)
+    line(title, bold=True, size=18)
+    y -= 0.25*cm
+    line(t("shoppingexport_generated_on", date=datetime.now().strftime("%d/%m/%Y %H:%M")))
+    y -= 0.25*cm
+    line(t("shoppingexport_selected_recipes"), bold=True, size=12)
     for label, persons in chosen_recipes:
-        c.drawString(2.3 * cm, y, f"- {label} ({persons} pers.)")
-        y -= 0.5 * cm
-        if y < 3 * cm:
-            c.showPage()
-            y = height - 2 * cm
-
+        line(f"- {label} ({persons} pers.)", indent=0.3*cm)
     for rayon, items in grouped_totals:
-        y -= 0.4 * cm
-        if y < 3.5 * cm:
-            c.showPage()
-            y = height - 2 * cm
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(2 * cm, y, f"{translate_rayon_name(rayon)} :")
-        y -= 0.6 * cm
-        c.setFont("Helvetica", 10)
+        y -= 0.25*cm
+        line(f"{translate_rayon_name(rayon)} :", bold=True, size=12)
         for name, qty, unit in items:
-            unit_display = f" {translate_unit_name(unit)}" if unit else ""
-            c.drawString(2.3 * cm, y, f"- {translate_ingredient_name(name)} : {qty}{unit_display}")
-            y -= 0.5 * cm
-            if y < 2 * cm:
-                c.showPage()
-                y = height - 2 * cm
-
+            quantity_display = t("quantity_unspecified") if qty is None else qty
+            unit_display = f" {translate_unit_name(unit)}" if unit and qty is not None else ""
+            line(f"- {translate_ingredient_name(name)} : {quantity_display}{unit_display}", indent=0.3*cm)
     c.save()
 
 
@@ -2005,13 +2960,13 @@ ALLERGENS = ["Gluten", "Lactose", "Œufs", "Arachides", "Fruits à coque",
 ALLERGEN_TRANSLATIONS = {
     "en": {
         "gluten": "Gluten",
-        "lactose": "Lactose",
+        "lactose": "Milk (including lactose)",
         "œufs": "Eggs",
         "arachides": "Peanuts",
         "fruits à coque": "Tree nuts",
         "soja": "Soy",
         "poisson": "Fish",
-        "crustacés": "Shellfish",
+        "crustacés": "Crustaceans",
         "sésame": "Sesame",
         "céleri": "Celery",
         "moutarde": "Mustard",
@@ -2021,7 +2976,7 @@ ALLERGEN_TRANSLATIONS = {
     },
     "es": {
         "gluten": "Gluten",
-        "lactose": "Lactosa",
+        "lactose": "Leche (incluida la lactosa)",
         "œufs": "Huevos",
         "arachides": "Cacahuetes",
         "fruits à coque": "Frutos de cáscara",
@@ -2037,7 +2992,7 @@ ALLERGEN_TRANSLATIONS = {
     },
     "de": {
         "gluten": "Gluten",
-        "lactose": "Laktose",
+        "lactose": "Milch (einschließlich Laktose)",
         "œufs": "Eier",
         "arachides": "Erdnüsse",
         "fruits à coque": "Schalenfrüchte",
@@ -2062,7 +3017,8 @@ def translate_allergen_name(allergen):
     if not allergen:
         return allergen
     if CURRENT_LANGUAGE == "fr":
-        return allergen
+        # Historical storage key kept for compatibility with saved recipes.
+        return "Lait (dont lactose)" if allergen.strip().lower() == "lactose" else allergen
     return ALLERGEN_TRANSLATIONS.get(CURRENT_LANGUAGE, {}).get(allergen.strip().lower(), allergen)
 
 # Ingrédients de base qu'on a presque toujours sous la main, pré-cochés par
@@ -2074,28 +3030,83 @@ PANTRY_STAPLES = [
 ]
 
 
+def _pdf_wrap_lines(c, text, max_width, font_name="Helvetica", font_size=10):
+    """Retourne des lignes qui tiennent toutes dans ``max_width``."""
+    text = str(text or "")
+    words = text.split()
+    if not words:
+        return [""]
+    lines, line = [], ""
+    for word in words:
+        candidate = f"{line} {word}".strip()
+        if line and c.stringWidth(candidate, font_name, font_size) > max_width:
+            lines.append(line)
+            line = word
+        else:
+            line = candidate
+    if line:
+        lines.append(line)
+    return lines or [""]
+
+
+def _pdf_new_page(c, height):
+    c.showPage()
+    return height - 2 * cm
+
+
+def _pdf_draw_wrapped(c, text, x, y, max_width, height, *, font_name="Helvetica",
+                      font_size=10, line_height=0.48 * cm, bottom=2 * cm,
+                      color=None, keep_together=False):
+    lines = _pdf_wrap_lines(c, text, max_width, font_name, font_size)
+    needed = len(lines) * line_height
+    page_capacity = (height - 2 * cm) - bottom
+    if keep_together and needed <= page_capacity and y - needed < bottom:
+        y = _pdf_new_page(c, height)
+    if color is not None:
+        if isinstance(color, (tuple, list)) and len(color) == 3:
+            c.setFillColorRGB(*color)
+        else:
+            c.setFillColor(color)
+    c.setFont(font_name, font_size)
+    for line in lines:
+        if y - line_height < bottom:
+            y = _pdf_new_page(c, height)
+            if color is not None:
+                if isinstance(color, (tuple, list)) and len(color) == 3:
+                    c.setFillColorRGB(*color)
+                else:
+                    c.setFillColor(color)
+            c.setFont(font_name, font_size)
+        c.drawString(x, y, line)
+        y -= line_height
+    if color is not None:
+        c.setFillColorRGB(0, 0, 0)
+    return y
+
+
 def draw_recipe_content(c, recipe, persons, width, height):
-    """Dessine le contenu complet d'une recette (titre, infos, photo,
-    ingrédients, description, notes) sur un canevas reportlab déjà créé, à
-    partir du haut d'une page. Retourne la position verticale (y) atteinte à
-    la fin, pour pouvoir enchaîner d'autres contenus sur la même page si
-    besoin (sinon l'appelant peut faire c.showPage() lui-même)."""
+    """Dessine une recette sans couper horizontalement les textes longs."""
+    try:
+        persons = parse_positive_number(persons)
+    except (ValueError, TypeError):
+        persons = 1
+    left = 2 * cm
+    right = 2 * cm
+    usable = width - left - right
     y = height - 2 * cm
 
-    star = "⭐ " if recipe.get("favorite") else ""
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(2 * cm, y, f"{star}{recipe['name']}")
-    y -= 0.9 * cm
+    star = "* " if recipe.get("favorite") else ""
+    y = _pdf_draw_wrapped(c, f"{star}{recipe.get('name','')}", left, y, usable, height,
+                          font_name="Helvetica-Bold", font_size=18, line_height=0.72*cm,
+                          keep_together=True)
+    y -= 0.15 * cm
 
     cat = translate_category_name(recipe.get("category", "Autre"))
-    c.setFont("Helvetica", 10)
-    c.drawString(2 * cm, y, t("recipepdf_category_persons", cat=cat, persons=persons))
-    y -= 0.6 * cm
+    y = _pdf_draw_wrapped(c, t("recipepdf_category_persons", cat=cat, persons=persons), left, y, usable, height)
 
     rating = recipe.get("rating", 0)
     if rating:
-        c.drawString(2 * cm, y, t("recipepdf_rating", stars=rating_stars(rating)))
-        y -= 0.6 * cm
+        y = _pdf_draw_wrapped(c, t("recipepdf_rating", stars=rating_stars(rating)), left, y, usable, height)
 
     info_bits = []
     if recipe.get("prep_time"):
@@ -2105,19 +3116,16 @@ def draw_recipe_content(c, recipe, persons, width, height):
     if recipe.get("difficulty"):
         info_bits.append(t("recipepdf_difficulty", value=translate_difficulty_name(recipe['difficulty'])))
     if info_bits:
-        c.drawString(2 * cm, y, "   |   ".join(info_bits))
-        y -= 0.6 * cm
+        y = _pdf_draw_wrapped(c, "   |   ".join(info_bits), left, y, usable, height)
 
     allergens = recipe.get("allergens") or []
     if allergens:
-        c.setFillColorRGB(0.7, 0.2, 0.2)
-        c.drawString(2 * cm, y, t("recipepdf_allergens", list=", ".join(translate_allergen_name(a) for a in allergens)))
-        c.setFillColorRGB(0, 0, 0)
-        y -= 0.6 * cm
+        y = _pdf_draw_wrapped(
+            c, t("recipepdf_allergens", list=", ".join(translate_allergen_name(a) for a in allergens)),
+            left, y, usable, height, color=(0.7, 0.2, 0.2)
+        )
+    y -= 0.18 * cm
 
-    y -= 0.2 * cm
-
-    # Photo (la première disponible)
     images = get_recipe_images(recipe)
     if images:
         img_path = os.path.join(IMAGES_DIR, images[0])
@@ -2125,217 +3133,202 @@ def draw_recipe_content(c, recipe, persons, width, height):
             try:
                 img_reader = ImageReader(img_path)
                 iw, ih = img_reader.getSize()
-                max_w = 8 * cm
-                scale = max_w / iw
-                draw_w = max_w
-                draw_h = ih * scale
+                max_w, max_h = 8 * cm, 10 * cm
+                scale = min(max_w / iw, max_h / ih)
+                draw_w, draw_h = iw * scale, ih * scale
                 if y - draw_h < 3 * cm:
-                    c.showPage()
-                    y = height - 2 * cm
-                c.drawImage(img_reader, 2 * cm, y - draw_h, width=draw_w, height=draw_h,
+                    y = _pdf_new_page(c, height)
+                c.drawImage(img_reader, left, y - draw_h, width=draw_w, height=draw_h,
                             preserveAspectRatio=True, mask="auto")
-                y -= draw_h + 0.6 * cm
-            except Exception:
-                pass
+                y -= draw_h + 0.55 * cm
+            except Exception as exc:
+                log_internal_error("draw_recipe_content.image", exc)
 
-    if y < 4 * cm:
-        c.showPage()
-        y = height - 2 * cm
-
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2 * cm, y, t("recipepdf_ingredients_heading"))
-    y -= 0.6 * cm
-    c.setFont("Helvetica", 10)
-    for ing in recipe["ingredients"]:
-        qty = round(ing["quantity"] * persons, 2)
-        unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
-        c.drawString(2.3 * cm, y, f"- {translate_ingredient_name(ing['name']).capitalize()} : {qty}{unit}")
-        y -= 0.5 * cm
-        if y < 3 * cm:
-            c.showPage()
-            y = height - 2 * cm
+    if y < 4.5 * cm:
+        y = _pdf_new_page(c, height)
+    y = _pdf_draw_wrapped(c, t("recipepdf_ingredients_heading"), left, y, usable, height,
+                          font_name="Helvetica-Bold", font_size=12, line_height=0.58*cm,
+                          keep_together=True)
+    for ing in recipe.get("ingredients", []):
+        qty = ingredient_quantity_for_persons(ing, persons)
+        if qty is None:
+            qty = t("quantity_unspecified")
+            unit = ""
+        else:
+            unit = f" {translate_unit_name(ing.get('unit',''))}" if ing.get("unit") else ""
+        line = f"- {translate_ingredient_name(ing.get('name','')).capitalize()} : {qty}{unit}"
+        y = _pdf_draw_wrapped(c, line, left + 0.3*cm, y, usable - 0.3*cm, height,
+                              keep_together=True)
 
     cost, cost_known, cost_total = compute_recipe_cost(recipe, persons)
     nutrition, nutri_known, nutri_total = compute_recipe_nutrition(recipe, persons)
     if cost_known or nutri_known:
-        y -= 0.3 * cm
-        if y < 3 * cm:
-            c.showPage()
-            y = height - 2 * cm
-        c.setFont("Helvetica-Oblique", 9)
+        y -= 0.2 * cm
         if cost_known:
             partial = "" if cost_known == cost_total else t("recipepdf_partial_suffix", known=cost_known, total=cost_total)
-            c.drawString(2 * cm, y, t("recipepdf_cost", cost=f"{cost:.2f}", partial=partial))
-            y -= 0.45 * cm
+            y = _pdf_draw_wrapped(c, t("recipepdf_cost", cost=f"{cost:.2f}", partial=partial),
+                                  left, y, usable, height, font_name="Helvetica-Oblique", font_size=9)
         if nutri_known:
             partial = "" if nutri_known == nutri_total else t("recipepdf_partial_suffix", known=nutri_known, total=nutri_total)
-            c.drawString(
-                2 * cm, y,
-                t(
-                    "recipepdf_nutrition", partial=partial,
-                    kcal=f"{nutrition['kcal']:.0f}", protein=f"{nutrition['protein_g']:.0f}",
-                    carbs=f"{nutrition['carbs_g']:.0f}", fat=f"{nutrition['fat_g']:.0f}"
-                )
-            )
-            y -= 0.45 * cm
-        c.setFont("Helvetica", 10)
+            nutri_text = t("recipepdf_nutrition", partial=partial,
+                           kcal=f"{nutrition['kcal']:.0f}", protein=f"{nutrition['protein_g']:.0f}",
+                           carbs=f"{nutrition['carbs_g']:.0f}", fat=f"{nutrition['fat_g']:.0f}")
+            y = _pdf_draw_wrapped(c, nutri_text, left, y, usable, height,
+                                  font_name="Helvetica-Oblique", font_size=9)
 
-    def draw_wrapped_section(title, text, y):
-        y -= 0.4 * cm
+    def draw_section(title, body, y):
+        if not str(body or "").strip():
+            return y
+        y -= 0.28 * cm
         if y < 4 * cm:
-            c.showPage()
-            y = height - 2 * cm
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(2 * cm, y, title)
-        y -= 0.6 * cm
-        c.setFont("Helvetica", 10)
-        for paragraph in text.split("\n"):
-            words = paragraph.split(" ")
-            line = ""
-            for word in words:
-                test_line = f"{line} {word}".strip()
-                if c.stringWidth(test_line, "Helvetica", 10) > (width - 4 * cm):
-                    c.drawString(2 * cm, y, line)
-                    y -= 0.5 * cm
-                    if y < 2 * cm:
-                        c.showPage()
-                        y = height - 2 * cm
-                    line = word
-                else:
-                    line = test_line
-            if line:
-                c.drawString(2 * cm, y, line)
-                y -= 0.5 * cm
-                if y < 2 * cm:
-                    c.showPage()
-                    y = height - 2 * cm
+            y = _pdf_new_page(c, height)
+        y = _pdf_draw_wrapped(c, title, left, y, usable, height,
+                              font_name="Helvetica-Bold", font_size=12, line_height=0.58*cm,
+                              keep_together=True)
+        for paragraph in str(body).split("\n"):
+            y = _pdf_draw_wrapped(c, paragraph, left, y, usable, height,
+                                  font_name="Helvetica", font_size=10, line_height=0.48*cm,
+                                  keep_together=True)
+            if paragraph.strip():
+                y -= 0.07 * cm
         return y
 
-    description = recipe.get("description", "").strip()
-    if description:
-        y = draw_wrapped_section(t("recipepdf_description_heading"), description, y)
-
-    personal_notes = recipe.get("personal_notes", "").strip()
-    if personal_notes:
-        y = draw_wrapped_section(t("recipepdf_notes_heading"), personal_notes, y)
-
+    y = draw_section(t("recipepdf_description_heading"), recipe.get("description", ""), y)
+    y = draw_section(t("recipepdf_notes_heading"), recipe.get("personal_notes", ""), y)
     return y
 
 
 def build_cookbook_pdf(path, recipes_with_persons):
-    """Construit un PDF regroupant plusieurs recettes à la suite (une page de
-    titre listant le sommaire, puis une recette par page), avec toutes les
-    pages numérotées et le numéro de page de chaque recette indiqué en face
-    de son nom dans le sommaire."""
+    """Construit un livre PDF avec sommaire, retours à la ligne et pages fiables."""
     c = pdf_canvas.Canvas(path, pagesize=A4)
     width, height = A4
+    left, right = 2 * cm, 2 * cm
+    usable = width - left - right
 
-    # ---- Pré-calcul (rendu à blanc, jeté ensuite) du nombre de pages :
-    # une recette peut elle-même s'étaler sur plusieurs pages selon son
-    # contenu (photos, longue description...), donc il faut d'abord simuler
-    # tout le document pour connaître la page de démarrage de chaque
-    # recette et le nombre total de pages, avant de dessiner le sommaire. ----
-    def _count_summary_pages():
-        y = height - 3 * cm - 1 * cm - 1.2 * cm - 0.7 * cm
+    def count_summary_pages():
+        dummy = pdf_canvas.Canvas(io.BytesIO(), pagesize=A4)
+        y = height - 3 * cm
         pages = 1
-        for _ in recipes_with_persons:
-            y -= 0.5 * cm
-            if y < 2 * cm:
+        y -= 1.0 * cm  # titre
+        y -= 0.7 * cm  # date
+        y -= 0.8 * cm  # sommaire
+        for recipe, _persons in recipes_with_persons:
+            cat = translate_category_name(recipe.get("category", "Autre"))
+            label = f"- [{cat}] {recipe.get('name','')}"
+            lines = _pdf_wrap_lines(dummy, label, usable - 2.0*cm, "Helvetica", 10)
+            need = len(lines) * 0.48 * cm + 0.08*cm
+            if y - need < 2 * cm:
                 pages += 1
                 y = height - 2 * cm
+            y -= need
         return pages
 
-    def _count_recipe_pages(recipe, persons):
-        dummy = pdf_canvas.Canvas(io.BytesIO(), pagesize=(width, height))
+    def count_recipe_pages(recipe, persons):
+        dummy = pdf_canvas.Canvas(io.BytesIO(), pagesize=A4)
         count = [1]
-        real_show_page = dummy.showPage
-
-        def counting_show_page():
+        real = dummy.showPage
+        def show():
             count[0] += 1
-            real_show_page()
-
-        dummy.showPage = counting_show_page
+            real()
+        dummy.showPage = show
         draw_recipe_content(dummy, recipe, persons, width, height)
         return count[0]
 
-    summary_page_count = _count_summary_pages()
-    recipe_start_pages = []
-    running_page = summary_page_count + 1
+    summary_pages = count_summary_pages()
+    starts, page = [], summary_pages + 1
     for recipe, persons in recipes_with_persons:
-        recipe_start_pages.append(running_page)
-        running_page += _count_recipe_pages(recipe, persons)
-    total_pages = running_page - 1
+        starts.append(page)
+        page += count_recipe_pages(recipe, persons)
+    total_pages = max(1, page - 1)
 
-    # ---- Numérotation automatique : on intercepte chaque saut de page
-    # (y compris ceux internes à draw_recipe_content) pour dessiner le pied
-    # de page juste avant de passer à la suivante. ----
-    current_page = [1]
-    real_show_page = c.showPage
-
+    current = [1]
+    real_show = c.showPage
     def numbered_show_page():
+        c.setFillColorRGB(0,0,0)
         c.setFont("Helvetica", 8)
-        c.drawCentredString(width / 2, 1 * cm, t("cookbookpdf_page_number", current=current_page[0], total=total_pages))
-        real_show_page()
-        current_page[0] += 1
-
+        c.drawCentredString(width/2, 1*cm, t("cookbookpdf_page_number", current=current[0], total=total_pages))
+        real_show()
+        current[0] += 1
     c.showPage = numbered_show_page
 
-    # Page(s) de titre / sommaire, avec le numéro de page de chaque recette
     y = height - 3 * cm
-    c.setFont("Helvetica-Bold", 24)
-    c.drawString(2 * cm, y, t("home_window_title"))
-    y -= 1 * cm
-    c.setFont("Helvetica", 10)
-    c.drawString(2 * cm, y, t("cookbookpdf_generated_on", date=datetime.now().strftime("%d/%m/%Y")))
-    y -= 1.2 * cm
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(2 * cm, y, t("cookbookpdf_summary_heading"))
-    y -= 0.7 * cm
-    c.setFont("Helvetica", 10)
-    for i, (recipe, persons) in enumerate(recipes_with_persons):
+    y = _pdf_draw_wrapped(c, t("cookbookpdf_title"), left, y, usable, height,
+                          font_name="Helvetica-Bold", font_size=24, line_height=0.9*cm)
+    y -= 0.2*cm
+    y = _pdf_draw_wrapped(c, t("cookbookpdf_generated", date=datetime.now().strftime("%d/%m/%Y")),
+                          left, y, usable, height, font_size=10)
+    y -= 0.25*cm
+    y = _pdf_draw_wrapped(c, t("cookbookpdf_toc_heading"), left, y, usable, height,
+                          font_name="Helvetica-Bold", font_size=14, line_height=0.65*cm)
+
+    for (recipe, _persons), start_page in zip(recipes_with_persons, starts):
         cat = translate_category_name(recipe.get("category", "Autre"))
-        c.drawString(2.3 * cm, y, t("cookbookpdf_summary_line", cat=cat, name=recipe['name']))
-        c.drawRightString(width - 2 * cm, y, str(recipe_start_pages[i]))
-        y -= 0.5 * cm
-        if y < 2 * cm:
-            c.showPage()
-            y = height - 2 * cm
+        label = f"- [{cat}] {recipe.get('name','')}"
+        lines = _pdf_wrap_lines(c, label, usable - 2.0*cm, "Helvetica", 10)
+        need = len(lines)*0.48*cm + 0.08*cm
+        if y - need < 2*cm:
+            numbered_show_page(); y = height - 2*cm
+        c.setFont("Helvetica",10)
+        for i,line in enumerate(lines):
+            c.drawString(left, y, line)
+            if i == 0:
+                c.drawRightString(width-right, y, str(start_page))
+            y -= 0.48*cm
+        y -= 0.08*cm
 
-    for recipe, persons in recipes_with_persons:
-        c.showPage()
-        draw_recipe_content(c, recipe, persons, width, height)
+    if recipes_with_persons:
+        numbered_show_page()
+        for idx,(recipe,persons) in enumerate(recipes_with_persons):
+            draw_recipe_content(c, recipe, persons, width, height)
+            if idx < len(recipes_with_persons)-1:
+                numbered_show_page()
 
-    # La toute dernière page ne passe jamais par un showPage() suivant : son
-    # pied de page doit être dessiné explicitement ici, juste avant de
-    # sauvegarder. On restaure d'abord showPage() à son comportement
-    # d'origine, car Canvas.save() l'appelle lui-même en interne pour
-    # finaliser la dernière page — sans cela, le pied de page serait dessiné
-    # une seconde fois par erreur.
-    c.showPage = real_show_page
-    c.setFont("Helvetica", 8)
-    c.drawCentredString(width / 2, 1 * cm, t("cookbookpdf_page_number", current=current_page[0], total=total_pages))
+    # footer de la dernière page, sans créer une page blanche supplémentaire
+    c.setFillColorRGB(0,0,0)
+    c.setFont("Helvetica",8)
+    c.drawCentredString(width/2, 1*cm, t("cookbookpdf_page_number", current=current[0], total=total_pages))
     c.save()
-
-
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
 
+def _normalize_plan_recipe_refs(plan, recipes=None):
+    if not isinstance(plan, dict):
+        return {}
+    recipes = recipes if recipes is not None else load_recipes()
+    changed = False
+    out = copy.deepcopy(plan)
+    for day_data in out.values():
+        if not isinstance(day_data, dict):
+            continue
+        for slot, info in list(day_data.items()):
+            if not isinstance(info, dict):
+                continue
+            before = (info.get("recipe_id"), info.get("recipe_name"))
+            enrich_recipe_reference(info, recipes)
+            if before != (info.get("recipe_id"), info.get("recipe_name")):
+                changed = True
+    return out, changed
+
+
 def load_weekly_plan():
-    """Charge le planning de la semaine : {jour: {'recipe_name':.., 'persons':..}}."""
     if os.path.exists(WEEKLY_PLAN_FILE):
         try:
-            with open(WEEKLY_PLAN_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return data
-        except Exception:
-            return {}
+            data = _read_user_json(WEEKLY_PLAN_FILE, dict, {}, label="weekly_plan")
+            if _corruption_key(WEEKLY_PLAN_FILE) in _CORRUPTED_DATA_FILES:
+                return {}
+            if isinstance(data, dict):
+                normalized, changed = _normalize_plan_recipe_refs(data)
+                if changed:
+                    _atomic_write_json(WEEKLY_PLAN_FILE, normalized)
+                return normalized
+        except Exception as exc:
+            log_internal_error("load_weekly_plan", exc)
     return {}
 
 
 def save_weekly_plan(plan):
-    with open(WEEKLY_PLAN_FILE, "w", encoding="utf-8") as f:
-        json.dump(plan, f, ensure_ascii=False, indent=2)
+    normalized, _ = _normalize_plan_recipe_refs(plan)
+    _atomic_write_json(WEEKLY_PLAN_FILE, normalized)
 
 
 def get_current_week_key():
@@ -2350,18 +3343,35 @@ def load_weekly_plan_history():
     """Liste des plannings archivés : [{'week_start','plan','saved_at'}, ...]."""
     if os.path.exists(WEEKLY_PLAN_HISTORY_FILE):
         try:
-            with open(WEEKLY_PLAN_HISTORY_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = _read_user_json(WEEKLY_PLAN_HISTORY_FILE, list, [], label="weekly_plan_history")
+            if _corruption_key(WEEKLY_PLAN_HISTORY_FILE) in _CORRUPTED_DATA_FILES:
+                return []
+            if isinstance(data, list):
                 if isinstance(data, list):
+                    recipes = load_recipes()
+                    changed = False
+                    for entry in data:
+                        if isinstance(entry, dict) and isinstance(entry.get("plan"), dict):
+                            plan, ch = _normalize_plan_recipe_refs(entry["plan"], recipes)
+                            entry["plan"] = plan
+                            changed = changed or ch
+                    if changed:
+                        _atomic_write_json(WEEKLY_PLAN_HISTORY_FILE, data)
                     return data
-        except Exception:
-            pass
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
     return []
 
 
 def save_weekly_plan_history(history):
-    with open(WEEKLY_PLAN_HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+    recipes = load_recipes()
+    normalized = []
+    for entry in history if isinstance(history, list) else []:
+        item = copy.deepcopy(entry)
+        if isinstance(item, dict) and isinstance(item.get("plan"), dict):
+            item["plan"], _ = _normalize_plan_recipe_refs(item["plan"], recipes)
+        normalized.append(item)
+    _atomic_write_json(WEEKLY_PLAN_HISTORY_FILE, normalized)
 
 
 WEEKLY_PLAN_HISTORY_RETENTION = 26  # environ 6 mois d'historique
@@ -2391,18 +3401,32 @@ def load_weekly_plan_templates():
     """Modèles de semaine réutilisables : {nom_du_modele: plan}."""
     if os.path.exists(WEEKLY_PLAN_TEMPLATES_FILE):
         try:
-            with open(WEEKLY_PLAN_TEMPLATES_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = _read_user_json(WEEKLY_PLAN_TEMPLATES_FILE, dict, {}, label="weekly_plan_templates")
+            if _corruption_key(WEEKLY_PLAN_TEMPLATES_FILE) in _CORRUPTED_DATA_FILES:
+                return {}
+            if isinstance(data, dict):
                 if isinstance(data, dict):
+                    recipes = load_recipes()
+                    changed = False
+                    for key, plan in list(data.items()):
+                        if isinstance(plan, dict):
+                            normalized, ch = _normalize_plan_recipe_refs(plan, recipes)
+                            data[key] = normalized
+                            changed = changed or ch
+                    if changed:
+                        _atomic_write_json(WEEKLY_PLAN_TEMPLATES_FILE, data)
                     return data
-        except Exception:
-            pass
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
     return {}
 
 
 def save_weekly_plan_templates(templates):
-    with open(WEEKLY_PLAN_TEMPLATES_FILE, "w", encoding="utf-8") as f:
-        json.dump(templates, f, ensure_ascii=False, indent=2)
+    recipes = load_recipes()
+    normalized = {}
+    for name, plan in (templates.items() if isinstance(templates, dict) else []):
+        normalized[name], _ = _normalize_plan_recipe_refs(plan, recipes) if isinstance(plan, dict) else ({}, False)
+    _atomic_write_json(WEEKLY_PLAN_TEMPLATES_FILE, normalized)
 
 
 # ---------------------------------------------------------------------------
@@ -2524,27 +3548,52 @@ def build_weekly_plan_ics(plan):
     return "\r\n".join(lines) + "\r\n"
 
 
+def _normalize_menu_recipe_refs(menus, recipes=None):
+    if not isinstance(menus, list):
+        return [], False
+    recipes = recipes if recipes is not None else load_recipes()
+    out = copy.deepcopy(menus)
+    changed = False
+    for menu in out:
+        if not isinstance(menu, dict):
+            continue
+        items = menu.get("items", [])
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            before = (item.get("recipe_id"), item.get("recipe_name"))
+            enrich_recipe_reference(item, recipes)
+            if before != (item.get("recipe_id"), item.get("recipe_name")):
+                changed = True
+    return out, changed
+
+
 def load_menus():
-    """Charge la liste des menus enregistrés :
-    [{'name':.., 'items': [{'recipe_name':.., 'persons':..}, ...]}, ...]."""
     if os.path.exists(MENUS_FILE):
         try:
-            with open(MENUS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return data
-        except Exception:
-            return []
+            data = _read_user_json(MENUS_FILE, list, [], label="menus")
+            if _corruption_key(MENUS_FILE) in _CORRUPTED_DATA_FILES:
+                return []
+            if isinstance(data, list):
+                normalized, changed = _normalize_menu_recipe_refs(data)
+                if changed:
+                    _atomic_write_json(MENUS_FILE, normalized)
+                return normalized
+        except Exception as exc:
+            log_internal_error("load_menus", exc)
     return []
 
 
 def save_menus(menus):
-    with open(MENUS_FILE, "w", encoding="utf-8") as f:
-        json.dump(menus, f, ensure_ascii=False, indent=2)
+    normalized, _ = _normalize_menu_recipe_refs(menus)
+    _atomic_write_json(MENUS_FILE, normalized)
 
 
 def find_recipe_by_name(recipes, name):
-    return next((r for r in recipes if r.get("name") == name), None)
+    """Compatibilité ancienne : préférer find_recipe_by_ref pour les nouvelles données."""
+    return next((r for r in recipes if isinstance(r, dict) and r.get("name") == name), None)
 
 
 # ---------------------------------------------------------------------------
@@ -2556,12 +3605,19 @@ _FRACTION_MAP = {"½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3}
 
 _UNIT_ALIASES = {
     "g": "Gr", "gr": "Gr", "gramme": "Gr", "grammes": "Gr",
-    "cl": "cl",
-    "cas": "cuillère à soupe", "c.a.s": "cuillère à soupe",
+    "kg": "Kilo", "kilo": "Kilo", "kilos": "Kilo",
+    "kilogramme": "Kilo", "kilogrammes": "Kilo",
+    "ml": "ml", "millilitre": "ml", "millilitres": "ml",
+    "cl": "cl", "centilitre": "cl", "centilitres": "cl",
+    "l": "Litre", "litre": "Litre", "litres": "Litre",
+    "cas": "cuillère à soupe", "c.a.s": "cuillère à soupe", "c. à soupe": "cuillère à soupe",
+    "c à s": "cuillère à soupe", "c. à s": "cuillère à soupe", "c a s": "cuillère à soupe",
+    "c à soupe": "cuillère à soupe", "c. a soupe": "cuillère à soupe",
     "cuillere": "cuillère à soupe", "cuillères": "cuillère à soupe", "cuillère": "cuillère à soupe",
     "cuillere a soupe": "cuillère à soupe", "cuillère à soupe": "cuillère à soupe",
     "cuillères à soupe": "cuillère à soupe", "cuilleres a soupe": "cuillère à soupe",
-    "cac": "cuillère à café",
+    "cac": "cuillère à café", "c. à café": "cuillère à café", "c à café": "cuillère à café",
+    "c. a cafe": "cuillère à café",
     "cuillere a cafe": "cuillère à café", "cuillère à café": "cuillère à café",
     "cuillères à café": "cuillère à café", "cuilleres a cafe": "cuillère à café",
     "piece": "pièce", "pièce": "pièce", "pièces": "pièce", "pieces": "pièce",
@@ -2572,12 +3628,17 @@ def parse_quantity_token(token):
     token = token.strip()
     if token in _FRACTION_MAP:
         return _FRACTION_MAP[token]
+    # Plage compacte 2-3 / 2–3 : conserve la borne basse.
+    m = re.match(r"^([0-9]+(?:[.,][0-9]+)?)\s*[-–—]\s*([0-9]+(?:[.,][0-9]+)?)$", token)
+    if m:
+        return float(m.group(1).replace(",", "."))
     m = re.match(r"^(\d+)\s*/\s*(\d+)$", token)
     if m:
         return int(m.group(1)) / int(m.group(2))
     token = token.replace(",", ".")
     try:
-        return float(token)
+        value = float(token)
+        return value if math.isfinite(value) else None
     except ValueError:
         return None
 
@@ -2586,7 +3647,7 @@ def _match_unit_tokens(tokens, start):
     """Essaie de faire correspondre 3, puis 2, puis 1 token(s) à partir de
     `start` à une unité connue (ex. « cuillères à soupe »), en testant la
     séquence la plus longue en premier. Insensible aux accents/à la casse."""
-    for length in (3, 2, 1):
+    for length in (4, 3, 2, 1):
         end = start + length
         if end <= len(tokens):
             candidate = " ".join(t.strip(".,") for t in tokens[start:end])
@@ -2612,20 +3673,731 @@ def parse_ingredient_line(line):
     qty = parse_quantity_token(tokens[0])
     unit = None
     rest_start = 0
+
+    # Quantités mixtes : « 1 1/2 kg », « 2 ½ tasses ».
+    if qty is not None and len(tokens) > 1:
+        frac = parse_quantity_token(tokens[1])
+        if frac is not None and ("/" in tokens[1] or tokens[1] in _FRACTION_MAP):
+            qty += frac
+            rest_start = 2
+
+    # Quantités multipliées : « 2 x 400 g tomates », « 3 × 125 ml ».
+    multiplier_start = rest_start or 1
+    if qty is not None and len(tokens) > multiplier_start + 1 and tokens[multiplier_start].lower() in ("x", "×", "*"):
+        second_qty = parse_quantity_token(tokens[multiplier_start + 1])
+        if second_qty is not None:
+            qty *= second_qty
+            rest_start = multiplier_start + 2
+
+    # Plages courantes « 2 à 3 carottes » / « 2-3 carottes » : on conserve
+    # la borne basse comme valeur prudente et on retire la seconde borne du nom.
+    if qty is not None and len(tokens) > rest_start + 2 and tokens[rest_start or 1].lower() in ("à", "a", "-"):
+        maybe_high = parse_quantity_token(tokens[(rest_start or 1) + 1])
+        if maybe_high is not None:
+            rest_start = (rest_start or 1) + 2
+
+    # Certains sites écrivent « 750g », « 1kg » ou « 20cl » sans espace.
+    # Dans ce cas, sépare quantité et unité avant d'analyser le reste.
+    attached = re.match(
+        r"^([0-9]+(?:[.,][0-9]+)?)([a-zA-ZÀ-ÿ]+)$",
+        tokens[0]
+    )
+    if qty is None and attached:
+        qty = parse_quantity_token(attached.group(1))
+        attached_unit = attached.group(2)
+        unit_match, _ = _match_unit_tokens([attached_unit], 0)
+        if unit_match:
+            unit = unit_match
+            rest_start = 1
+
     if qty is not None:
-        rest_start = 1
-        if len(tokens) > 1:
-            unit, rest_start = _match_unit_tokens(tokens, 1)
+        if rest_start == 0:
+            rest_start = 1
+        if len(tokens) > rest_start:
+            matched_unit, matched_end = _match_unit_tokens(tokens, rest_start)
+            if matched_unit:
+                unit, rest_start = matched_unit, matched_end
 
     name = " ".join(tokens[rest_start:]).strip()
     name = re.sub(r"^(de |d['’]|of )", "", name, flags=re.IGNORECASE).strip()
 
+    # Les sites écrivent souvent « sachet de levure », « poignée de pépites »
+    # quand aucune unité structurée n'est fournie. Pour la base interne, le
+    # nom canonique est l'aliment lui-même ; on retire donc seulement ces
+    # contenants/mesures du début du nom. La quantité reste conservée.
+    name = re.sub(
+        r"^(?:sachet|sachets|poignée|poignees?|poignées?)\s+(?:de |d['’])?",
+        "", name, flags=re.IGNORECASE
+    ).strip()
+
     if not name:
         name = original
-        qty = qty or 1
+
+    # Un ingrédient sans quantité (« sel », « poivre ») n'est pas une pièce.
+    if qty is None:
+        qty = 1
+        unit = unit or "au goût"
+    else:
         unit = unit or "pièce"
 
-    return {"name": name.capitalize(), "quantity": qty or 1, "unit": unit or "pièce"}
+    return {"name": name.capitalize(), "quantity": qty, "unit": unit}
+
+
+# ---------------------------------------------------------------------------
+# Import OCR photo (v37)
+# ---------------------------------------------------------------------------
+
+OCR_MAX_JPEG_DIMENSION = 1600
+OCR_UNICODE_FRACTIONS = {
+    **_FRACTION_MAP,
+    "⅕": 1 / 5, "⅖": 2 / 5, "⅗": 3 / 5, "⅘": 4 / 5,
+    "⅙": 1 / 6, "⅚": 5 / 6, "⅛": 1 / 8, "⅜": 3 / 8,
+    "⅝": 5 / 8, "⅞": 7 / 8,
+}
+
+OCR_INGREDIENT_BOUNDARY_RE = re.compile(
+    r"^(?:valeurs?\s+nutritionnelles?|par\s+portion|pour\s+100\s*g|"
+    r"[ée]nergie|lipides?|glucides?|prot[ée]ines?|fibres?|allerg[èe]nes?|"
+    r"attention|\*?\s*conserver\s+au\s+r[ée]frig[ée]rateur)",
+    re.IGNORECASE,
+)
+OCR_NON_INGREDIENT_RE = re.compile(
+    r"^(?:mes\s+ustensiles|ustensiles|[àa]\s*ajouter\s+vous[\s-]?m[êe]me|"
+    r"ajouter\s*vous|par\s+portion|pour\s+100\s*g|valeurs?\s+nutritionnelles?)",
+    re.IGNORECASE,
+)
+
+
+def prepare_image_for_ocr(source, manual_rotation=0, max_dimension=OCR_MAX_JPEG_DIMENSION):
+    """Normalise une photo sans modifier le fichier d'origine.
+
+    Pillow n'applique pas automatiquement l'orientation EXIF. C'était la
+    cause principale des pages reconnues tête-bêche sur certains téléphones.
+    La réduction à 1600 px reprend le seuil validé par le corpus OCR mobile :
+    elle accélère Tesseract et stabilise sa segmentation sur les JPEG de
+    smartphones, tout en conservant assez de définition pour le texte.
+    """
+    image = ImageOps.exif_transpose(source).convert("RGB")
+    rotation = int(manual_rotation or 0) % 360
+    if rotation:
+        image = image.rotate(-rotation, expand=True)
+    if max_dimension and max(image.size) > max_dimension:
+        image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+    return image
+
+
+def detect_ocr_rotation(image):
+    """Retourne la rotation horaire conseillée par Tesseract OSD.
+
+    OSD échoue normalement sur une page contenant trop peu de texte : ce cas
+    est volontairement silencieux et laisse l'image inchangée. Un seuil de
+    confiance évite de retourner une photo déjà droite sur une estimation
+    fragile.
+    """
+    if not PYTESSERACT_AVAILABLE:
+        return 0
+    try:
+        result = pytesseract.image_to_osd(
+            image, output_type=pytesseract.Output.DICT
+        )
+        rotation = int(result.get("rotate") or 0) % 360
+        confidence = float(result.get("orientation_conf") or 0)
+        return rotation if rotation in (90, 180, 270) and confidence >= 3.0 else 0
+    except Exception:
+        return 0
+
+
+def _ocr_plausible_line_count(text):
+    count = 0
+    for line in (text or "").splitlines():
+        words = re.findall(r"[A-Za-zÀ-ÿ]{2,}", line)
+        if len(words) >= 3 and sum(map(len, words)) / len(words) >= 3.0:
+            count += 1
+    return count
+
+
+def looks_like_preparation_grid(text):
+    """Repère prudemment une page de préparation susceptible d'être en grille."""
+    value = text or ""
+    normalized = ingredient_sort_key(value)
+    if len(value) < 350 or re.search(r"ingredients?\s+pour", normalized):
+        return False
+    action_markers = (
+        "prechauff", "enfourn", "faites", "ajoutez", "melangez", "servez",
+        "cuisson", "casserole", "four ", "minutes", " min",
+    )
+    marker_count = sum(marker in normalized for marker in action_markers)
+    return marker_count >= 3 and _ocr_plausible_line_count(value) >= 7
+
+
+def ocr_grid_cells(image, recognize, columns=3):
+    """OCR de 2 x ``columns`` cases, dans l'ordre ligne puis colonne.
+
+    Cette stratégie vient de l'application mobile et corrige l'ordre des
+    fiches HelloFresh : un OCR global lit souvent 1,4,2,5,3,6 alors que le
+    découpage réel produit bien 1,2,3,4,5,6.
+    """
+    width, height = image.size
+    overlap_x = max(4, round(width * 0.008))
+    overlap_y = max(4, round(height * 0.03))
+    middle = height // 2
+    rows = ((0, min(height, middle + overlap_y)),
+            (max(0, middle - overlap_y), height))
+    chunks = []
+    for y0, y1 in rows:
+        for column in range(columns):
+            x0 = max(0, round(column * width / columns) - overlap_x)
+            x1 = min(width, round((column + 1) * width / columns) + overlap_x)
+            text_value = (recognize(image.crop((x0, y0, x1, y1))) or "").strip()
+            if text_value:
+                chunks.append(text_value)
+    return "\n\n".join(chunks)
+
+
+def _ocr_data_lines(data):
+    """Lignes et boîtes Tesseract, sans dépendance à pandas."""
+    groups = {}
+    for i, word in enumerate(data.get("text", [])):
+        if not str(word).strip():
+            continue
+        key = tuple(data[k][i] for k in ("block_num", "par_num", "line_num"))
+        groups.setdefault(key, []).append(i)
+    result = []
+    for ids in groups.values():
+        words = [{"text": str(data["text"][i]), "x": data["left"][i],
+                  "y": data["top"][i], "w": data["width"][i],
+                  "h": data["height"][i], "conf": float(data["conf"][i])} for i in ids]
+        result.append(words)
+    return result
+
+
+def _ocr_line_text(words):
+    return " ".join(word["text"] for word in words)
+
+
+def read_ocr_printed_fraction(image, lang, cancelled=lambda: False):
+    """Lit les deux chiffres d'une petite fraction diagonale, sans deviner.
+
+    Il faut trois composantes (numérateur, barre oblique, dénominateur),
+    une géométrie compatible et deux cadrages concordants pour chaque chiffre.
+    Un pourcentage ou un entier ne doit pas devenir une fraction.
+    """
+    if image.width < 5 or image.height < 8:
+        return None
+    # Les candidats sont de petits glyphes, jamais des pages entières.
+    crop = ImageOps.autocontrast(ImageOps.grayscale(image))
+    if max(crop.size) > 180:
+        crop.thumbnail((180, 180))
+    width, height = crop.size
+    pixels = crop.load()
+    seen, components = set(), []
+    for y in range(height):
+        for x in range(width):
+            if (x, y) in seen or pixels[x, y] >= 130:
+                continue
+            pending, points = [(x, y)], []
+            seen.add((x, y))
+            while pending:
+                a, b = pending.pop()
+                points.append((a, b))
+                for u, v in ((a-1, b), (a+1, b), (a, b-1), (a, b+1)):
+                    if (0 <= u < width and 0 <= v < height
+                            and (u, v) not in seen and pixels[u, v] < 130):
+                        seen.add((u, v))
+                        pending.append((u, v))
+            if len(points) >= max(3, width * height * .003):
+                components.append(points)
+    if len(components) != 3:
+        return None
+    def bounds(points):
+        return (min(x for x, y in points), min(y for x, y in points),
+                max(x for x, y in points)+1, max(y for x, y in points)+1)
+    slash = max(components, key=lambda p: bounds(p)[3] - bounds(p)[1])
+    others = sorted((p for p in components if p is not slash), key=lambda p: bounds(p)[0])
+    numerator, denominator = map(bounds, others)
+    sb = bounds(slash)
+    mx = sum(x for x, y in slash) / len(slash)
+    my = sum(y for x, y in slash) / len(slash)
+    covariance = sum((x-mx)*(y-my) for x, y in slash) / len(slash)
+    if not (covariance < -1 and sb[3]-sb[1] > 1.3 * max(
+            numerator[3]-numerator[1], denominator[3]-denominator[1])
+            and numerator[0] < denominator[0] and numerator[1] < denominator[1]
+            and numerator[3] <= denominator[1] + height * .2):
+        return None
+    digits = []
+    for box in (numerator, denominator):
+        readings = []
+        for pad in (1, 2):
+            if cancelled():
+                raise OperationCancelled("operation_cancelled")
+            digit = crop.crop((max(0, box[0]-pad), max(0, box[1]-pad),
+                               min(width, box[2]+pad), min(height, box[3]+pad)))
+            digit = digit.resize((digit.width*12, digit.height*12), Image.Resampling.BICUBIC)
+            digit = ImageOps.expand(digit, border=30, fill=255)
+            try:
+                reading = pytesseract.image_to_string(
+                    digit, lang=lang, config="--oem 3 --psm 13 -c tessedit_char_whitelist=0123456789",
+                    timeout=8).strip()
+            except RuntimeError:
+                return None  # Une relecture facultative ne doit pas effacer la page.
+            readings.append(reading)
+        if readings[0] != readings[1] or not re.fullmatch(r"[1-9]", readings[0]):
+            return None
+        digits.append(int(readings[0]))
+    if digits[0] >= digits[1]:
+        return None
+    return f"{digits[0]}/{digits[1]}"
+
+
+_OCR_MEASURE_UNIT = r"cs|cas|cac|g|kg|ml|cl|l|tbsp|tsp"
+
+
+def repair_ocr_preparation_fractions(image, rows, lang, cancelled=lambda: False):
+    """Inspecte le glyphe ou l'espace précédant chaque unité reconnue."""
+    fixes, counts = [], {}
+    for words in rows:
+        for index, word in enumerate(words):
+            unit = word['text'].lower()
+            if not re.fullmatch(_OCR_MEASURE_UNIT, unit):
+                continue
+            counts[unit] = counts.get(unit, 0) + 1
+            if index == 0:
+                continue
+            previous = words[index-1]
+            numeric = bool(re.fullmatch(r"[0-9%¼½¾/]+", previous['text']))
+            if numeric:
+                box = (previous['x']-3, previous['y']-3,
+                       previous['x']+previous['w']+3, previous['y']+previous['h']+3)
+            elif previous['text'].lower() in ('et', ':', 'and', 'y', 'und'):
+                line_top = min(w['y'] for w in words)
+                line_bottom = max(w['y']+w['h'] for w in words)
+                box = (previous['x']+previous['w']+1, line_top-4, word['x']-1, line_bottom+4)
+            else:
+                continue
+            box = (max(0, box[0]), max(0, box[1]), min(image.width, box[2]), min(image.height, box[3]))
+            if box[2] <= box[0] or box[3] <= box[1]:
+                continue
+            fraction = read_ocr_printed_fraction(image.crop(box), lang, cancelled)
+            if fraction:
+                if numeric:
+                    previous['text'] = fraction
+                else:
+                    word['text'] = fraction + ' ' + word['text']
+                fixes.append((unit, counts[unit], fraction))
+    return fixes
+
+
+def apply_ocr_verified_fractions(text, reference, fixes):
+    """Reporte les fractions relues uniquement si les unités restent alignées."""
+    changes = []
+    for unit, occurrence, fraction in fixes:
+        pattern = rf"(?<![A-Za-zÀ-ÿ]){re.escape(unit)}\b"
+        matches = list(re.finditer(pattern, text, re.I))
+        if len(matches) != len(re.findall(pattern, reference, re.I)):
+            return reference
+        if occurrence > len(matches):
+            return reference
+        match = matches[occurrence-1]
+        prefix = text[:match.start()]
+        quantity = re.search(r"(?<![\w/])(?:\d+(?:[.,]\d+)?(?:\s*/\s*\d+)?|[%¼½¾])\s*$", prefix)
+        start = quantity.start() if quantity else match.start()
+        changes.append((start, match.start(), fraction + ' '))
+    for start, end, replacement in sorted(changes, reverse=True):
+        text = text[:start] + replacement + text[end:]
+    return text
+
+
+def ocr_ingredient_table(image, lang, cancelled=lambda: False):
+    """Relit les lignes à leur résolution source, loin des colonnes voisines.
+
+    La grande séparation nom/quantité permet de cadrer chaque ligne sans
+    inclure le début de la colonne de préparation située à sa droite.
+    """
+    data = pytesseract.image_to_data(image, lang=lang, config="--oem 3 --psm 4",
+                                    output_type=pytesseract.Output.DICT, timeout=25)
+    rows = _ocr_data_lines(data)
+    active, reads, output = False, 0, []
+    for words in rows:
+        text = _ocr_line_text(words)
+        if re.search(r"ingr[eé]dients?\s+(?:pour|for|para|f[uü]r)", text, re.I):
+            active = True
+            output.append(text)
+            continue
+        if active and OCR_INGREDIENT_BOUNDARY_RE.search(text):
+            active = False
+        if not active or reads >= 30:
+            output.append(text)
+            continue
+        gaps = [(words[j]["x"] - words[j-1]["x"] - words[j-1]["w"], j)
+                for j in range(1, len(words))]
+        gap, split = max(gaps, default=(0, 0))
+        if gap < image.width * .16:
+            output.append(text)
+            continue
+        end = len(words)
+        for j in range(split + 1, len(words)):
+            if words[j]["x"] - words[j-1]["x"] - words[j-1]["w"] > image.width * .05:
+                end = j
+                break
+        selected = words[:end]
+        # Relire aussi les fractions reconnues comme « % » ou comme entier.
+        quantity_word = words[split]
+        fraction = None
+        if re.fullmatch(r"[0-9%¼½¾/]+", quantity_word["text"]):
+            q = quantity_word
+            box = (max(0, q['x']-3), max(0, q['y']-3),
+                   min(image.width, q['x']+q['w']+3), min(image.height, q['y']+q['h']+3))
+            fraction = read_ocr_printed_fraction(image.crop(box), lang, cancelled)
+            if fraction:
+                quantity_word['text'] = fraction
+        original = _ocr_line_text(selected)
+        if fraction:
+            output.append(original)
+            continue  # Ne pas écraser la fraction vérifiée par une lecture globale.
+        x0 = max(0, min(w["x"] for w in selected) - 12)
+        x1 = min(image.width, max(w["x"] + w["w"] for w in selected) + 12)
+        y0 = max(0, min(w["y"] for w in selected) - 10)
+        y1 = min(image.height, max(w["y"] + w["h"] for w in selected) + 10)
+        if cancelled():
+            raise OperationCancelled("operation_cancelled")
+        crop = image.crop((x0, y0, x1, y1))
+        crop = ImageOps.autocontrast(ImageOps.grayscale(crop))
+        crop = crop.resize((crop.width * 2, crop.height * 2), Image.Resampling.LANCZOS)
+        reread = pytesseract.image_to_string(crop, lang=lang,
+                                            config="--oem 3 --psm 7", timeout=15).strip()
+        reads += 1
+        before = parse_ocr_ingredient_table_line(original)
+        after = parse_ocr_ingredient_table_line(reread)
+        # Ne remplacer une ligne qu'avec un nom compatible et une quantité
+        # exploitable. Une fraction ambiguë ne devient jamais un entier.
+        before_name = before["name"] if before else _ocr_line_text(words[:split])
+        same_name = after and difflib.SequenceMatcher(
+            None, ingredient_sort_key(before_name), ingredient_sort_key(after["name"])
+        ).ratio() >= .75
+        fraction_lost = (re.search(r"[%‰¼½¾⅓⅔]|\d\s*/\s*\d", original)
+                         and after and after["quantity"] is not None
+                         and float(after["quantity"]).is_integer())
+        if same_name and after["quantity"] is not None and not fraction_lost:
+            output.append(reread)
+        else:
+            output.append(original)
+    return "\n".join(output)
+
+
+def restore_ocr_spacing(text, reference):
+    """Rétablit seulement les espaces déjà observés dans l'autre lecture.
+
+    Aucun mot ni nombre n'est ajouté. Les suites alphabétiques identiques
+    sont rapprochées, pour corriger par exemple « versezunfilet ».
+    """
+    words = reference.split()
+    joined = {}
+    for i in range(len(words)):
+        for length in range(2, min(6, len(words) - i + 1)):
+            group = words[i:i + length]
+            if not all(re.fullmatch(r"[A-Za-zÀ-ÿ'’-]+", w) for w in group):
+                continue
+            key = "".join(group).casefold()
+            if len(key) >= 7:
+                joined.setdefault(key, " ".join(group))
+    return re.sub(r"[A-Za-zÀ-ÿ'’-]+", lambda m: joined.get(m[0].casefold(), m[0]), text)
+
+
+def ocr_preparation_cell(image, lang, cancelled=lambda: False):
+    """Localise le texte d'une case puis le lit comme un seul bloc."""
+    if cancelled():
+        raise OperationCancelled("operation_cancelled")
+    data = pytesseract.image_to_data(image, lang=lang, config="--oem 3 --psm 3",
+                                    output_type=pytesseract.Output.DICT, timeout=25)
+    rows = _ocr_data_lines(data)
+    fraction_fixes = repair_ocr_preparation_fractions(image, rows, lang, cancelled)
+    original = "\n".join(_ocr_line_text(row) for row in rows)
+    substantial = [row for row in rows if len(_ocr_line_text(row)) >= 30
+                   and len(re.findall(r"[A-Za-zÀ-ÿ]{3,}", _ocr_line_text(row))) >= 4]
+    if not substantial:
+        return original
+    top = max(0, min(w["y"] for row in substantial for w in row) - 10)
+    readable_words = [w for row in rows for w in row if w["y"] >= top
+                      and w["conf"] >= 30 and re.search(r"[A-Za-zÀ-ÿ]{3,}", w["text"])]
+    bottom = min(image.height, max(w["y"] + w["h"] for w in readable_words) + 16) if readable_words else image.height
+    if cancelled():
+        raise OperationCancelled("operation_cancelled")
+    crop = image.crop((0, top, image.width, bottom))
+    crop = ImageOps.autocontrast(ImageOps.grayscale(crop))
+    crop = crop.resize((crop.width * 2, crop.height * 2), Image.Resampling.LANCZOS)
+    reread = pytesseract.image_to_string(crop, lang=lang,
+                                        config="--oem 3 --psm 6", timeout=20).strip()
+    if _ocr_plausible_line_count(reread) >= max(2, _ocr_plausible_line_count(original) * .7):
+        # Si la première lecture a perdu une mesure, la seconde peut
+        # confondre une fraction avec son seul dénominateur (½ → 2).
+        # Signaler cette divergence plutôt que valider le nouveau nombre.
+        for match in re.finditer(r"\b(et|:)\s+(cs|cas|cac|ml|cl|g)\b", original, re.I):
+            prefix, unit = match.groups()
+            pattern = rf"({re.escape(prefix)}\s+)(?:\d+(?:[.,]\d+)?|[%¼½¾])\s*({re.escape(unit)})\b"
+            reread = re.sub(pattern, lambda m: m[1] + "[" + t("importphoto_measure_check") + "] " + m[2], reread, flags=re.I)
+        reread = apply_ocr_verified_fractions(reread, original, fraction_fixes)
+        return restore_ocr_spacing(reread, original)
+    return original
+
+
+def _parse_ocr_quantity(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    if value in OCR_UNICODE_FRACTIONS:
+        return OCR_UNICODE_FRACTIONS[value]
+    mixed = re.fullmatch(r"(\d+)\s*([%s])" % "".join(OCR_UNICODE_FRACTIONS), value)
+    if mixed:
+        return int(mixed.group(1)) + OCR_UNICODE_FRACTIONS[mixed.group(2)]
+    fraction = re.fullmatch(r"(?:(\d+)\s+)?(\d+)\s*/\s*(\d+)", value)
+    if fraction:
+        whole, numerator, denominator = fraction.groups()
+        if not int(denominator):
+            return None
+        return int(whole or 0) + int(numerator) / int(denominator)
+    return parse_quantity_token(value)
+
+
+def parse_ocr_ingredient_table_line(line):
+    """Analyse le format OCR courant ``nom quantité unité`` de HelloFresh."""
+    cleaned = re.sub(r"^[•*+\-]\s*", "", (line or "").strip())
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    if not cleaned or OCR_NON_INGREDIENT_RE.search(cleaned):
+        return None
+    # Supprime les astérisques de conservation accolés au nom.
+    cleaned = re.sub(r"\*+(?=\s|$)", "", cleaned).strip()
+    unit_pattern = (
+        r"kg|gr|g|ml|cl|l|cas|cac|cs|pi[eèé]ce(?:\(s\)|s)?|"
+        r"sachet(?:\(s\)|s)?|barquette(?:\(s\)|s)?|filet(?:\(s\)|s)?|"
+        r"bo[iî]te(?:\(s\)|s)?|paquet(?:\(s\)|s)?|tranche(?:\(s\)|s)?"
+    )
+    quantity_pattern = r"(?:\d+\s+\d+\s*/\s*\d+|\d+\s*/\s*\d+|\d+(?:[.,]\d+)?(?:\s*[{}])?|[{}])".format(
+        "".join(OCR_UNICODE_FRACTIONS), "".join(OCR_UNICODE_FRACTIONS)
+    )
+    match = re.match(
+        rf"^(?P<name>.+?)\s+(?P<qty>{quantity_pattern})\s*(?P<unit>{unit_pattern})(?![A-Za-zÀ-ÿ])",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if match:
+        quantity = _parse_ocr_quantity(match.group("qty"))
+        if quantity is None:
+            return None
+        raw_unit = ingredient_sort_key(match.group("unit")).replace("(s)", "")
+        unit_map = {
+            "g": "Gr", "gr": "Gr", "kg": "Kilo", "ml": "ml", "cl": "cl",
+            "l": "Litre", "cs": "cuillère à soupe", "cas": "cuillère à soupe",
+            "cac": "cuillère à café", "piece": "pièce", "pieces": "pièce",
+            "sachet": "sachet", "sachets": "sachet", "barquette": "barquette",
+            "barquettes": "barquette", "filet": "filet", "filets": "filet",
+            "boite": "boîte", "boites": "boîte", "paquet": "paquet",
+            "paquets": "paquet", "tranche": "tranche", "tranches": "tranche",
+        }
+        name = match.group("name").strip(" .:;|[]\"“”")
+        if name:
+            return {
+                "name": name.capitalize(),
+                "quantity": quantity,
+                "unit": unit_map.get(raw_unit, match.group("unit")),
+            }
+    # « % » ne permet pas de distinguer ¼, ½ ou ¾. Ne jamais inventer 1.
+    # Une relecture ciblée de l'image est tentée en amont ; si elle échoue,
+    # le formulaire conserve l'ingrédient avec une quantité vide à vérifier.
+    uncertain_fraction = re.match(
+        rf"^(?P<name>.+?)\s+[%‰]\s*(?P<unit>{unit_pattern})(?![A-Za-zÀ-ÿ])",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if uncertain_fraction:
+        return {
+            "name": uncertain_fraction.group("name").strip().capitalize(),
+            "quantity": None,
+            "unit": ingredient_sort_key(uncertain_fraction.group("unit")).replace("(s)", ""),
+            "ocr_uncertain": True,
+        }
+    # Confusion OCR fréquente entre le chiffre « 1 » et les lettres i/l
+    # devant « cs » (ex. « Beurre ics » sur la photo de test réelle).
+    misread_one = re.match(
+        r"^(?P<name>.+?)\s+[il|]cs\b", cleaned, re.IGNORECASE
+    )
+    if misread_one:
+        return {
+            "name": misread_one.group("name").strip().capitalize(),
+            "quantity": None,
+            "unit": "cuillère à soupe",
+            "ocr_uncertain": True,
+        }
+    if re.search(
+        r"selon\s+(?:votre\s+)?(?:go[uû]t|[A-Za-zÀ-ÿ]{3,})|au\s+go[uû]t",
+        cleaned,
+        re.IGNORECASE,
+    ):
+        name = re.split(r"\s+(?:selon|au)\s+", cleaned, maxsplit=1, flags=re.IGNORECASE)[0]
+        return {"name": name.capitalize(), "quantity": None, "unit": "au goût"}
+    missing_number = re.match(
+        rf"^(?P<name>.+?)\s+(?P<unit>{unit_pattern})(?![A-Za-zÀ-ÿ])(?:\s*[.|]*)$",
+        cleaned, re.IGNORECASE,
+    )
+    if missing_number:
+        # Réutilise la conversion des unités, sans conserver la valeur
+        # technique temporaire nécessaire pour analyser la ligne.
+        parsed = parse_ocr_ingredient_table_line(
+            missing_number.group("name") + " 1 " + missing_number.group("unit")
+        )
+        if parsed:
+            parsed.update(quantity=None, ocr_uncertain=True)
+        return parsed
+    # Un chiffre+unité peut être entièrement déformé (ex. « ES »).
+    # Conserver le nom lisible dans le tableau, sans inférer la mesure.
+    garbled = re.fullmatch(r"(?P<name>[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’ -]+?)\s+[A-Z]{1,3}\s*[.|]*", cleaned)
+    if garbled:
+        return {"name": garbled.group("name").strip().capitalize(),
+                "quantity": None, "unit": "", "ocr_uncertain": True}
+    return None
+
+
+def clean_ocr_preparation(text):
+    """Rejoint les lignes imprimées, en conservant paragraphes et étapes."""
+    paragraphs, current = [], []
+    def flush():
+        if current:
+            paragraphs.append(" ".join(current))
+            current.clear()
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            flush()
+            continue
+        line = re.sub(r"^[^A-Za-zÀ-ÿ0-9]+", "", line)
+        line = re.sub(r"^(?:[a-zà-ÿ]{1,2}\s*)?[•+|°*«_]+\s*", "", line)
+        line = re.sub(r"^[a-zà-ÿ]{1,2}\s+(?=[A-ZÀ-ÖØ-Þ][a-zà-ÿ]{3})", "", line)
+        if not re.search(r"[A-Za-zÀ-ÿ]{2,}|\d", line):
+            continue
+        if re.match(r"^(?:Veillez|Préchauffez|Portez|Ciselez|Épluchez|Égouttez|Dans un|Versez|Placez|Répartissez|Ajoutez|Enfournez|Réduisez|Incorporez|Servez|Disposez|Ajustez|L['’]ASTUCE DU CHEF)", line):
+            flush()
+        # Espaces perdus entre un impératif fréquent et son complément.
+        line = re.sub(r"\b(Ajoutez|Versez|Réduisez|Incorporez|Placez-y|Épluchez|Ciselez)(?=(?:le|la|les|un|une)\b|l['’])", r"\1 ", line)
+        line = re.sub(r"\b(Versez)(un)(filet)\b", r"\1 \2 \3", line)
+        line = re.sub(r"^[a-zà-ÿ],\s+", "", line)
+        line = re.sub(r"\bunfilet\b", "un filet", line)
+        line = re.sub(r"\b([A-Za-zÀ-ÿ]+-les)en\b", r"\1 en", line)
+        line = re.sub(r"\bavecun\b", "avec un", line)
+        line = re.sub(r"\bpourl['’]onctuosité", "pour l'onctuosité", line)
+        current.append(line)
+    flush()
+    return "\n\n".join(paragraphs)
+
+
+def parse_photo_ocr_recipe(raw_text):
+    """Transforme le texte multi-photo en préremplissage de recette fiable."""
+    text_value = (raw_text or "").replace("\r", "")
+    lines = [re.sub(r"\s+", " ", line).strip() for line in text_value.splitlines()]
+    nonempty = [line for line in lines if line and not re.match(r"^-{2,}.*-{2,}$", line)]
+
+    persons = None
+    persons_match = re.search(
+        r"\b(?:ingr[eé]dients?\s+pour\s+)?(\d+)\s*"
+        r"(?:personnes?|convives?|portions?|parts?)\b",
+        text_value, re.IGNORECASE,
+    )
+    if persons_match:
+        persons = max(1, int(persons_match.group(1)))
+
+    prep_time = ""
+    time_match = re.search(
+        r"(?:[àa]\s+table\s+dans|temps\s+total|pr[eê]t\s+en)\s*:?\s*"
+        r"(\d+)\s*(?:[-–—]\s*(\d+))?\s*(?:min|minutes?)",
+        text_value, re.IGNORECASE,
+    )
+    if time_match:
+        first_time = int(time_match.group(1))
+        second_time = int(time_match.group(2)) if time_match.group(2) else None
+        # « 35 » est parfois lu « 385 ». Une durée incohérente placée avant
+        # une borne haute plausible ne doit pas remplir le formulaire avec
+        # plusieurs centaines de minutes.
+        if second_time and first_time > second_time:
+            first_time = second_time
+        if first_time <= 24 * 60:
+            prep_time = str(first_time)
+
+    name = ""
+    for index, line in enumerate(nonempty):
+        key = ingredient_sort_key(line)
+        if any(marker in key for marker in ("ingredients pour", "mes ustensiles", "valeurs nutritionnelles")):
+            continue
+        if re.search(r"[A-Za-zÀ-ÿ]{3,}.*[A-Za-zÀ-ÿ]{3,}", line) and len(line) <= 110:
+            if re.search(r"[àa]\s+table\s+dans", line, re.IGNORECASE):
+                continue
+            name = line.strip(" )|;:.-")
+            name = re.sub(r"^[A-Za-z][)\]]\s+", "", name)
+            name = re.sub(
+                r"^[^A-Za-zÀ-ÿ]*[A-Za-zÀ-ÿ]\s+(?=[A-ZÀ-ÖØ-Þ])",
+                "",
+                name,
+            )
+            for following in nonempty[index + 1:index + 4]:
+                following = following.lstrip(" |:;.")
+                if re.match(r"^(?:avec|with|con|mit)\b", following, re.IGNORECASE):
+                    name += " " + following.strip()
+                    break
+            break
+
+    ingredients = []
+    ingredient_start = next((
+        i for i, line in enumerate(lines)
+        if re.search(r"ingr[eé]dients?\s+(?:pour|for|para|f[uü]r)", line, re.IGNORECASE)
+    ), None)
+    if ingredient_start is not None:
+        for line in lines[ingredient_start + 1:]:
+            if OCR_INGREDIENT_BOUNDARY_RE.search(line):
+                break
+            parsed = parse_ocr_ingredient_table_line(line)
+            if parsed:
+                ingredients.append(parsed)
+
+    # Le stockage interne est par personne. La table photographiée contient
+    # les totaux pour toute la recette : division unique, après détection du
+    # nombre final de personnes (même si ce nombre vient d'une autre photo).
+    if persons:
+        for ingredient in ingredients:
+            if ingredient["quantity"] is not None:
+                ingredient["quantity"] = ingredient["quantity"] / persons
+
+    # Ne place plus toute la page de couverture/nutrition dans la préparation.
+    # Les pages riches en verbes d'action sont conservées dans leur ordre OCR ;
+    # pour HelloFresh, cet ordre a déjà été corrigé par ocr_grid_cells.
+    description_pages = []
+    pages = re.split(
+        r"(?m)^(?:-{2,}|={2,})\s*(?:Photo|Foto)\s+\d+\s*(?:-{2,}|={2,})\s*$",
+        text_value,
+    )
+    for page in pages:
+        normalized = ingredient_sort_key(page)
+        action_markers = (
+            "prechauff", "enfourn", "faites", "ajoutez", "melangez", "servez",
+            "cuisson", "egouttez", "epluchez", "repartissez", "disposez",
+        )
+        actions = sum(marker in normalized for marker in action_markers)
+        if (
+            actions >= 2
+            and _ocr_plausible_line_count(page) >= 4
+            and "ingredients pour" not in normalized
+            and "valeurs nutritionnelles" not in normalized
+        ):
+            description_pages.append(clean_ocr_preparation(page))
+    description = "\n\n".join(description_pages).strip()
+
+    return {
+        "name": name[:100],
+        "description": description[:12000],
+        "ingredients": ingredients,
+        "ocr_warnings": ([i["name"] for i in ingredients if i.get("ocr_uncertain")]
+                         + ([t("recipeform_tab_preparation")] if "[" + t("importphoto_measure_check") + "]" in description else [])),
+        "prep_time": prep_time,
+        "cook_time": "",
+        "default_persons": persons or 4,
+        "quantity_basis": "per_person",
+    }
 
 
 def parse_iso8601_duration_minutes(duration):
@@ -2677,7 +4449,10 @@ def fetch_recipe_from_url(url):
     )
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
-            raw = response.read()
+            length = response.headers.get("Content-Length")
+            if length and int(length) > MAX_WEB_PAGE_BYTES:
+                raise RuntimeError("La page est trop volumineuse pour être importée en sécurité.")
+            raw = _read_response_limited(response, MAX_WEB_PAGE_BYTES)
             charset = response.headers.get_content_charset() or "utf-8"
             page_html = raw.decode(charset, errors="replace")
     except urllib.error.URLError as e:
@@ -2712,9 +4487,34 @@ def fetch_recipe_from_url(url):
     def clean_text(value):
         if isinstance(value, list):
             value = " ".join(str(v) for v in value)
-        return html.unescape(re.sub(r"<[^>]+>", " ", str(value or ""))).strip()
+        cleaned = re.sub(r"<[^>]+>", " ", str(value or ""))
+        # Certains sites (notamment 750g) fournissent encore des entités HTML
+        # dans les chaînes JSON-LD, parfois même doublement encodées.
+        for _ in range(3):
+            decoded = html.unescape(cleaned)
+            if decoded == cleaned:
+                break
+            cleaned = decoded
+        cleaned = cleaned.replace("\xa0", " ")
+        return re.sub(r"[ \t]+", " ", cleaned).strip()
 
     name = clean_text(recipe_data.get("name", "")) or "Recette importée"
+
+    # Nombre de portions indiqué par le site.
+    # L'application stocke ensuite les quantités d'ingrédients par personne.
+    yield_value = recipe_data.get("recipeYield")
+    source_persons = None
+    if yield_value:
+        if isinstance(yield_value, list):
+            yield_value = yield_value[0] if yield_value else None
+        match = re.search(r"\d+(?:[.,]\d+)?", str(yield_value or ""))
+        if match:
+            try:
+                source_persons = float(match.group().replace(",", "."))
+                if source_persons <= 0:
+                    source_persons = None
+            except ValueError:
+                source_persons = None
 
     raw_ingredients = recipe_data.get("recipeIngredient") or recipe_data.get("ingredients") or []
     if isinstance(raw_ingredients, str):
@@ -2723,12 +4523,20 @@ def fetch_recipe_from_url(url):
     for line in raw_ingredients:
         parsed_ing = parse_ingredient_line(clean_text(line))
         if parsed_ing:
+            # Schema.org exprime les quantités pour la recette complète.
+            # Notre format interne les conserve par personne afin que tous les
+            # écrans puissent les multiplier par le nombre de convives choisi.
+            if source_persons:
+                try:
+                    parsed_ing["quantity"] = float(parsed_ing["quantity"]) / source_persons
+                except (TypeError, ValueError, ZeroDivisionError):
+                    pass
             ingredients.append(parsed_ing)
 
     instructions = recipe_data.get("recipeInstructions") or []
     steps = []
     if isinstance(instructions, str):
-        steps = [instructions]
+        steps = [clean_text(instructions)]
     elif isinstance(instructions, list):
         for item in instructions:
             if isinstance(item, dict):
@@ -2736,20 +4544,13 @@ def fetch_recipe_from_url(url):
                 steps.append(clean_text(text))
             else:
                 steps.append(clean_text(item))
-    steps = [s for s in steps if s]
+    steps = [clean_text(s) for s in steps if s]
     description = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(steps))
 
     prep_time = parse_iso8601_duration_minutes(recipe_data.get("prepTime"))
     cook_time = parse_iso8601_duration_minutes(recipe_data.get("cookTime"))
 
-    yield_value = recipe_data.get("recipeYield")
-    default_persons = None
-    if yield_value:
-        if isinstance(yield_value, list):
-            yield_value = yield_value[0] if yield_value else None
-        match = re.search(r"\d+", str(yield_value or ""))
-        if match:
-            default_persons = int(match.group())
+    default_persons = source_persons
 
     if not ingredients:
         raise RuntimeError(
@@ -2759,23 +4560,29 @@ def fetch_recipe_from_url(url):
         )
 
     # Récupération de la photo de la recette, si le site en indique une.
-    images = []
+    image_sources = []
     image_url = _extract_recipe_image_url(recipe_data.get("image"))
     if image_url:
-        image_url = urllib.parse.urljoin(url, image_url)  # gère les URLs relatives
-        downloaded = download_image_to_store(image_url)
+        image_url = urllib.parse.urljoin(url, image_url)
+        downloaded = download_image_to_store(image_url, temporary=True)
         if downloaded:
-            images.append(downloaded)
+            image_sources.append(downloaded)
 
     return {
         "name": name[:100],
-        "description": description[:2056],
+        "description": description[:12000],
         "ingredients": ingredients,
         "prep_time": str(prep_time) if prep_time else "",
         "cook_time": str(cook_time) if cook_time else "",
-        "default_persons": default_persons or 4,
-        "images": images,
+        "default_persons": (
+            int(default_persons) if default_persons and float(default_persons).is_integer()
+            else (default_persons or 4)
+        ),
+        "images": [],
+        "image_sources": image_sources,
+        "temporary_image_sources": list(image_sources),
         "source_url": url,
+        "quantity_basis": "per_person",
     }
 
 
@@ -2794,10 +4601,27 @@ def _extract_recipe_image_url(image):
     return None
 
 
-def download_image_to_store(image_url, timeout=15):
-    """Télécharge une image depuis une URL et l'enregistre dans le dossier
-    images/. Retourne le nom de fichier généré, ou None en cas d'échec (page
-    introuvable, ce n'est pas une image, pas de connexion...)."""
+MAX_WEB_IMAGE_BYTES = 20 * 1024 * 1024
+MAX_WEB_PAGE_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_PIXELS = 50_000_000
+
+
+def _read_response_limited(response, limit):
+    chunks = []
+    total = 0
+    while True:
+        chunk = response.read(min(1024 * 1024, limit - total + 1))
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise ValueError("download_too_large")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def download_image_to_store(image_url, timeout=15, *, temporary=True):
+    """Télécharge une image avec limites de taille. Par défaut elle reste temporaire."""
     try:
         request = urllib.request.Request(
             image_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -2806,10 +4630,13 @@ def download_image_to_store(image_url, timeout=15):
             content_type = (response.headers.get_content_type() or "").lower()
             if content_type and not content_type.startswith("image/"):
                 return None
-            data = response.read()
-    except Exception:
+            length = response.headers.get("Content-Length")
+            if length and int(length) > MAX_WEB_IMAGE_BYTES:
+                return None
+            data = _read_response_limited(response, MAX_WEB_IMAGE_BYTES)
+    except Exception as exc:
+        log_internal_error("download_recipe_image", exc)
         return None
-
     if not data:
         return None
 
@@ -2820,16 +4647,24 @@ def download_image_to_store(image_url, timeout=15):
     ext = ext_map.get(content_type)
     if not ext:
         guessed = os.path.splitext(image_url.split("?")[0])[1].lower()
-        ext = guessed if guessed in (".jpg", ".jpeg", ".png", ".webp", ".gif") else ".jpg"
-
-    new_filename = f"{uuid.uuid4().hex}{ext}"
-    dest_path = os.path.join(IMAGES_DIR, new_filename)
+        ext = guessed if guessed in SAFE_IMAGE_EXTENSIONS else ".jpg"
+    folder = IMPORT_TEMP_DIR if temporary else IMAGES_DIR
+    os.makedirs(folder, exist_ok=True)
+    dest_path = os.path.join(folder, f"{uuid.uuid4().hex}{ext}")
     try:
         with open(dest_path, "wb") as f:
             f.write(data)
-    except OSError:
+        if PIL_AVAILABLE:
+            with Image.open(dest_path) as img:
+                if img.width * img.height > MAX_IMAGE_PIXELS:
+                    raise ValueError("image_too_many_pixels")
+                img.verify()
+    except Exception as exc:
+        try: os.remove(dest_path)
+        except OSError: pass
+        log_internal_error("validate_recipe_image", exc)
         return None
-    return new_filename
+    return dest_path if temporary else os.path.basename(dest_path)
 
 
 # ---------------------------------------------------------------------------
@@ -2839,28 +4674,122 @@ def download_image_to_store(image_url, timeout=15):
 # ---------------------------------------------------------------------------
 
 def load_trash():
-    if os.path.exists(TRASH_FILE):
-        try:
-            with open(TRASH_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return data
-        except Exception:
-            return []
-    return []
+    return _read_user_json(TRASH_FILE, list, [], label="trash")
 
 
 def save_trash(trash):
-    with open(TRASH_FILE, "w", encoding="utf-8") as f:
-        json.dump(trash, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(TRASH_FILE, trash)
+
+
+def delete_recipe_draft(recipe):
+    """Supprime le brouillon automatique lié à une recette.
+
+    Une recette envoyée à la corbeille ou restaurée ne doit pas réactiver un
+    ancien brouillon d'édition associé au même identifiant.
+    """
+    try:
+        recipe_id = (recipe or {}).get("id")
+        if not recipe_id:
+            return
+        path = os.path.join(DRAFTS_DIR, f"recipe_{recipe_id}.json")
+        if os.path.isfile(path):
+            os.remove(path)
+    except OSError as exc:
+        log_internal_error("delete_recipe_draft", exc)
 
 
 def move_recipe_to_trash(recipe):
-    """Déplace une recette vers la corbeille (ses photos ne sont PAS
-    supprimées, pour pouvoir tout restaurer intact)."""
+    """Ajoute une recette à la corbeille sans modifier recipes.json."""
     trash = load_trash()
     trash.insert(0, {"recipe": recipe, "deleted_at": datetime.now().isoformat()})
     save_trash(trash)
+
+
+def delete_recipe_to_trash(recipe_id=None, recipe_index=None):
+    """Retire une recette et l'ajoute à la corbeille comme une transaction."""
+    recipes = load_recipes()
+    index = recipe_index
+    if recipe_id:
+        index = next((i for i, r in enumerate(recipes) if r.get("id") == recipe_id), None)
+    if index is None or not (0 <= index < len(recipes)):
+        raise LookupError("recipe_not_found")
+    removed = recipes.pop(index)
+    trash = load_trash()
+    trash.insert(0, {"recipe": copy.deepcopy(removed), "deleted_at": datetime.now().isoformat()})
+
+    def commit():
+        save_trash(trash)
+        save_recipes(recipes)
+
+    _run_json_transaction([DATA_FILE, TRASH_FILE], commit)
+    delete_recipe_draft(removed)
+    return removed
+
+
+def restore_recipe_from_trash(trash_index):
+    """Restaure une entrée de corbeille et retire celle-ci atomiquement."""
+    trash = load_trash()
+    if not (0 <= trash_index < len(trash)):
+        raise LookupError("trash_entry_not_found")
+    recipe = copy.deepcopy(trash[trash_index]["recipe"])
+    recipes = load_recipes()
+    existing_names = {r.get("name", "").strip().casefold() for r in recipes}
+    if recipe.get("name", "").strip().casefold() in existing_names:
+        recipe["name"] = t("trash_restored_suffix", name=recipe.get("name", ""))
+    recipes.append(recipe)
+    trash.pop(trash_index)
+
+    def commit():
+        save_recipes(recipes)
+        save_trash(trash)
+
+    _run_json_transaction([DATA_FILE, TRASH_FILE], commit)
+    delete_recipe_draft(recipe)
+    return recipe
+
+
+def permanently_delete_trash_entries(indexes=None):
+    """Valide d'abord la corbeille, puis supprime les images devenues inutiles."""
+    trash = load_trash()
+    selected = set(range(len(trash))) if indexes is None else set(indexes)
+    removed = [entry for i, entry in enumerate(trash) if i in selected]
+    remaining = [entry for i, entry in enumerate(trash) if i not in selected]
+    save_trash(remaining)
+    protected_recipes = load_recipes()
+    for entry in removed:
+        recipe = entry.get("recipe", {})
+        delete_recipe_draft(recipe)
+        delete_recipe_images(
+            recipe, protected_recipes=protected_recipes,
+            protected_trash=remaining
+        )
+    return len(removed)
+
+
+def record_recipe_cooking(recipe_id, recipe_name, note="", comment="",
+                          photo_filename=None, rating=0, persons=None):
+    """Enregistre compteur, date et journal en une seule écriture recipes.json."""
+    recipes = load_recipes()
+    target = find_recipe_by_id(recipes, recipe_id) or find_recipe_by_name(recipes, recipe_name)
+    if target is None:
+        raise LookupError("recipe_not_found")
+    now = datetime.now()
+    target["times_cooked"] = int(target.get("times_cooked", 0) or 0) + 1
+    cooked_dates = list(target.get("cooked_dates", []) or [])
+    cooked_dates.append(now.strftime("%Y-%m-%d"))
+    target["cooked_dates"] = cooked_dates
+    cook_log = list(target.get("cook_log", []) or [])
+    cook_log.append({
+        "date": now.isoformat(timespec="seconds"),
+        "note": note,
+        "comment": comment,
+        "photo": safe_image_filename(photo_filename) if photo_filename else None,
+        "rating": max(0, min(5, int(rating or 0))),
+        "persons": persons,
+    })
+    target["cook_log"] = cook_log
+    save_recipes(recipes)
+    return target
 
 
 # ---------------------------------------------------------------------------
@@ -2870,25 +4799,58 @@ def move_recipe_to_trash(recipe):
 RECENT_VIEWS_MAX = 8
 
 
-def load_recent_view_names():
-    if os.path.exists(RECENT_VIEWS_FILE):
-        try:
-            with open(RECENT_VIEWS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return data
-        except Exception:
+def _load_recent_view_refs():
+    if not os.path.exists(RECENT_VIEWS_FILE):
+        return []
+    try:
+        data = _read_user_json(RECENT_VIEWS_FILE, list, [], label="recent_views")
+        if _corruption_key(RECENT_VIEWS_FILE) in _CORRUPTED_DATA_FILES:
             return []
-    return []
+        if not isinstance(data, list):
+            return []
+        recipes = load_recipes()
+        refs = []
+        changed = False
+        for item in data:
+            if isinstance(item, str):
+                recipe = find_recipe_by_name(recipes, item)
+                refs.append({"recipe_id": recipe.get("id") if recipe else None, "recipe_name": item})
+                changed = True
+            elif isinstance(item, dict):
+                ref = copy.deepcopy(item)
+                before = (ref.get("recipe_id"), ref.get("recipe_name"))
+                enrich_recipe_reference(ref, recipes)
+                if before != (ref.get("recipe_id"), ref.get("recipe_name")):
+                    changed = True
+                refs.append(ref)
+        refs = refs[:RECENT_VIEWS_MAX]
+        if changed:
+            _atomic_write_json(RECENT_VIEWS_FILE, refs)
+        return refs
+    except Exception as exc:
+        log_internal_error("load_recent_views", exc)
+        return []
 
 
-def record_recipe_view(name):
-    names = load_recent_view_names()
-    names = [n for n in names if n != name]
-    names.insert(0, name)
-    names = names[:RECENT_VIEWS_MAX]
-    with open(RECENT_VIEWS_FILE, "w", encoding="utf-8") as f:
-        json.dump(names, f, ensure_ascii=False, indent=2)
+def load_recent_view_names():
+    return [r.get("recipe_name") for r in _load_recent_view_refs() if r.get("recipe_name")]
+
+
+def record_recipe_view(recipe_or_name):
+    recipes = load_recipes()
+    recipe = recipe_or_name if isinstance(recipe_or_name, dict) else find_recipe_by_name(recipes, recipe_or_name)
+    if recipe is None:
+        name = str(recipe_or_name or "").strip()
+        if not name:
+            return
+        new_ref = {"recipe_id": None, "recipe_name": name}
+    else:
+        new_ref = {"recipe_id": recipe.get("id"), "recipe_name": recipe.get("name")}
+    refs = _load_recent_view_refs()
+    key = new_ref.get("recipe_id") or (new_ref.get("recipe_name") or "").casefold()
+    refs = [r for r in refs if (r.get("recipe_id") or (r.get("recipe_name") or "").casefold()) != key]
+    refs.insert(0, new_ref)
+    _atomic_write_json(RECENT_VIEWS_FILE, refs[:RECENT_VIEWS_MAX])
 
 
 # ---------------------------------------------------------------------------
@@ -3009,3869 +4971,36 @@ CURRENT_LANGUAGE = "fr"
 # pour toute clé pas encore traduite dans une autre langue — l'application
 # reste donc entièrement utilisable pendant qu'on ajoute les traductions
 # progressivement, une langue et une fenêtre à la fois.
-FRENCH_STRINGS = {
-    "home_window_title": "Mes Recettes, Mes Courses",
-    "home_banner_title": "👨‍🍳 Mes Recettes, Mes Courses",
-    "home_banner_subtitle": "Toutes vos recettes, à portée de main",
-    "home_donate_button": "☕ Faire un don",
-    "home_dark_theme": "🌙 Thème sombre",
-    "home_light_theme": "☀️ Thème clair",
-    "home_large_text_on": "🔎 Texte agrandi",
-    "home_large_text_off": "🔎 Texte normal",
-    "home_daily_recipe_title": "🎲 Recette du jour",
-    "home_open_button": "👁 Ouvrir",
-    "home_quick_filter_favorites": "⭐ Favoris",
-    "home_quick_filter_quick": "⏱️ Rapide (≤ 30 min)",
-    "home_quick_filter_vegetarian": "🥗 Végétarien",
-    "home_quick_filter_wishlist": "💭 Envies",
-    "home_wishlist_reminder": (
-        "💭 {count} recette(s) en liste d'envies depuis plus de {days} jours — "
-        "et si vous les essayiez ? (cliquez pour les voir)"
-    ),
-    "home_low_stock_reminder": (
-        "📦 {count} ingrédient(s) presque épuisé(s) dans votre garde-manger : "
-        "{names} — cliquez pour les ajouter à la liste de courses"
-    ),
-    "home_btn_add_recipe": "➕  Ajouter une recette",
-    "home_btn_import_url": "🌐  Importer une recette depuis un lien",
-    "home_btn_import_photo": "📷  Importer une recette depuis une photo",
-    "home_btn_view_all_recipes": "🧾  Voir toutes les recettes (liste de courses)",
-    "home_btn_view_one_recipe": "🍽️  Voir une recette précise",
-    "home_btn_manage_recipes": "✏️  Modifier / Supprimer une recette",
-    "home_btn_compare_recipes": "⚖️  Comparer deux recettes",
-    "home_btn_manage_ingredients": "🥕  Gérer les ingrédients",
-    "home_btn_ingredient_search": "🔎  Recherche par ingrédient",
-    "home_btn_what_can_i_cook": "🧊  Que puis-je cuisiner ?",
-    "home_btn_pantry": "📦  Mon garde-manger",
-    "home_btn_unit_converter": "🔄  Convertisseur d'unités",
-    "home_btn_weekly_plan": "📅  Planning de la semaine",
-    "home_btn_menus": "📋  Mes menus",
-    "home_btn_statistics": "📊  Statistiques",
-    "home_btn_export_cookbook": "📖  Exporter le livre de recettes",
-    "home_btn_import_export": "💾  Importer / Exporter les données",
-    "home_btn_trash": "🗑️  Corbeille",
-    "home_today_title": "📅 Aujourd'hui",
-    "home_recent_title": "🕘 Récemment consultées",
-    "home_wishlist_title": "💭 Recettes à essayer",
-    "home_new_draw_button": "🎲 Nouveau tirage",
-    "home_footer_recipe_count": "{count} recette(s) enregistrée(s)",
-    "home_nothing_planned": (
-        "Rien de planifié pour {day}. Remplissez le « 📅 Planning de la semaine » pour le voir ici."
-    ),
-    "home_no_recent_recipe": "Aucune recette consultée pour le moment.",
-    "home_no_wishlist_recipe": "Aucune recette dans votre liste d'envies pour le moment.",
-    "warning_pillow": "Pillow non installé : les photos ne s'afficheront pas (pip install pillow)",
-    "warning_reportlab": "reportlab non installé : export PDF indisponible (pip install reportlab)",
-    "warning_openpyxl": "openpyxl non installé : export Excel indisponible (pip install openpyxl)",
-    "warning_qrcode": "qrcode non installé : export QR code indisponible (pip install qrcode)",
-    "warning_pytesseract": (
-        "pytesseract non installé : import depuis une photo indisponible "
-        "(pip install pytesseract, + Tesseract OCR)"
-    ),
-
-    # ---- Titres de dialogue génériques, réutilisés dans toute l'application ----
-    "common_error": "Erreur",
-    "common_info": "Info",
-    "common_confirm": "Confirmer",
-    "common_success": "Succès",
-    "common_module_missing": "Module manquant",
-    "common_all_categories": "Toutes",
-    "common_export_failed": "L'export a échoué :\n{error}",
-    "common_export_success_title": "Export réussi",
-    "common_print_failed": "La préparation de l'impression a échoué :\n{error}",
-    "common_reset_button": "Réinitialiser",
-    "common_want_label": "Je veux :",
-    "common_exclude_label": "Je ne veux pas :",
-    "common_tags_filter_label": "Étiquettes (toutes requises) :",
-    "common_filter_hint": "Tapez les premières lettres pour filtrer la liste.",
-    "common_search_label": "🔍 Rechercher :",
-    "common_sort_by_label": "Trier par :",
-    "common_category_label": "Catégorie :",
-    "common_edit_button": "✏️ Modifier",
-    "common_unknown_ingredient_title": "Ingrédient inconnu",
-    "common_unknown_ingredient_simple_message": (
-        "« {name} » ne correspond à aucun ingrédient enregistré.\nChoisissez-en un dans la liste déroulante."
-    ),
-    "common_ingredient_label": "Ingrédient :",
-    "common_quantity_label": "Quantité :",
-    "common_unit_label": "Unité :",
-    "common_new_ingredient_button": "🥕 Nouvel ingrédient",
-    "common_save_button": "💾 Enregistrer",
-
-    # ---- PantryWindow (Mon garde-manger) ----
-    "pantry_title": "Mon garde-manger",
-    "pantry_heading": "📦 Mon garde-manger",
-    "pantry_intro": (
-        "Indiquez ce que vous avez chez vous et en quelle quantité.\n"
-        "« Que puis-je cuisiner ? » pourra alors vérifier si vous en avez assez,\n"
-        "et proposer de décompter automatiquement le stock après avoir cuisiné."
-    ),
-    "pantry_threshold_label": "Seuil d'alerte (optionnel) :",
-    "pantry_help_text": (
-        "Pour AJOUTER un article : indiquez l'ingrédient (créez-le d'abord avec\n"
-        "« 🥕 Nouvel ingrédient » s'il n'est pas encore dans votre liste), la\n"
-        "quantité et l'unité, puis cliquez sur « 💾 Enregistrer ».\n"
-        "Pour MODIFIER un article déjà présent : cliquez une fois dessus dans la\n"
-        "liste ci-dessous — cela charge ses valeurs dans les champs ci-dessus,\n"
-        "sans rien enregistrer : changez les valeurs souhaitées PUIS cliquez sur\n"
-        "« 💾 Enregistrer » pour que le changement soit pris en compte.\n"
-        "Le seuil d'alerte déclenche un rappel sur la page d'accueil dès que la\n"
-        "quantité passe en dessous (laissez vide pour ne jamais être alerté)."
-    ),
-    "pantry_remove_button": "🗑 Retirer du garde-manger",
-    "pantry_empty": "Votre garde-manger est vide pour le moment.",
-    "pantry_threshold_suffix": " (seuil : {threshold})",
-    "pantry_error_ingredient_required": "Merci d'indiquer un ingrédient.",
-    "pantry_error_invalid_quantity": "Quantité invalide.",
-    "pantry_error_invalid_threshold": "Seuil d'alerte invalide (laissez vide si vous n'en voulez pas).",
-    "pantry_select_ingredient_first": "Sélectionnez un ingrédient dans la liste.",
-    "pantry_remove_confirm_message": "Retirer « {name} » du garde-manger ?",
-
-    # ---- WhatCanICookWindow (Que puis-je cuisiner ?) ----
-    "cook_title": "Que puis-je cuisiner ?",
-    "cook_instructions_label": "Indiquez les ingrédients que vous avez chez vous :",
-    "cook_staples_hint": (
-        "Quelques ingrédients de base courants sont déjà cochés ci-contre\n"
-        "(sel, huile, farine...) — retirez ceux que vous n'avez pas."
-    ),
-    "cook_all_ingredients_label": "Tous les ingrédients :",
-    "cook_add_button": "➕ Ajouter →",
-    "cook_have_label": "Ce que j'ai :",
-    "cook_remove_button": "🗑 Retirer",
-    "cook_load_from_pantry_button": "📦 Charger depuis mon garde-manger",
-    "cook_compute_button": "🔍 Voir les recettes réalisables",
-    "cook_open_selected_button": "📖 Consulter la recette sélectionnée",
-    "cook_pantry_empty_title": "Info",
-    "cook_pantry_empty_message": (
-        "Votre garde-manger est vide pour le moment. Ouvrez « 📦 Mon "
-        "garde-manger » depuis la page d'accueil pour y ajouter des ingrédients."
-    ),
-    "cook_loaded_title": "Chargé",
-    "cook_loaded_message": "{count} ingrédient(s) ajouté(s) depuis votre garde-manger.",
-    "cook_add_ingredient_first": "Ajoutez au moins un ingrédient que vous avez.",
-    "cook_feasible_header": "✅ Réalisables avec ce que vous avez :",
-    "cook_insufficient_quantity": "  ⚠️ quantité insuffisante : {list}",
-    "cook_none_feasible": "Aucune recette n'est réalisable à 100 % avec ces ingrédients.",
-    "cook_substitutable_header": "🔄 Réalisables en utilisant un substitut :",
-    "cook_almost_header": "🟡 Presque (il manque 1 à 3 ingrédients) :",
-    "cook_missing_label": "   {name} (manque : {list})",
-    "cook_no_results": "Essayez d'ajouter d'autres ingrédients à votre sélection.",
-    "cook_select_recipe_from_results": "Sélectionnez une recette dans la liste des résultats.",
-    "cook_select_recipe_row": "Sélectionnez une ligne correspondant à une recette.",
-
-    # ---- WeeklyPlanHistoryWindow (Historique des semaines passées) ----
-    "weekhistory_title": "Historique des semaines passées",
-    "weekhistory_heading": "🕘 Historique des semaines passées",
-    "weekhistory_intro": (
-        "Chaque semaine où vous enregistrez le planning est archivée ici\n"
-        "automatiquement (jusqu'à 26 semaines, environ 6 mois), pour éviter\n"
-        "de refaire deux fois la même chose de trop près."
-    ),
-    "weekhistory_reload_button": "♻️ Recharger dans le planning actuel",
-    "weekhistory_delete_button": "🗑 Supprimer cette semaine",
-    "weekhistory_no_archived_weeks": "Aucune semaine archivée.",
-    "weekhistory_week_label": "Semaine {week}",
-    "weekhistory_saved_on": "Enregistré le {date}\n\n",
-    "weekhistory_day_heading": "{day} :\n",
-    "weekhistory_slot_line": "   {slot} : {recipe} ({persons} pers.)\n",
-    "weekhistory_empty_week": "(Planning vide pour cette semaine.)",
-    "weekhistory_select_week_first": "Sélectionnez une semaine dans la liste.",
-    "weekhistory_reload_confirm_message": (
-        "Recharger le planning de la semaine {week} dans le "
-        "planning actuel ?\n\nCela remplacera les recettes actuellement affichées "
-        "(pensez à enregistrer le planning en cours avant, si vous voulez le garder)."
-    ),
-    "weekhistory_delete_confirm_message": "Supprimer définitivement l'archive de la semaine {week} ?",
-
-    # ---- WeeklyPlanTemplatesWindow (Modèles de semaine) ----
-    "weektemplates_title": "Modèles de semaine",
-    "weektemplates_heading": "📋 Modèles de semaine",
-    "weektemplates_intro": (
-        "Enregistrez le planning actuellement affiché comme modèle\n"
-        "réutilisable, pour l'appliquer d'un clic à une autre semaine\n"
-        "plutôt que de tout resaisir."
-    ),
-    "weektemplates_name_label": "Nom du nouveau modèle :",
-    "weektemplates_save_button": "💾 Enregistrer le planning actuel comme modèle",
-    "weektemplates_apply_button": "📋 Appliquer ce modèle",
-    "weektemplates_delete_button": "🗑 Supprimer ce modèle",
-    "weektemplates_none_saved": "Aucun modèle enregistré pour le moment.",
-    "weektemplates_error_name_required": "Merci d'indiquer un nom pour ce modèle.",
-    "weektemplates_empty_plan": "Le planning actuellement affiché est vide : rien à enregistrer comme modèle.",
-    "weektemplates_saved_message": "Modèle « {name} » enregistré.",
-    "weektemplates_select_template_first": "Sélectionnez un modèle dans la liste.",
-    "weektemplates_apply_confirm_message": (
-        "Appliquer le modèle « {name} » au planning actuel ?\n\n"
-        "Cela remplacera les recettes actuellement affichées (pensez à "
-        "enregistrer le planning en cours avant, si vous voulez le garder)."
-    ),
-    "weektemplates_delete_confirm_message": "Supprimer définitivement le modèle « {name} » ?",
-    "common_none_option": "-- Aucune --",
-
-    # ---- WeeklyPlanWindow (Planning de la semaine) ----
-    "weekplan_title": "Planning de la semaine",
-    "weekplan_subtitle": "Vue calendrier : jours en colonnes, repas en lignes.",
-    "weekplan_save_button": "💾 Enregistrer le planning",
-    "weekplan_clear_button": "🗑 Tout effacer",
-    "weekplan_export_ics_button": "📆 Exporter vers un calendrier (.ics)",
-    "weekplan_compute_button": "Calculer la liste de courses de la semaine",
-    "weekplan_checklist_button": "☑️ Mode courses",
-    "weekplan_empty_list_message": (
-        "Aucune liste calculée pour le moment.\n"
-        "Cliquez sur « Calculer la liste de courses de la semaine » ci-dessus,\n"
-        "ou chargez une liste enregistrée."
-    ),
-    "weekplan_total_list_heading": "=== Liste de courses de la semaine ===",
-    "weekplan_calculate_list_for_export": (
-        "Calculez d'abord une liste de courses (bouton « Calculer la liste de courses de la semaine »)."
-    ),
-    "weekplan_invalid_persons_for_slot": "Nombre de personnes invalide pour {day} — {slot}.",
-    "weekplan_saved_message": "Le planning de la semaine a été enregistré.",
-    "weekplan_clear_confirm_message": "Effacer tout le planning de la semaine ?",
-    "weekplan_assign_recipe_first": "Assignez au moins une recette à un créneau de la semaine.",
-    "weekplan_export_ics_title": "Exporter le planning vers un calendrier",
-    "weekplan_ics_export_success_message": (
-        "Planning exporté :\n{path}\n\n"
-        "Importez ce fichier dans Google Agenda, Outlook ou Calendrier "
-        "pour voir vos repas s'y répéter chaque semaine."
-    ),
-    "weekplan_assign_or_manual": (
-        "Assignez au moins une recette à un créneau de la semaine, "
-        "ou ajoutez un ingrédient manuellement."
-    ),
-    "weekplan_export_shopping_list_title": "Enregistrer la liste de courses",
-    "weekplan_shopping_list_title": "Liste de courses de la semaine",
-    "weekplan_list_saved_message": "Liste enregistrée :\n{path}",
-    "weekplan_excel_module_missing": "L'export Excel nécessite : pip install openpyxl",
-    "weekplan_pdf_module_missing": "L'export PDF nécessite : pip install reportlab",
-    "weekplan_print_module_missing": "L'impression nécessite : pip install reportlab",
-    "weekplan_print_label": "la liste de courses de la semaine",
-
-    # ---- ManageIngredientsWindow (Gérer les ingrédients) ----
-    "manageing_title": "Gérer les ingrédients",
-    "manageing_list_label": "Liste des ingrédients enregistrés :",
-    "manageing_add_button": "➕ Ajouter",
-    "manageing_edit_button": "✏️ Modifier",
-    "manageing_delete_button": "🗑️ Supprimer",
-    "manageing_load_defaults_button": "📚 Charger les ~1000 ingrédients courants",
-    "manageing_spell_check_button": "🔤 Vérifier les doublons / fautes de frappe",
-    "manageing_prices_button": "💰 Gérer les prix (pour le coût des recettes)",
-    "manageing_substitutions_button": "🔄 Gérer les substitutions",
-    "manageing_edit_hint": (
-        "\"Modifier\" permet de changer le nom (mis à jour\n"
-        "partout où l'ingrédient est utilisé), ses allergènes,\n"
-        "ses valeurs nutritionnelles et son prix."
-    ),
-    "manageing_select_ingredient_first": "Sélectionnez un ingrédient dans la liste.",
-    "manageing_delete_confirm_message": "Supprimer « {name} » de la liste des ingrédients ?",
-    "manageing_delete_usage_warning": (
-        "\n\nAttention : il est utilisé dans {count} recette(s). "
-        "Ces recettes conserveront cet ingrédient, mais il ne sera "
-        "plus proposé dans le menu déroulant, sauf si vous le rajoutez."
-    ),
-    "manageing_missing_file_title": "Fichier manquant",
-    "manageing_missing_file_message": (
-        "Le fichier ingredients_par_defaut.json est introuvable.\n"
-        "Assurez-vous qu'il se trouve dans le même dossier que main.py."
-    ),
-    "manageing_done_title": "Terminé",
-    "manageing_defaults_added_message": "{count} nouvel(aux) ingrédient(s) ajouté(s) à partir de la liste courante.",
-    "manageing_defaults_none_added": "Tous les ingrédients courants étaient déjà présents.",
-
-    # ---- SubstitutionEditWindow (Substituts pour un ingrédient précis) ----
-    "subedit_title": "Substituts pour « {name} »",
-    "subedit_heading": "🔄 Substituts pour « {name} »",
-    "subedit_disclaimer": (
-        "Une substitution est un conseil culinaire, pas une équivalence\n"
-        "garantie : le résultat peut varier selon la recette."
-    ),
-    "subedit_remove_button": "🗑 Retirer le substitut sélectionné",
-    "subedit_add_frame_title": "Ajouter un substitut",
-    "subedit_name_label": "Nom :",
-    "subedit_note_label": "Note (optionnelle) :",
-    "subedit_add_to_list_button": "➕ Ajouter à la liste",
-    "subedit_revert_button": "🔄 Revenir à la base fournie",
-    "subedit_cancel_button": "Annuler",
-    "subedit_no_substitute_yet": "Aucun substitut pour le moment.",
-    "subedit_error_name_required": "Merci d'indiquer un nom de substitut.",
-    "subedit_select_to_remove": "Sélectionnez un substitut à retirer.",
-    "subedit_revert_confirm_message": (
-        "Retirer votre liste personnalisée et revenir aux substituts fournis\n"
-        "avec l'application pour « {name} » ?"
-    ),
-
-    # ---- ManageSubstitutionsWindow (Gérer les substitutions) ----
-    "managesub_title": "Gérer les substitutions",
-    "managesub_heading": "🔄 Substitutions d'ingrédients",
-    "managesub_intro": (
-        "Consultez ou modifiez les substituts suggérés pour un ingrédient.\n"
-        "Une substitution est un conseil culinaire, pas une équivalence garantie."
-    ),
-    "managesub_manage_button": "✏️ Gérer ses substituts",
-    "managesub_hint": (
-        "Double-cliquez sur un ingrédient de la liste pour voir ou modifier ses\n"
-        "substituts, ou tapez un nom ci-dessus (y compris un ingrédient qui n'a\n"
-        "pas encore de substitut connu) puis « ✏️ Gérer ses substituts »."
-    ),
-    "managesub_none_with_substitute": "Aucun ingrédient avec substitut pour le moment.",
-    "managesub_substitute_count": "{name} ({count} substitut{plural})",
-    "managesub_error_ingredient_required": "Merci d'indiquer un ingrédient.",
-    "managesub_unknown_ingredient_message": (
-        "« {name} » ne correspond à aucun ingrédient enregistré.\n"
-        "Choisissez-en un dans la liste déroulante, ou créez-le d'abord "
-        "depuis « 🥕 Gérer les ingrédients »."
-    ),
-
-    # ---- IngredientPricesWindow (Gérer les prix des ingrédients) ----
-    "ingprices_title": "Gérer les prix des ingrédients",
-    "ingprices_heading": "💰 Prix des ingrédients",
-    "ingprices_intro": (
-        "Renseignez un prix pour les ingrédients qui vous\n"
-        "intéressent — inutile de tous les faire. Le coût\n"
-        "d'une recette est estimé à partir de ces prix."
-    ),
-    "ingprices_price_label": "Prix (€) :",
-    "ingprices_for_one_label": "pour 1",
-    "ingprices_save_button": "💾 Enregistrer le prix",
-    "ingprices_clear_button": "🗑 Effacer le prix",
-    "ingprices_units_note": (
-        "kg ↔ recettes en Gr   ·   L ↔ recettes en cl   ·   les prix\n"
-        "en pièce/cuillère s'appliquent tels quels."
-    ),
-    "ingprices_no_price_set": "  —  (prix non renseigné)",
-    "ingprices_price_suffix": "  —  {price} € / {unit}",
-    "ingprices_error_invalid_price": "Entrez un prix valide (nombre positif).",
-    "ingprices_saved_message": "Prix enregistré pour « {name} ».",
-
-    # ---- IngredientEditWindow (Nouvel ingrédient / Modifier un ingrédient) ----
-    "ingedit_title_edit": "Modifier un ingrédient",
-    "ingedit_title_new": "Nouvel ingrédient",
-    "ingedit_heading_edit": "✏️ Modifier l'ingrédient",
-    "ingedit_heading_new": "➕ Nouvel ingrédient",
-    "ingedit_name_label": "Nom :",
-    "ingedit_allergens_label": "Allergènes présents :",
-    "ingedit_nutrition_label": "Valeurs nutritionnelles (pour 100 g / 100 ml) :",
-    "ingedit_nutri_kcal": "Calories (kcal)",
-    "ingedit_nutri_protein": "Protéines (g)",
-    "ingedit_nutri_carbs": "Glucides (g)",
-    "ingedit_nutri_fat": "Lipides (g)",
-    "ingedit_nutrition_hint": "Laissez vide si vous ne connaissez pas ces valeurs.",
-    "ingedit_price_label": "Prix :",
-    "ingedit_save_button": "💾 Enregistrer",
-    "ingedit_delete_button": "🗑️ Supprimer cet ingrédient",
-    "ingedit_error_invalid_field": "« {field} » doit être un nombre positif (ou vide).",
-    "ingedit_error_name_required": "Merci d'indiquer un nom d'ingrédient.",
-    "ingedit_error_already_exists": "L'ingrédient « {name} » existe déjà.",
-    "ingedit_error_plural_duplicate": (
-        "« {name} » n'est qu'une variante singulier/pluriel de "
-        "l'ingrédient déjà existant « {existing} ». Pour éviter les "
-        "doublons dans la liste, utilisez directement « {existing} »."
-    ),
-    "ingedit_nutri_field_kcal": "Calories",
-    "ingedit_nutri_field_protein": "Protéines",
-    "ingedit_nutri_field_carbs": "Glucides",
-    "ingedit_nutri_field_fat": "Lipides",
-    "ingedit_error_invalid_price": "Le prix doit être un nombre positif (ou vide).",
-    "ingedit_saved_message": "« {name} » a été enregistré.",
-
-    # ---- IngredientSpellCheckWindow (Vérification orthographique) ----
-    "spellcheck_title": "Vérification orthographique des ingrédients",
-    "spellcheck_heading": (
-        "Paires d'ingrédients qui se ressemblent à 90 % ou plus\n"
-        "(doublons probables ou fautes de frappe) :"
-    ),
-    "spellcheck_multi_select_hint": (
-        "Sélection multiple possible (Ctrl+clic ou Maj+clic) pour\n"
-        "fusionner plusieurs paires d'un coup."
-    ),
-    "spellcheck_merge_button": "🔗 Fusionner la sélection",
-    "spellcheck_not_duplicate_button": "✕ Ce n'est pas un doublon",
-    "spellcheck_rerun_button": "🔄 Relancer l'analyse",
-    "spellcheck_footer_hint": (
-        "Pour une seule paire, on vous demande laquelle des deux\n"
-        "graphies garder. Pour plusieurs paires à la fois, l'ingrédient\n"
-        "le moins utilisé dans vos recettes est automatiquement fusionné\n"
-        "vers celui utilisé dans le plus de recettes.\n"
-        "« Ce n'est pas un doublon » retire définitivement la ou les\n"
-        "paires sélectionnées de cette analyse, aujourd'hui et à l'avenir."
-    ),
-    "spellcheck_none_found": "Aucun doublon probable détecté. 🎉",
-    "spellcheck_pair_line": "{a}   ↔   {b}     ({percent} % similaires)",
-    "spellcheck_select_pair_first": "Sélectionnez au moins une paire dans la liste.",
-    "spellcheck_dismissed_message": (
-        "{count} paire(s) marquée(s) comme n'étant pas des "
-        "doublons. Elles ne seront plus proposées lors des prochaines analyses."
-    ),
-    "spellcheck_merge_dialog_title": "Fusionner",
-    "spellcheck_merge_dialog_message": (
-        "Fusionner « {a} » et « {b} » ?\n\n"
-        "Oui = tout renommer en « {a} »\n"
-        "Non = tout renommer en « {b} »\n"
-        "Annuler = ne rien faire"
-    ),
-    "spellcheck_merged_title": "Fusionné",
-    "spellcheck_merged_one_message": "« {removed} » a été fusionné avec « {kept} ».",
-    "spellcheck_merge_multi_confirm": (
-        "Fusionner automatiquement ces {count} paires ?\n\n"
-        "Pour chaque paire, l'ingrédient le moins utilisé dans vos "
-        "recettes sera fusionné vers celui utilisé dans le plus de "
-        "recettes (le premier par ordre alphabétique en cas d'égalité)."
-    ),
-    "spellcheck_merged_multi_message": "{count} paire(s) fusionnée(s).",
-
-    # ---- CompareRecipesWindow (Comparer deux recettes) ----
-    "compare_title": "Comparer deux recettes",
-    "compare_recipe_a_label": "Recette A :",
-    "compare_recipe_b_label": "Recette B :",
-    "compare_button": "⚖️ Comparer",
-    "compare_choose_each_list": "Choisissez une recette dans chaque liste.",
-    "compare_field_category": "Catégorie :",
-    "compare_field_favorite": "Favori :",
-    "compare_yes": "⭐ Oui",
-    "compare_no": "Non",
-    "compare_field_rating": "Note :",
-    "compare_field_difficulty": "Difficulté :",
-    "compare_field_prep": "Préparation :",
-    "compare_field_cook": "Cuisson :",
-    "compare_field_total_time": "Temps total :",
-    "compare_field_cooked": "Cuisinée :",
-    "compare_times_suffix": "{count} fois",
-    "compare_field_cost": "Coût estimé :",
-    "compare_field_nutrition": "Nutrition (kcal) :",
-    "compare_field_ingredient_count": "Nb. ingrédients :",
-    "compare_common_ingredients": "🟰 Communs ({count})",
-    "compare_only_a": "🅰️ Uniquement « {name} » ({count})",
-    "compare_only_b": "🅱️ Uniquement « {name} » ({count})",
-    "compare_none": "Aucun",
-
-    # ---- StatisticsWindow (Statistiques) ----
-    "stats_title": "Statistiques",
-    "stats_heading": "=== Statistiques ===\n\n",
-    "stats_total_recipes": "Nombre total de recettes : {count}\n\n",
-    "stats_by_category": "Répartition par catégorie :\n",
-    "stats_category_line": "  - {category} : {count}\n",
-    "stats_by_difficulty": "Répartition par difficulté :\n",
-    "stats_difficulty_line": "  - {difficulty} : {count}\n",
-    "stats_difficulty_unspecified": "Non renseignée",
-    "stats_favorites_count": "Recettes favorites : {count}\n\n",
-    "stats_avg_rating": "Note moyenne (recettes notées) : {avg} / 5 ({count} recette(s) notée(s))\n\n",
-    "stats_no_rated_recipe": "Note moyenne : aucune recette notée pour le moment.\n\n",
-    "stats_five_star_heading": "Recette(s) notée(s) 5 étoiles :\n",
-    "stats_recipe_line": "  - {name}\n",
-    "stats_most_cooked_heading": "Recettes les plus cuisinées :\n",
-    "stats_cooked_line": "  - {name} : {count} fois\n",
-    "stats_none_cooked_yet": (
-        "  Aucune recette marquée comme cuisinée pour le moment.\n"
-        "  (bouton « 🍳 J'ai cuisiné ça ! » dans « Voir une recette précise »)\n"
-    ),
-    "stats_most_used_tags_heading": "Étiquettes les plus utilisées :\n",
-    "stats_tag_line": "  - {tag} : {count}\n",
-    "stats_never_cooked_heading": "🕸️ Recettes jamais cuisinées :\n",
-    "stats_and_others": "  ... et {count} autre(s)\n",
-    "stats_all_cooked": "  Toutes vos recettes ont déjà été cuisinées au moins une fois. 👏\n",
-    "stats_stale_heading": "🕰️ Pas cuisinées depuis plus de {days} jours :\n",
-    "stats_stale_line": "  - {name} (il y a {days} jours)\n",
-    "stats_no_stale_recipe": "  Aucune recette dans ce cas pour le moment.\n",
-    "stats_avg_cost_heading": "💰 Coût moyen par personne :\n",
-    "stats_avg_cost_line": (
-        "  {avg} € en moyenne, sur {count} recette(s) avec au "
-        "moins un prix connu ({without_price} sans prix renseigné)\n"
-    ),
-    "stats_no_priced_recipe": (
-        "  Aucune recette avec un prix renseigné pour le moment.\n"
-        "  (voir « 💰 Gérer les prix » dans « Gérer les ingrédients »)\n"
-    ),
-    "stats_avg_kcal_heading": "🥗 Calories moyennes par personne :\n",
-    "stats_avg_kcal_line": (
-        "  {avg} kcal en moyenne, sur {count} recette(s) avec des "
-        "ingrédients reconnus dans la base nutritionnelle\n"
-    ),
-    "stats_no_recognized_recipe": "  Aucune recette avec des ingrédients reconnus pour le moment.\n",
-    "stats_monthly_chart_title": "📈 Recettes cuisinées par mois (12 derniers mois)",
-    "stats_heatmap_title": "🗓️ Calendrier des jours cuisinés (12 derniers mois)",
-    "stats_heatmap_legend": "Moins ⬜ 🟨 🟧 🟥 Plus",
-    "stats_day_labels": "L,M,M,J,V,S,D",
-    "stats_month_labels_short": "Jan,Fév,Mar,Avr,Mai,Jun,Jul,Aoû,Sep,Oct,Nov,Déc",
-    "stats_month_labels_lower": "jan,fév,mar,avr,mai,jun,jul,aoû,sep,oct,nov,déc",
-
-    # ---- draw_recipe_content (contenu PDF d'une recette, export seule ou dans le livre de recettes) ----
-    "recipepdf_category_persons": "Catégorie : {cat}    Pour {persons} personne(s)",
-    "recipepdf_rating": "Note : {stars}",
-    "recipepdf_prep": "Préparation : {time} min",
-    "recipepdf_cook": "Cuisson : {time} min",
-    "recipepdf_difficulty": "Difficulté : {value}",
-    "recipepdf_allergens": "⚠ Allergènes : {list}",
-    "recipepdf_ingredients_heading": "Ingrédients :",
-    "recipepdf_cost": "Coût estimé : {cost} €{partial}",
-    "recipepdf_partial_suffix": " (partiel, {known}/{total})",
-    "recipepdf_nutrition": "Nutrition estimée{partial} : {kcal} kcal · {protein}g prot. · {carbs}g gluc. · {fat}g lip.",
-    "recipepdf_description_heading": "Description :",
-    "recipepdf_notes_heading": "Notes personnelles :",
-
-    # ---- build_cookbook_pdf (livre de recettes PDF) ----
-    "cookbookpdf_page_number": "Page {current} / {total}",
-    "cookbookpdf_generated_on": "Généré le {date}",
-    "cookbookpdf_summary_heading": "Sommaire",
-    "cookbookpdf_summary_line": "- [{cat}] {name}",
-
-    # ---- CookbookExportWindow (Exporter le livre de recettes) ----
-    "cookbookexport_title": "Exporter le livre de recettes",
-    "cookbookexport_heading": "📖 Exporter le livre de recettes",
-    "cookbookexport_intro": (
-        "Sélectionnez les recettes à inclure dans un seul PDF,\n"
-        "façon livre de cuisine."
-    ),
-    "cookbookexport_filter_label": "Filtrer par catégorie :",
-    "cookbookexport_check_all_button": "Tout cocher",
-    "cookbookexport_uncheck_all_button": "Tout décocher",
-    "cookbookexport_generate_button": "📄 Générer le PDF du livre",
-    "cookbookexport_error_select_recipe": "Sélectionnez au moins une recette.",
-    "cookbookexport_save_dialog_title": "Enregistrer le livre de recettes",
-    "cookbookexport_saved_message": "Livre de recettes enregistré :\n{path}",
-
-    # ---- ImportExportWindow (Importer / Exporter les données) ----
-    "importexport_title": "Importer / Exporter les données",
-    "importexport_heading": "Sauvegarder ou transférer vos données",
-    "importexport_export_intro": (
-        "L'export crée un fichier .zip contenant absolument toutes\n"
-        "vos données : recettes, photos, ingrédients personnalisés,\n"
-        "prix, substituts, garde-manger, planning et son historique,\n"
-        "menus, listes de courses enregistrées, corbeille et\n"
-        "réglages — pour tout sauvegarder ou tout transférer sur un\n"
-        "autre ordinateur en un seul fichier."
-    ),
-    "importexport_export_button": "📤 Exporter toutes mes données (.zip)",
-    "importexport_import_intro": (
-        "L'import lit un fichier .zip précédemment exporté.\n"
-        "\"Fusionner\" ajoute les recettes/photos en double sous un\n"
-        "nouveau nom plutôt que de les perdre, et complète le reste\n"
-        "(garde-manger, menus, listes...) sans rien supprimer.\n"
-        "\"Remplacer\" écrase tout, y compris les réglages et le\n"
-        "planning en cours."
-    ),
-    "importexport_import_button": "📥 Importer des données (.zip)",
-    "importexport_auto_backups_heading": "🗄️ Sauvegardes automatiques",
-    "importexport_auto_backups_intro": (
-        "Une sauvegarde est créée automatiquement au démarrage de\n"
-        "l'application (au maximum une par {hours}h), et les "
-        "{retention} plus\nrécentes sont conservées ici."
-    ),
-    "importexport_backup_now_button": "💾 Sauvegarder maintenant",
-    "importexport_restore_selected_button": "♻️ Restaurer la sélection",
-    "importexport_cloud_heading": "☁️ Sauvegarde automatique dans le cloud",
-    "importexport_cloud_intro": (
-        "Choisissez un dossier synchronisé par un client déjà\n"
-        "installé sur ce PC (Google Drive, OneDrive, Dropbox...).\n"
-        "Chaque sauvegarde automatique y sera aussi copiée, et ce\n"
-        "client se chargera de l'envoyer dans le cloud tout seul."
-    ),
-    "importexport_choose_cloud_button": "📁 Choisir un dossier cloud",
-    "importexport_disable_button": "🚫 Désactiver",
-    "importexport_cloud_enabled": "✅ Activé : {folder}",
-    "importexport_cloud_not_configured": "Non configuré pour le moment.",
-    "importexport_choose_folder_title": "Choisir un dossier synchronisé (Google Drive, OneDrive, Dropbox...)",
-    "importexport_cloud_configured_title": "Dossier configuré",
-    "importexport_cloud_configured_message": (
-        "Dossier cloud configuré :\n{folder}\n\n"
-        "Voulez-vous y copier une sauvegarde dès maintenant ?"
-    ),
-    "importexport_disabled_title": "Désactivé",
-    "importexport_disabled_message": "La sauvegarde automatique dans le cloud est désactivée.",
-    "importexport_backup_date_line": "{date}   ({size} Ko)",
-    "importexport_no_backups": "Aucune sauvegarde automatique pour le moment.",
-    "importexport_backup_failed": "La sauvegarde a échoué :\n{error}",
-    "importexport_backup_created_title": "Sauvegarde créée",
-    "importexport_backup_created_message": "Une nouvelle sauvegarde automatique a été créée.",
-    "importexport_select_backup_first": "Sélectionnez une sauvegarde dans la liste.",
-    "importexport_restore_mode_title": "Mode de restauration",
-    "importexport_restore_mode_message": (
-        "Comment restaurer cette sauvegarde ?\n\n"
-        "Oui = Fusionner (ajouter aux données actuelles, sans rien supprimer)\n"
-        "Non = Remplacer entièrement les données actuelles\n"
-        "Annuler = ne rien faire"
-    ),
-    "importexport_restore_failed": "La restauration a échoué :\n{error}",
-    "importexport_restore_done_title": "Restauration terminée",
-    "importexport_restore_done_message": "Les données ont été restaurées avec succès.",
-    "importexport_export_data_title": "Exporter mes données",
-    "importexport_shared_heading": "Sauvegarde partagée avec l'app mobile",
-    "importexport_shared_intro": "Format compatible avec l'application mobile — recettes (avec leurs photos), ingrédients connus, garde-manger et personnalisations. Le planning, les menus et les listes de courses enregistrées ne sont pas encore inclus dans ce format.",
-    "importexport_export_shared_title": "Exporter au format partagé",
-    "importexport_export_shared_button": "Exporter pour l'app mobile (.zip)",
-    "importexport_import_shared_button": "Importer depuis l'app mobile (.zip)",
-    "importexport_file_too_large": "Ce fichier dépasse la limite de {size} Mo.",
-    "importexport_export_data_success": "Vos données ont été exportées vers :\n{path}",
-    "importexport_choose_archive_title": "Choisir une archive à importer",
-    "importexport_import_mode_title": "Mode d'import",
-    "importexport_import_mode_message": (
-        "Comment importer ces données ?\n\n"
-        "Oui = Fusionner (ajouter aux données actuelles, sans rien supprimer)\n"
-        "Non = Remplacer entièrement les données actuelles\n"
-        "Annuler = ne rien faire"
-    ),
-    "importexport_import_failed": "L'import a échoué :\n{error}",
-    "importexport_import_done_title": "Import terminé",
-    "importexport_import_done_message": "Les données ont été importées avec succès.",
-
-    # ---- ShoppingChecklistWindow (Mode courses) ----
-    "checklist_instruction": "Cochez chaque article au fur et à mesure de vos courses.",
-    "checklist_check_all_button": "☑️ Tout cocher",
-    "checklist_uncheck_all_button": "⬜ Tout décocher",
-    "checklist_progress_label": "{done} / {total} article(s) coché(s)",
-
-    # ---- ExportFormatDialog (Choisir un format d'export) ----
-    "exportformat_title": "Choisir un format d'export",
-    "exportformat_heading": "📤 Exporter la liste de courses",
-    "exportformat_choose_label": "Choisissez le format d'export souhaité :",
-    "exportformat_txt_button": "📝 Exporter en texte (.txt)",
-    "exportformat_excel_button": "📊 Exporter en Excel (.xlsx)",
-    "exportformat_pdf_button": "📄 Exporter en PDF (.pdf)",
-    "exportformat_cancel_button": "Annuler",
-
-    # ---- MenuManagerWindow (Mes menus) ----
-    "menumanager_title": "Mes menus",
-    "menumanager_list_label": "Mes menus enregistrés :",
-    "menumanager_new_button": "➕ Nouveau menu",
-    "menumanager_recipe_count": "{name} ({count} recette(s))",
-    "menumanager_select_menu_first": "Sélectionnez un menu dans la liste.",
-    "menumanager_delete_confirm": "Supprimer le menu « {name} » ?",
-
-    # ---- MenuFormWindow (Nouveau menu / Modifier le menu) ----
-    "menuform_title_edit": "Modifier le menu",
-    "menuform_title_new": "Nouveau menu",
-    "menuform_name_label": "Nom du menu :",
-    "menuform_add_recipe_label": "Ajouter une recette au menu :",
-    "menuform_persons_short_label": "pers. :",
-    "menuform_add_button": "+ Ajouter",
-    "menuform_recipes_label": "Recettes du menu :",
-    "menuform_remove_button": "🗑 Retirer du menu",
-    "menuform_save_button": "💾 Enregistrer le menu",
-    "menuform_compute_button": "Calculer la liste de courses du menu",
-    "menuform_empty_list_message": (
-        "Aucune liste calculée pour le moment.\n"
-        "Cliquez sur « Calculer la liste de courses du menu » ci-dessus,\n"
-        "ou chargez une liste enregistrée."
-    ),
-    "menuform_total_list_heading": "=== Liste de courses du menu ===",
-    "menuform_item_row_label": "[{cat}] {name} ({persons} pers.)",
-    "menuform_select_recipe_to_remove": "Sélectionnez une recette du menu à retirer.",
-    "menuform_error_name_required": "Merci d'indiquer un nom de menu.",
-    "menuform_error_no_recipe": "Ajoutez au moins une recette au menu.",
-    "menuform_saved_message": "Le menu « {name} » a été enregistré.",
-    "menuform_calculate_list_for_export": (
-        "Calculez d'abord une liste de courses (bouton « Calculer la liste de courses du menu »)."
-    ),
-    "menuform_add_recipe_or_manual": "Ajoutez au moins une recette au menu, ou ajoutez un ingrédient manuellement.",
-    "menuform_shopping_list_title": "Menu : {name}",
-    "menuform_print_label": "le menu « {name} »",
-
-    # ---- ImportFromUrlWindow (Importer une recette depuis un lien) ----
-    "importurl_title": "Importer une recette depuis un lien",
-    "importurl_heading": "🌐 Importer une recette depuis un lien",
-    "importurl_intro": (
-        "Collez l'adresse (URL) d'une page de recette. Cela fonctionne\n"
-        "avec la plupart des grands sites de cuisine (qui utilisent un\n"
-        "format de données standard). Une connexion internet est requise."
-    ),
-    "importurl_fetch_button": "🌐 Récupérer la recette",
-    "importurl_after_import_note": (
-        "Après import, vérifiez et complétez la recette si besoin\n"
-        "(le repérage des quantités et unités n'est pas toujours parfait)."
-    ),
-    "importurl_paste_url_first": "Collez d'abord une adresse internet (URL).",
-    "importurl_fetching": "Récupération en cours...",
-    "importurl_failed_title": "Échec de l'import",
-
-    # ---- ImportFromPhotoWindow (Importer une recette depuis une photo) ----
-    "importphoto_title": "Importer une recette depuis une photo",
-    "importphoto_heading": "📷 Importer une recette depuis une photo",
-    "importphoto_intro": (
-        "Prenez en photo (ou scannez) une recette manuscrite ou une\n"
-        "page de livre de cuisine, puis choisissez l'image ici. Le texte\n"
-        "en est extrait automatiquement, mais reste à relire et organiser\n"
-        "vous-même (contrairement à l'import depuis un lien, une photo n'a\n"
-        "pas de structure ingrédients/étapes que l'on puisse deviner)."
-    ),
-    "importphoto_module_warning": (
-        "⚠ Cette fonctionnalité nécessite le module 'pytesseract'\n"
-        "ET le programme Tesseract OCR installé séparément sur ce PC.\n"
-        "Voir le LISEZ-MOI pour les instructions d'installation."
-    ),
-    "importphoto_no_photo_chosen": "Aucune photo choisie",
-    "importphoto_choose_button": "📁 Choisir une photo",
-    "importphoto_extract_button": "🔍 Extraire le texte",
-    "importphoto_extracted_text_label": "Texte extrait (modifiable) :",
-    "importphoto_create_button": "➡️ Créer la recette avec ce texte",
-    "importphoto_choose_photo_title": "Choisir une photo de recette",
-    "importphoto_choose_first": "Choisissez d'abord une photo.",
-    "importphoto_ocr_module_missing": (
-        "Cette fonctionnalité nécessite le module 'pytesseract'\n"
-        "(pip install pytesseract) ET le programme Tesseract OCR\n"
-        "installé séparément sur ce PC. Voir le LISEZ-MOI."
-    ),
-    "importphoto_extraction_failed_title": "Échec de l'extraction",
-    "importphoto_extraction_failed_message": (
-        "La reconnaissance de texte a échoué. Vérifiez que Tesseract OCR "
-        "est bien installé sur ce PC et accessible.\n\nDétail : {error}"
-    ),
-    "importphoto_no_text_extracted": (
-        "Aucun texte n'a pu être extrait de cette photo. Essayez une image "
-        "plus nette, mieux cadrée ou mieux éclairée."
-    ),
-    "importphoto_no_text_title": "Aucun texte",
-    "importphoto_no_text_confirm": (
-        "Aucun texte n'a été extrait ou saisi. Créer quand même une "
-        "recette vide (avec juste la photo) ?"
-    ),
-
-    # ---- TrashWindow (Corbeille) ----
-    "trash_title": "Corbeille",
-    "trash_heading": "🗑️ Recettes supprimées",
-    "trash_intro": (
-        "Les photos des recettes de la corbeille sont conservées\n"
-        "jusqu'à leur suppression définitive."
-    ),
-    "trash_restore_button": "♻️ Restaurer",
-    "trash_delete_forever_button": "🗑️ Supprimer définitivement",
-    "trash_empty_button": "🧹 Vider la corbeille",
-    "trash_unnamed_recipe": "(sans nom)",
-    "trash_unknown_date": "date inconnue",
-    "trash_entry_line": "{name}  —  supprimée le {date}",
-    "trash_is_empty": "La corbeille est vide.",
-    "trash_select_recipe_first": "Sélectionnez une recette dans la corbeille.",
-    "trash_restored_suffix": "{name} (restaurée)",
-    "trash_restored_title": "Restaurée",
-    "trash_restored_message": "« {name} » a été restaurée.",
-    "trash_delete_forever_confirm": "Supprimer définitivement « {name} » ?\n\nCette action est irréversible.",
-    "trash_deleted_title": "Supprimée",
-    "trash_deleted_message": "La recette a été définitivement supprimée.",
-    "trash_already_empty": "La corbeille est déjà vide.",
-    "trash_empty_confirm": (
-        "Supprimer définitivement les {count} recette(s) de la corbeille ?\n\n"
-        "Cette action est irréversible."
-    ),
-    "trash_emptied_title": "Corbeille vidée",
-    "trash_emptied_message": "La corbeille a été vidée.",
-
-    # ---- CookingModeWindow (Mode cuisine plein écran) ----
-    "cookingmode_title": "Mode cuisine — {name}",
-    "cookingmode_close_button": "✕ Fermer (Échap)",
-    "cookingmode_cooked_button": "🍳 J'ai cuisiné ça !",
-    "cookingmode_fullscreen_hint": "F11 : plein écran",
-    "cookingmode_persons_suffix": "{persons} pers.",
-    "cookingmode_speech_button": "🔊 Lire à voix haute",
-    "cookingmode_speech_stop_button": "⏹ Arrêter la lecture",
-    "cookingmode_volume_percent": "{percent} %",
-    "cookingmode_tts_module_missing": "La lecture à voix haute nécessite le module 'pyttsx3'.\nInstallez-le avec : pip install pyttsx3",
-    "cookingmode_no_description_to_read": "Cette recette n'a pas de description à lire (le champ description est vide).",
-    "cookingmode_ingredients_heading": "Ingrédients",
-    "cookingmode_prep_label": "Préparation : {time} min",
-    "cookingmode_cook_label": "Cuisson : {time} min",
-    "cookingmode_difficulty_label": "Difficulté : {value}",
-    "cookingmode_preparation_heading": "Préparation",
-    "cookingmode_personal_notes_heading": "Notes personnelles",
-
-    # ---- IngredientSearchWindow (Recherche par ingrédient) ----
-    "ingsearch_title": "Recherche par ingrédient",
-    "ingsearch_question_label": "Quel ingrédient recherchez-vous ?",
-    "ingsearch_view_recipes_button": "🔍 Voir les recettes qui l'utilisent",
-    "ingsearch_view_selected_button": "📖 Consulter la recette sélectionnée",
-    "ingsearch_no_recipe_uses": "Aucune recette n'utilise « {name} » pour le moment.",
-    "ingsearch_recipes_using": "Recettes utilisant « {name} » ({count}) :",
-    "ingsearch_result_line": "{star}[{cat}] {name} ({qty}{unit} pour 1 personne)",
-    "ingsearch_select_result_first": "Sélectionnez une recette dans la liste des résultats.",
-
-    # ---- TimerRow (une ligne de minuteur dans TimersWindow) ----
-    "timerrow_minutes_label": "Min :",
-    "timerrow_seconds_label": "Sec :",
-    "timerrow_error_invalid_duration": "Durée invalide.",
-    "timerrow_set_duration_first": "Réglez une durée avant de démarrer.",
-
-    # ---- CookLogEntryDialog (Ajouter au journal de cuisine) ----
-    "cooklogentry_title": "📔 Ajouter au journal de cuisine",
-    "cooklogentry_heading": "🍳 « {name} »",
-    "cooklogentry_intro": "Comment était-ce ? Une note et/ou une photo\n(facultatif, vous pouvez aussi passer directement).",
-    "cooklogentry_no_photo_chosen": "Aucune photo choisie",
-    "cooklogentry_choose_photo_button": "📷 Choisir une photo",
-    "cooklogentry_skip_button": "Passer",
-    "cooklogentry_choose_photo_title": "Choisir une photo",
-
-    # ---- CookLogWindow (Journal de cuisine) ----
-    "cooklog_title": "📔 Journal de cuisine — {name}",
-    "cooklog_heading": "📔 {name}",
-    "cooklog_times_cooked": "Cuisinée {count} fois au total",
-    "cooklog_no_entry": "Aucune note enregistrée pour le moment.\nUtilisez « 🍳 J'ai cuisiné ça ! » pour en ajouter une.",
-    "cooklog_no_note": "(pas de note)",
-
-    # ---- TimersWindow (Minuteurs) ----
-    "timers_title": "⏲️ Minuteurs",
-    "timers_intro": (
-        "Réglez chaque minuteur puis ▶️ pour le démarrer.\n"
-        "À la fin, la ligne clignote en rouge avec un signal sonore."
-    ),
-    "timers_add_button": "➕ Ajouter un minuteur",
-
-    # ---- QRCodeWindow (QR Code d'une recette) ----
-    "qrcode_title": "QR Code — {name}",
-    "qrcode_intro": (
-        "Scannez avec l'appareil photo ou une application de\n"
-        "lecture de QR code pour voir le nom et les ingrédients."
-    ),
-    "qrcode_save_button": "💾 Enregistrer en image (PNG)",
-    "qrcode_truncated_warning": (
-        "⚠️ La recette est longue : le QR code contient un\n"
-        "résumé tronqué (nom + ingrédients uniquement)."
-    ),
-    "qrcode_encoded_ingredients_heading": "Ingrédients ({persons} pers.) :",
-    "qrcode_save_dialog_title": "Enregistrer le QR code",
-    "qrcode_save_failed": "L'enregistrement a échoué :\n{error}",
-    "qrcode_saved_message": "QR code enregistré :\n{path}",
-
-    # ---- UnitConverterWindow (Convertisseur d'unités) ----
-    "unitconv_title": "Convertisseur d'unités",
-    "unitconv_heading": "🔄 Convertisseur d'unités",
-    "unitconv_intro": (
-        "Conversion approximative basée sur la densité de l'eau pour\n"
-        "les unités de volume (ml, cl, L, tasse, cuillères) : fiable pour\n"
-        "les liquides, approximative pour des solides comme la farine\n"
-        "ou le sucre, dont la densité réelle diffère un peu."
-    ),
-    "unitconv_quantity_label": "Quantité :",
-    "unitconv_from_label": "De :",
-    "unitconv_to_label": "Vers :",
-    "unitconv_convert_button": "Convertir",
-    "unitconv_error_invalid_quantity": "Quantité invalide.",
-    "unitconv_result": "{quantity} {from_unit} ≈ {result} {to_unit}",
-    "unitconv_gram": "Gramme (g)",
-    "unitconv_kilogram": "Kilogramme (kg)",
-    "unitconv_ounce": "Once (oz)",
-    "unitconv_pound": "Livre (lb)",
-    "unitconv_milliliter": "Millilitre (ml)",
-    "unitconv_centiliter": "Centilitre (cl)",
-    "unitconv_liter": "Litre (L)",
-    "unitconv_teaspoon": "Cuillère à café (5 ml)",
-    "unitconv_tablespoon": "Cuillère à soupe (15 ml)",
-    "unitconv_cup": "Tasse US (240 ml)",
-
-    # ---- DisclaimerWindow (Clause de responsabilité) ----
-    "disclaimer_title": "Clause de responsabilité",
-    "disclaimer_heading": "⚠ Clause de responsabilité",
-    "disclaimer_intro": "Merci de lire ce texte avant d'utiliser l'application.",
-    "disclaimer_checkbox": "J'ai lu et j'accepte les conditions ci-dessus",
-    "disclaimer_continue_button": "Continuer",
-    "disclaimer_quit_button": "Quitter l'application",
-    "disclaimer_text": (
-        "ARTICLE 1 – EXCLUSION ET LIMITATION DE RESPONSABILITÉ\n\n"
-        "1.1. Alertes médicales et gestion des allergènes\n\n"
-        "L'Application propose une fonctionnalité permettant à l'Utilisateur de renseigner, "
-        "modifier et configurer ses propres critères d'allergies et d'allergènes. "
-        "L'Utilisateur reconnaît expressément que :\n\n"
-        "• L'exactitude et la mise à jour de ces informations relèvent de sa seule et unique responsabilité.\n"
-        "• L'Application est un outil informatique d'aide à la consultation de recettes et ne remplace en "
-        "aucun cas un avis médical, un diagnostic ou le contrôle humain des ingrédients.\n"
-        "• L'Éditeur ne saurait être tenu pour responsable en cas de mauvaise saisie, d'omission, de "
-        "configuration erronée par l'Utilisateur, ou de réaction allergique (intolérance, choc anaphylactique, "
-        "etc.) survenue après la consommation d'un plat. Il incombe à l'Utilisateur de vérifier "
-        "systématiquement les étiquettes et la composition réelle de chaque ingrédient physique avant toute "
-        "préparation ou ingestion.\n\n"
-        "1.2. Fourniture « en l'état » et gratuité\n\n"
-        "L'Application est mise à disposition de l'Utilisateur à titre entièrement gratuit. Elle est fournie "
-        "« en l'état » et « selon sa disponibilité », sans aucune garantie d'absence d'erreurs, de bugs "
-        "informatiques ou d'interruptions. L'Éditeur ne garantit pas que les fonctionnalités de l'Application "
-        "répondront aux besoins spécifiques de l'Utilisateur.\n\n"
-        "1.3. Dommages matériels et immatériels\n\n"
-        "L'Éditeur décline toute responsabilité pour les dommages directs ou indirects causés à l'Utilisateur "
-        "ou à des tiers. Plus particulièrement, l'Éditeur ne pourra être poursuivi pour :\n\n"
-        "• Une panne, une surchauffe, un dysfonctionnement ou une détérioration du matériel informatique ou "
-        "du smartphone de l'Utilisateur lors de l'utilisation de l'Application.\n"
-        "• Une perte de données informatiques, une altération de fichiers ou un piratage du système de "
-        "l'Utilisateur.\n\n"
-        "En raison de la gratuité du service, si la responsabilité de l'Éditeur devait être engagée par un "
-        "tribunal, le montant des dommages et intérêts serait expressément plafonné à la somme de zéro "
-        "euro (0 €)."
-    ),
-
-    # ---- AddManualIngredientDialog (Ajouter des ingrédients à la liste de courses) ----
-    "addmanual_title": "Ajouter des ingrédients à la liste de courses",
-    "addmanual_heading": "➕ Ajouter des ingrédients à la liste de courses",
-    "addmanual_intro": (
-        "Ajoutez autant d'ingrédients que vous voulez à la liste\n"
-        "d'attente ci-dessous, puis validez-les tous d'un coup."
-    ),
-    "addmanual_new_ingredient_button": "🥕 Nouvel ingrédient",
-    "addmanual_add_to_list_button": "➕ Ajouter à la liste",
-    "addmanual_staged_label": "Ingrédients en attente de validation :",
-    "addmanual_remove_staged_button": "🗑 Retirer de la liste d'attente",
-    "addmanual_confirm_all_button": "✅ Valider tous ces ingrédients",
-    "addmanual_close_button": "Fermer",
-    "addmanual_select_staged_first": "Sélectionnez un ingrédient dans la liste d'attente.",
-    "addmanual_add_staged_first": "Ajoutez au moins un ingrédient à la liste d'attente avant de valider.",
-    "addmanual_confirmed_message": "{count} ingrédient(s) ajouté(s) à la liste de courses.",
-
-    # ---- Fonctions d'export de liste de courses (texte/Excel/PDF) ----
-    "shoppingexport_generated_on": "Générée le {date}",
-    "shoppingexport_selected_recipes": "Recettes sélectionnées :",
-    "shoppingexport_excel_sheet_recipes": "Recettes",
-    "shoppingexport_excel_col_recipe": "Recette",
-    "shoppingexport_excel_col_persons": "Nombre de personnes",
-    "shoppingexport_excel_sheet_ingredients": "Ingrédients",
-    "shoppingexport_excel_col_rayon": "Rayon",
-    "shoppingexport_excel_col_ingredient": "Ingrédient",
-    "shoppingexport_excel_col_total_qty": "Quantité totale",
-    "shoppingexport_excel_col_unit": "Unité",
-
-    # ---- SavedShoppingListsWindow (Listes de courses enregistrées) ----
-    "savedlists_title": "Listes de courses enregistrées",
-    "savedlists_heading": "📂 Listes de courses enregistrées",
-    "savedlists_load_button": "📂 Charger",
-    "savedlists_delete_button": "🗑 Supprimer",
-    "savedlists_none_saved": "Aucune liste enregistrée pour le moment.",
-    "savedlists_entry_line": "{name} — {count} ingrédient(s) — {date}",
-    "savedlists_select_list_first": "Sélectionnez une liste dans la liste.",
-    "savedlists_delete_confirm": "Supprimer définitivement la liste « {name} » ?",
-
-    # ---- QuickSearchWindow (Recherche rapide, Ctrl+K) ----
-    "quicksearch_title": "Recherche rapide",
-    "quicksearch_heading": "🔍 Recherche rapide de recette",
-    "quicksearch_no_results": "Aucune recette trouvée.",
-    "quicksearch_footer_hint": "Entrée pour ouvrir, Échap pour fermer.",
-
-    # ---- AllRecipesWindow (Voir toutes les recettes / liste de courses) ----
-    "allrecipes_title": "Toutes les recettes - Liste de courses",
-    "allrecipes_select_label": "Sélectionnez les recettes et le nombre de personnes :",
-    "allrecipes_ingredient_filter_title": "Filtrer par ingrédient",
-    "allrecipes_persons_count_label": "Nb. personnes :",
-    "allrecipes_add_to_cart_button": "🛒 Ajouter aux courses",
-    "allrecipes_checklist_mode_button": "☑️ Mode courses (cocher au fur et à mesure)",
-    "allrecipes_clear_list_button": "🗑 Vider la liste de courses",
-    "allrecipes_export_button": "📤 Exporter",
-    "allrecipes_print_button": "🖨️ Imprimer",
-    "allrecipes_add_manual_ingredient_button": "➕ Ajouter un ingrédient à la liste de courses",
-    "allrecipes_save_list_button": "💾 Enregistrer cette liste pour plus tard",
-    "allrecipes_load_list_button": "📂 Charger une liste enregistrée",
-    "allrecipes_invalid_persons": "Nombre de personnes invalide pour « {name} ».",
-    "allrecipes_empty_list_message": (
-        "Votre liste de courses est vide pour le moment.\n"
-        "Cliquez sur « 🛒 Ajouter aux courses » en face d'une recette,\n"
-        "ajoutez un ingrédient manuellement, ou chargez une liste enregistrée."
-    ),
-    "allrecipes_total_list_heading": "=== Liste de courses totale ===",
-    "allrecipes_manual_items_note": "({count} ingrédient(s) ajouté(s) manuellement inclus)",
-    "allrecipes_invalid_quantity": "Quantité invalide.",
-    "allrecipes_calculate_list_first": "Calculez d'abord une liste de courses avant de l'enregistrer.",
-    "allrecipes_save_list_dialog_title": "Enregistrer la liste",
-    "allrecipes_save_list_dialog_prompt": "Nom pour cette liste :",
-    "allrecipes_list_saved_title": "Enregistré",
-    "allrecipes_list_saved_message": "Liste « {name} » enregistrée pour plus tard.",
-    "allrecipes_empty_list_for_export": (
-        "La liste de courses est vide. Ajoutez au moins une recette "
-        "(bouton « 🛒 Ajouter aux courses ») ou un ingrédient manuel."
-    ),
-    "allrecipes_export_txt_title": "Enregistrer la liste de courses en texte",
-    "allrecipes_export_excel_title": "Enregistrer la liste de courses en Excel",
-    "allrecipes_export_pdf_title": "Enregistrer la liste de courses en PDF",
-    "allrecipes_export_saved_message": "Liste de courses enregistrée :\n{path}",
-    "allrecipes_excel_module_missing": "L'export Excel nécessite le module 'openpyxl'.\nInstallez-le avec : pip install openpyxl",
-    "allrecipes_pdf_module_missing": "L'export PDF nécessite le module 'reportlab'.\nInstallez-le avec : pip install reportlab",
-    "allrecipes_print_module_missing": (
-        "L'impression nécessite le module 'reportlab' pour générer la mise en page.\n"
-        "Installez-le avec : pip install reportlab"
-    ),
-    "allrecipes_print_label": "la liste de courses",
-    "allrecipes_shopping_list_title": "Liste de courses",
-    "allrecipes_close_confirm_title": "Fermer la liste de courses ?",
-    "allrecipes_close_confirm_message": (
-        "La liste de courses affichée n'est pas enregistrée : elle sera "
-        "définitivement perdue si vous fermez cette fenêtre maintenant.\n\n"
-        "Astuce : utilisez « 💾 Enregistrer cette liste pour plus tard » "
-        "avant de fermer si vous voulez la conserver.\n\n"
-        "Fermer quand même ?"
-    ),
-
-    # ---- ManageRecipesWindow (Modifier / Supprimer une recette) ----
-    "managerecipes_title": "Modifier / Supprimer une recette",
-    "managerecipes_select_label": "Sélectionnez une recette :",
-    "managerecipes_filter_favorites": "⭐ Favoris uniquement",
-    "managerecipes_filter_quick": "⏱️ Recettes rapides (≤ 30 min) uniquement",
-    "managerecipes_filter_vegetarian": "🥗 Recettes végétariennes uniquement",
-    "managerecipes_filter_wishlist": "💭 Liste d'envies uniquement",
-    "managerecipes_remove_filter_button": "✕ Retirer le filtre",
-    "managerecipes_search_label": "🔍 Rechercher :",
-    "managerecipes_sort_label": "Trier par :",
-    "managerecipes_category_label": "Catégorie :",
-    "managerecipes_edit_button": "✏️ Modifier",
-    "managerecipes_duplicate_button": "📋 Dupliquer",
-    "managerecipes_delete_button": "🗑️ Supprimer",
-    "managerecipes_select_recipe_first": "Sélectionnez une recette dans la liste.",
-    "managerecipes_duplicate_suffix": "(copie)",
-    "managerecipes_duplicated_title": "Dupliquée",
-    "managerecipes_duplicated_message": "« {original} » a été dupliquée sous le nom « {new} ».",
-    "managerecipes_delete_confirm_message": (
-        "Envoyer la recette « {name} » à la corbeille ?\n\n"
-        "Vous pourrez la restaurer plus tard depuis le bouton « 🗑️ Corbeille »."
-    ),
-    "managerecipes_deleted_title": "Envoyée à la corbeille",
-    "managerecipes_deleted_message": "La recette a été déplacée vers la corbeille.",
-
-    # ---- OneRecipeWindow (Voir une recette précise) ----
-    "onerecipe_window_title": "Voir une recette",
-    "onerecipe_choose_recipe_label": "Choisissez une recette :",
-    "onerecipe_search_label": "🔍 Rechercher :",
-    "onerecipe_sort_label": "Trier :",
-    "onerecipe_category_label": "Catégorie :",
-    "onerecipe_persons_label": "Nombre de personnes :",
-    "onerecipe_btn_show": "Afficher la recette",
-    "onerecipe_btn_export_pdf": "📄 Exporter en PDF",
-    "onerecipe_btn_print": "🖨️ Imprimer",
-    "onerecipe_btn_add_to_shopping": "🛒 Ajouter à la liste de courses",
-    "onerecipe_btn_cooked": "🍳 J'ai cuisiné ça !",
-    "onerecipe_btn_cooking_mode": "🖥️ Mode cuisine (plein écran)",
-    "onerecipe_btn_qr": "📱 QR Code",
-    "onerecipe_btn_timers": "⏲️ Minuteurs",
-    "onerecipe_btn_cook_log": "📔 Journal de cuisine",
-    "onerecipe_btn_substitutions": "🔄 Substituts possibles",
-    "onerecipe_edit_button": "✏️ Modifier",
-    "onerecipe_ingredients_info_label": "Ingrédients et informations :",
-    "onerecipe_description_notes_label": "Description et notes :",
-    "onerecipe_similar_label": "Recettes similaires :",
-    "onerecipe_no_photo": "(aucune photo)",
-    "onerecipe_preview_unavailable": "(aperçu indisponible)",
-    "onerecipe_select_recipe_first": "Sélectionnez une recette dans la liste.",
-    "onerecipe_display_first": "Affichez d'abord une recette avec « Afficher la recette ».",
-    "onerecipe_invalid_persons": "Nombre de personnes invalide.",
-    "onerecipe_added_to_shopping_title": "Ajouté",
-    "onerecipe_added_to_shopping_message": (
-        "« {name} » ({persons} pers.) sera automatiquement ajoutée à la liste de courses "
-        "la prochaine fois que vous ouvrirez « Voir toutes les recettes »."
-    ),
-    "onerecipe_pantry_decrement_title": "Garde-manger",
-    "onerecipe_pantry_decrement_prompt": "Décompter les ingrédients de « {name} » ({persons} pers.) de votre garde-manger ?",
-    "onerecipe_pantry_updated_title": "Garde-manger mis à jour",
-    "onerecipe_pantry_updated_message": "{count} ingrédient(s) décompté(s) de votre garde-manger.",
-    "onerecipe_pantry_none_decremented": (
-        "Aucun ingrédient de cette recette n'a pu être décompté "
-        "(absent du garde-manger, ou unité non comparable)."
-    ),
-    "onerecipe_marked_title": "Marqué",
-    "onerecipe_marked_message": "« {name} » a été marquée comme cuisinée aujourd'hui !",
-    "onerecipe_no_substitutes_title": "Aucun substitut connu",
-    "onerecipe_no_substitutes_message": (
-        "Aucun ingrédient de cette recette n'a de substitut connu pour le moment.\n\n"
-        "Vous pouvez en ajouter vous-même depuis « 🥕 Gérer les ingrédients » > "
-        "« 🔄 Gérer les substitutions »."
-    ),
-    "onerecipe_substitutes_title": "Substituts possibles — {name}",
-    "onerecipe_substitutes_heading": "🔄 Substituts possibles pour « {name} »",
-    "onerecipe_substitutes_disclaimer": (
-        "Suggestions culinaires, pas des équivalences garanties :\nle résultat peut varier selon la recette."
-    ),
-    "onerecipe_close_button": "Fermer",
-    "onerecipe_rating_label": "Note : {stars}",
-    "onerecipe_prep_label": "Préparation : {time} min",
-    "onerecipe_cook_label": "Cuisson : {time} min",
-    "onerecipe_difficulty_label": "Difficulté : {value}",
-    "onerecipe_allergens_label": "⚠ Allergènes : {list}",
-    "onerecipe_cost_label": "💰 Coût estimé : {cost} €{partial}",
-    "onerecipe_cost_partial": " (estimation partielle, {known}/{total} ingrédients avec prix connu)",
-    "onerecipe_nutrition_partial": " (estimation partielle, {known}/{total} ingrédients reconnus)",
-    "onerecipe_nutrition_label": (
-        "🥗 Valeurs nutritionnelles estimées{partial} :\n"
-        "   {kcal} kcal · {protein} g protéines · {carbs} g glucides · {fat} g lipides\n"
-    ),
-    "onerecipe_description_heading": "--- Description ---\n{text}\n",
-    "onerecipe_notes_heading": "\n--- Notes personnelles ---\n{text}\n",
-    "onerecipe_no_description_notes": "(Aucune description ni note personnelle pour cette recette.)",
-    "onerecipe_export_pdf_title": "Exporter la recette en PDF",
-    "onerecipe_export_success_title": "Export réussi",
-    "onerecipe_export_success_message": "Recette exportée :\n{path}",
-    "onerecipe_export_failed": "L'export a échoué :\n{error}",
-    "onerecipe_print_failed": "La préparation de l'impression a échoué :\n{error}",
-    "onerecipe_pdf_module_missing": "L'export PDF nécessite le module 'reportlab'.\nInstallez-le avec : pip install reportlab",
-    "onerecipe_print_module_missing": (
-        "L'impression nécessite le module 'reportlab' pour générer la mise en page.\n"
-        "Installez-le avec : pip install reportlab"
-    ),
-    "onerecipe_qr_module_missing": "L'export en QR code nécessite le module 'qrcode'.\nInstallez-le avec : pip install qrcode",
-    "onerecipe_qr_pillow_missing": (
-        "L'export en QR code nécessite aussi le module 'Pillow'.\nInstallez-le avec : pip install pillow"
-    ),
-    "onerecipe_default_timer_label": "Minuteur",
-
-    # ---- RecipeFormWindow (Ajouter / Modifier une recette) ----
-    "recipeform_title_edit": "Modifier la recette",
-    "recipeform_title_add": "Ajouter une recette",
-    "recipeform_name_label": "Nom de la recette :",
-    "recipeform_favorite_checkbox": "⭐ Marquer comme recette favorite",
-    "recipeform_wishlist_checkbox": "💭 Ajouter à ma liste d'envies (à essayer)",
-    "recipeform_rating_label": "Ma note :",
-    "recipeform_category_label": "Catégorie :",
-    "recipeform_prep_time_label": "Préparation (min) :",
-    "recipeform_cook_time_label": "Cuisson (min) :",
-    "recipeform_difficulty_label": "Difficulté :",
-    "recipeform_default_persons_label": "   Personnes par défaut :",
-    "recipeform_tags_label": "Étiquettes (séparées par des virgules) :",
-    "recipeform_tags_example": "ex. végétarien, sans gluten, rapide, économique",
-    "recipeform_allergens_label": "Allergènes présents :",
-    "recipeform_detect_allergens_button": "🔍 Détecter automatiquement",
-    "recipeform_allergens_disclaimer": (
-        "Ceci n'est qu'à titre informatif, vérifiez toujours les\n"
-        "allergènes sur les étiquettes des produits physiques."
-    ),
-    "recipeform_allergens_auto_note": (
-        "La détection automatique se base sur les ingrédients de la\n"
-        "recette déjà saisis ci-dessous : elle coche et décoche les\n"
-        "cases en fonction, sans jamais toucher à celles que vous\n"
-        "auriez cochées vous-même sans lien avec un ingrédient détecté."
-    ),
-    "recipeform_photos_label": "Photos :",
-    "recipeform_add_photo_button": "📷 Ajouter une photo",
-    "recipeform_description_label": "Description (informations, étapes, astuces...) :",
-    "recipeform_notes_label": "Notes personnelles (avis, ajustements pour la prochaine fois...) :",
-    "recipeform_ingredients_label": "Ingrédients (quantité pour 1 personne) :",
-    "recipeform_new_ingredient_button": "🥕 Nouvel ingrédient",
-    "recipeform_no_ingredients_registered": (
-        "Aucun ingrédient enregistré. Cliquez sur « 🥕 Nouvel ingrédient »\npour en créer un premier."
-    ),
-    "recipeform_header_ingredient": "Ingrédient",
-    "recipeform_header_quantity": "Quantité",
-    "recipeform_header_unit": "Unité",
-    "recipeform_header_other": "(si autre)",
-    "recipeform_add_ingredient_button": "+ Ajouter un ingrédient",
-    "recipeform_save_button": "Enregistrer",
-    "recipeform_delete_button": "Supprimer cette recette",
-    "recipeform_char_counter": "{count} / {max} caractères",
-    "recipeform_add_ingredients_first": "Ajoutez d'abord des ingrédients à la recette.",
-    "recipeform_allergens_updated_title": "Allergènes mis à jour",
-    "recipeform_allergens_updated_added": "ajouté(s) : {list}",
-    "recipeform_allergens_updated_removed": "retiré(s) : {list}",
-    "recipeform_allergens_updated_message": "Allergène(s) {parts}.",
-    "recipeform_allergens_no_change": "Aucun changement : les allergènes cochés correspondent déjà aux ingrédients.",
-    "recipeform_choose_photos_title": "Choisir une ou plusieurs photos",
-    "recipeform_no_photo": "(aucune photo)",
-    "recipeform_preview_unavailable": "(aperçu\nindisponible)",
-    "recipeform_remove_photo_button": "🗑 Retirer",
-    "recipeform_new_ingredient_dialog_title": "Nouvel ingrédient",
-    "recipeform_new_ingredient_dialog_prompt": "Nom du nouvel ingrédient :",
-    "recipeform_ingredient_already_exists": "L'ingrédient « {name} » existe déjà.",
-    "recipeform_ingredient_added_title": "Ajouté",
-    "recipeform_ingredient_added_message": (
-        "L'ingrédient « {name} » a été ajouté.\nSélectionnez-le dans une des listes déroulantes."
-    ),
-    "recipeform_error_name_required": "Merci d'indiquer un nom de recette.",
-    "recipeform_error_prep_time": "Le temps de préparation doit être un nombre positif (ou vide).",
-    "recipeform_error_cook_time": "Le temps de cuisson doit être un nombre positif (ou vide).",
-    "recipeform_unknown_ingredient_title": "Ingrédient inconnu",
-    "recipeform_unknown_ingredient_message": (
-        "« {name} » ne correspond à aucun ingrédient enregistré.\n"
-        "Choisissez-en un dans la liste déroulante, ou cliquez sur "
-        "« 🥕 Nouvel ingrédient » pour l'ajouter d'abord."
-    ),
-    "recipeform_error_invalid_quantity": "Quantité invalide pour '{name}'.",
-    "recipeform_error_custom_unit_required": "Précisez l'unité personnalisée pour '{name}'.",
-    "recipeform_error_no_valid_ingredient": "Ajoutez au moins un ingrédient valide.",
-    "recipeform_duplicate_ingredient_title": "Ingrédient en double",
-    "recipeform_duplicate_ingredient_message": "« {list} » apparaît plusieurs fois dans cette recette.\n\nEnregistrer quand même ?",
-    "recipeform_saved_message": "La recette « {name} » a été enregistrée.",
-    "recipeform_delete_confirm_message": (
-        "Envoyer la recette « {name} » à la corbeille ?\n\n"
-        "Vous pourrez la restaurer plus tard depuis le bouton « 🗑️ Corbeille »."
-    ),
-    "recipeform_deleted_title": "Envoyée à la corbeille",
-    "recipeform_deleted_message": "La recette a été déplacée vers la corbeille.",
-}
-
-TRANSLATIONS = {
-    "en": {
-        "home_window_title": "Mes Recettes, Mes Courses",
-        "home_banner_title": "👨‍🍳 Mes Recettes, Mes Courses",
-        "home_banner_subtitle": "All your recipes, right at hand",
-        "home_donate_button": "☕ Donate",
-        "home_dark_theme": "🌙 Dark theme",
-        "home_light_theme": "☀️ Light theme",
-        "home_large_text_on": "🔎 Larger text",
-        "home_large_text_off": "🔎 Normal text",
-        "home_daily_recipe_title": "🎲 Recipe of the day",
-        "home_open_button": "👁 Open",
-        "home_quick_filter_favorites": "⭐ Favorites",
-        "home_quick_filter_quick": "⏱️ Quick (≤ 30 min)",
-        "home_quick_filter_vegetarian": "🥗 Vegetarian",
-        "home_quick_filter_wishlist": "💭 Wish list",
-        "home_wishlist_reminder": (
-            "💭 {count} recipe(s) on your wish list for over {days} days — "
-            "how about trying them? (click to see them)"
-        ),
-        "home_low_stock_reminder": (
-            "📦 {count} ingredient(s) running low in your pantry: "
-            "{names} — click to add them to the shopping list"
-        ),
-        "home_btn_add_recipe": "➕  Add a recipe",
-        "home_btn_import_url": "🌐  Import a recipe from a link",
-        "home_btn_import_photo": "📷  Import a recipe from a photo",
-        "home_btn_view_all_recipes": "🧾  View all recipes (shopping list)",
-        "home_btn_view_one_recipe": "🍽️  View a specific recipe",
-        "home_btn_manage_recipes": "✏️  Edit / Delete a recipe",
-        "home_btn_compare_recipes": "⚖️  Compare two recipes",
-        "home_btn_manage_ingredients": "🥕  Manage ingredients",
-        "home_btn_ingredient_search": "🔎  Search by ingredient",
-        "home_btn_what_can_i_cook": "🧊  What can I cook?",
-        "home_btn_pantry": "📦  My pantry",
-        "home_btn_unit_converter": "🔄  Unit converter",
-        "home_btn_weekly_plan": "📅  Weekly meal plan",
-        "home_btn_menus": "📋  My menus",
-        "home_btn_statistics": "📊  Statistics",
-        "home_btn_export_cookbook": "📖  Export the cookbook",
-        "home_btn_import_export": "💾  Import / Export data",
-        "home_btn_trash": "🗑️  Trash",
-        "home_today_title": "📅 Today",
-        "home_recent_title": "🕘 Recently viewed",
-        "home_wishlist_title": "💭 Recipes to try",
-        "home_new_draw_button": "🎲 New picks",
-        "home_footer_recipe_count": "{count} recipe(s) saved",
-        "home_nothing_planned": (
-            "Nothing planned for {day}. Fill in the « 📅 Weekly meal plan » to see it here."
-        ),
-        "home_no_recent_recipe": "No recipe viewed yet.",
-        "home_no_wishlist_recipe": "No recipe on your wish list yet.",
-        "warning_pillow": "Pillow not installed: photos won't display (pip install pillow)",
-        "warning_reportlab": "reportlab not installed: PDF export unavailable (pip install reportlab)",
-        "warning_openpyxl": "openpyxl not installed: Excel export unavailable (pip install openpyxl)",
-        "warning_qrcode": "qrcode not installed: QR code export unavailable (pip install qrcode)",
-        "warning_pytesseract": (
-            "pytesseract not installed: import from photo unavailable "
-            "(pip install pytesseract, + Tesseract OCR)"
-        ),
-
-        # ---- Common dialog titles, reused throughout the application ----
-        "common_error": "Error",
-        "common_info": "Info",
-        "common_confirm": "Confirm",
-        "common_success": "Success",
-        "common_module_missing": "Missing module",
-        "common_all_categories": "All",
-        "common_export_failed": "Export failed:\n{error}",
-        "common_export_success_title": "Export successful",
-        "common_print_failed": "Print preparation failed:\n{error}",
-        "common_reset_button": "Reset",
-        "common_want_label": "I want:",
-        "common_exclude_label": "I don't want:",
-        "common_tags_filter_label": "Tags (all required):",
-        "common_filter_hint": "Type the first letters to filter the list.",
-        "common_search_label": "🔍 Search:",
-        "common_sort_by_label": "Sort by:",
-        "common_category_label": "Category:",
-        "common_edit_button": "✏️ Edit",
-        "common_unknown_ingredient_title": "Unknown ingredient",
-        "common_unknown_ingredient_simple_message": (
-            "« {name} » doesn't match any registered ingredient.\nChoose one from the dropdown list."
-        ),
-        "common_ingredient_label": "Ingredient:",
-        "common_quantity_label": "Quantity:",
-        "common_unit_label": "Unit:",
-        "common_new_ingredient_button": "🥕 New ingredient",
-        "common_save_button": "💾 Save",
-
-        # ---- PantryWindow (My pantry) ----
-        "pantry_title": "My pantry",
-        "pantry_heading": "📦 My pantry",
-        "pantry_intro": (
-            "Enter what you have at home and how much of it.\n"
-            "« What can I cook? » can then check if you have enough,\n"
-            "and offer to automatically deduct stock after you cook."
-        ),
-        "pantry_threshold_label": "Alert threshold (optional):",
-        "pantry_help_text": (
-            "To ADD an item: enter the ingredient (create it first with\n"
-            "« 🥕 New ingredient » if it's not in your list yet), the\n"
-            "quantity and unit, then click « 💾 Save ».\n"
-            "To EDIT an existing item: click on it once in the\n"
-            "list below — this loads its values into the fields above,\n"
-            "without saving anything: change the values you want, THEN click\n"
-            "« 💾 Save » for the change to take effect.\n"
-            "The alert threshold triggers a reminder on the home page as soon as the\n"
-            "quantity drops below it (leave empty to never be alerted)."
-        ),
-        "pantry_remove_button": "🗑 Remove from pantry",
-        "pantry_empty": "Your pantry is empty for now.",
-        "pantry_threshold_suffix": " (threshold: {threshold})",
-        "pantry_error_ingredient_required": "Please enter an ingredient.",
-        "pantry_error_invalid_quantity": "Invalid quantity.",
-        "pantry_error_invalid_threshold": "Invalid alert threshold (leave empty if you don't want one).",
-        "pantry_select_ingredient_first": "Select an ingredient from the list.",
-        "pantry_remove_confirm_message": "Remove « {name} » from the pantry?",
-
-        # ---- WhatCanICookWindow (What can I cook?) ----
-        "cook_title": "What can I cook?",
-        "cook_instructions_label": "Enter the ingredients you have at home:",
-        "cook_staples_hint": (
-            "A few common staple ingredients are already checked here\n"
-            "(salt, oil, flour...) — remove any you don't have."
-        ),
-        "cook_all_ingredients_label": "All ingredients:",
-        "cook_add_button": "➕ Add →",
-        "cook_have_label": "What I have:",
-        "cook_remove_button": "🗑 Remove",
-        "cook_load_from_pantry_button": "📦 Load from my pantry",
-        "cook_compute_button": "🔍 See feasible recipes",
-        "cook_open_selected_button": "📖 View selected recipe",
-        "cook_pantry_empty_title": "Info",
-        "cook_pantry_empty_message": (
-            "Your pantry is empty for now. Open « 📦 My "
-            "pantry » from the home page to add ingredients."
-        ),
-        "cook_loaded_title": "Loaded",
-        "cook_loaded_message": "{count} ingredient(s) added from your pantry.",
-        "cook_add_ingredient_first": "Add at least one ingredient you have.",
-        "cook_feasible_header": "✅ Feasible with what you have:",
-        "cook_insufficient_quantity": "  ⚠️ insufficient quantity: {list}",
-        "cook_none_feasible": "No recipe is 100% feasible with these ingredients.",
-        "cook_substitutable_header": "🔄 Feasible using a substitute:",
-        "cook_almost_header": "🟡 Almost (missing 1 to 3 ingredients):",
-        "cook_missing_label": "   {name} (missing: {list})",
-        "cook_no_results": "Try adding more ingredients to your selection.",
-        "cook_select_recipe_from_results": "Select a recipe from the results list.",
-        "cook_select_recipe_row": "Select a row corresponding to a recipe.",
-
-        # ---- WeeklyPlanHistoryWindow (Past weeks history) ----
-        "weekhistory_title": "Past weeks history",
-        "weekhistory_heading": "🕘 Past weeks history",
-        "weekhistory_intro": (
-            "Every week you save the meal plan, it is archived here\n"
-            "automatically (up to 26 weeks, about 6 months), to avoid\n"
-            "repeating the same thing too soon."
-        ),
-        "weekhistory_reload_button": "♻️ Reload into current plan",
-        "weekhistory_delete_button": "🗑 Delete this week",
-        "weekhistory_no_archived_weeks": "No archived weeks.",
-        "weekhistory_week_label": "Week {week}",
-        "weekhistory_saved_on": "Saved on {date}\n\n",
-        "weekhistory_day_heading": "{day}:\n",
-        "weekhistory_slot_line": "   {slot}: {recipe} ({persons} servings)\n",
-        "weekhistory_empty_week": "(Empty plan for this week.)",
-        "weekhistory_select_week_first": "Select a week from the list.",
-        "weekhistory_reload_confirm_message": (
-            "Reload the plan for week {week} into the "
-            "current plan?\n\nThis will replace the recipes currently shown "
-            "(consider saving the current plan first if you want to keep it)."
-        ),
-        "weekhistory_delete_confirm_message": "Permanently delete the archive for week {week}?",
-
-        # ---- WeeklyPlanTemplatesWindow (Weekly plan templates) ----
-        "weektemplates_title": "Weekly plan templates",
-        "weektemplates_heading": "📋 Weekly plan templates",
-        "weektemplates_intro": (
-            "Save the currently displayed plan as a reusable\n"
-            "template, to apply it to another week in one click\n"
-            "instead of re-entering everything."
-        ),
-        "weektemplates_name_label": "Name for the new template:",
-        "weektemplates_save_button": "💾 Save current plan as template",
-        "weektemplates_apply_button": "📋 Apply this template",
-        "weektemplates_delete_button": "🗑 Delete this template",
-        "weektemplates_none_saved": "No template saved yet.",
-        "weektemplates_error_name_required": "Please enter a name for this template.",
-        "weektemplates_empty_plan": "The currently displayed plan is empty: nothing to save as a template.",
-        "weektemplates_saved_message": "Template « {name} » saved.",
-        "weektemplates_select_template_first": "Select a template from the list.",
-        "weektemplates_apply_confirm_message": (
-            "Apply the template « {name} » to the current plan?\n\n"
-            "This will replace the recipes currently shown (consider "
-            "saving the current plan first if you want to keep it)."
-        ),
-        "weektemplates_delete_confirm_message": "Permanently delete the template « {name} »?",
-        "common_none_option": "-- None --",
-
-        # ---- WeeklyPlanWindow (Weekly meal plan) ----
-        "weekplan_title": "Weekly meal plan",
-        "weekplan_subtitle": "Calendar view: days in columns, meals in rows.",
-        "weekplan_save_button": "💾 Save the plan",
-        "weekplan_clear_button": "🗑 Clear all",
-        "weekplan_export_ics_button": "📆 Export to a calendar (.ics)",
-        "weekplan_compute_button": "Calculate the week's shopping list",
-        "weekplan_checklist_button": "☑️ Shopping mode",
-        "weekplan_empty_list_message": (
-            "No list calculated yet.\n"
-            "Click « Calculate the week's shopping list » above,\n"
-            "or load a saved list."
-        ),
-        "weekplan_total_list_heading": "=== Weekly shopping list ===",
-        "weekplan_calculate_list_for_export": (
-            "First calculate a shopping list (« Calculate the week's shopping list » button)."
-        ),
-        "weekplan_invalid_persons_for_slot": "Invalid number of servings for {day} — {slot}.",
-        "weekplan_saved_message": "The weekly meal plan has been saved.",
-        "weekplan_clear_confirm_message": "Clear the entire weekly meal plan?",
-        "weekplan_assign_recipe_first": "Assign at least one recipe to a slot in the week.",
-        "weekplan_export_ics_title": "Export the plan to a calendar",
-        "weekplan_ics_export_success_message": (
-            "Plan exported:\n{path}\n\n"
-            "Import this file into Google Calendar, Outlook, or Calendar "
-            "to see your meals repeat there every week."
-        ),
-        "weekplan_assign_or_manual": (
-            "Assign at least one recipe to a slot in the week, "
-            "or add an ingredient manually."
-        ),
-        "weekplan_export_shopping_list_title": "Save the shopping list",
-        "weekplan_shopping_list_title": "Weekly shopping list",
-        "weekplan_list_saved_message": "List saved:\n{path}",
-        "weekplan_excel_module_missing": "Excel export requires: pip install openpyxl",
-        "weekplan_pdf_module_missing": "PDF export requires: pip install reportlab",
-        "weekplan_print_module_missing": "Printing requires: pip install reportlab",
-        "weekplan_print_label": "the weekly shopping list",
-
-        # ---- ManageIngredientsWindow (Manage ingredients) ----
-        "manageing_title": "Manage ingredients",
-        "manageing_list_label": "List of registered ingredients:",
-        "manageing_add_button": "➕ Add",
-        "manageing_edit_button": "✏️ Edit",
-        "manageing_delete_button": "🗑️ Delete",
-        "manageing_load_defaults_button": "📚 Load the ~1000 common ingredients",
-        "manageing_spell_check_button": "🔤 Check for duplicates / typos",
-        "manageing_prices_button": "💰 Manage prices (for recipe cost)",
-        "manageing_substitutions_button": "🔄 Manage substitutions",
-        "manageing_edit_hint": (
-            "\"Edit\" lets you change the name (updated\n"
-            "everywhere the ingredient is used), its allergens,\n"
-            "its nutritional values, and its price."
-        ),
-        "manageing_select_ingredient_first": "Select an ingredient from the list.",
-        "manageing_delete_confirm_message": "Delete « {name} » from the ingredient list?",
-        "manageing_delete_usage_warning": (
-            "\n\nWarning: it is used in {count} recipe(s). "
-            "These recipes will keep this ingredient, but it will no longer "
-            "be suggested in the dropdown menu, unless you add it back."
-        ),
-        "manageing_missing_file_title": "Missing file",
-        "manageing_missing_file_message": (
-            "The file ingredients_par_defaut.json could not be found.\n"
-            "Make sure it is in the same folder as main.py."
-        ),
-        "manageing_done_title": "Done",
-        "manageing_defaults_added_message": "{count} new ingredient(s) added from the common list.",
-        "manageing_defaults_none_added": "All the common ingredients were already present.",
-
-        # ---- SubstitutionEditWindow (Substitutes for a specific ingredient) ----
-        "subedit_title": "Substitutes for « {name} »",
-        "subedit_heading": "🔄 Substitutes for « {name} »",
-        "subedit_disclaimer": (
-            "A substitution is a cooking suggestion, not a guaranteed\n"
-            "equivalence: the result may vary depending on the recipe."
-        ),
-        "subedit_remove_button": "🗑 Remove selected substitute",
-        "subedit_add_frame_title": "Add a substitute",
-        "subedit_name_label": "Name:",
-        "subedit_note_label": "Note (optional):",
-        "subedit_add_to_list_button": "➕ Add to list",
-        "subedit_revert_button": "🔄 Revert to the built-in list",
-        "subedit_cancel_button": "Cancel",
-        "subedit_no_substitute_yet": "No substitute yet.",
-        "subedit_error_name_required": "Please enter a substitute name.",
-        "subedit_select_to_remove": "Select a substitute to remove.",
-        "subedit_revert_confirm_message": (
-            "Remove your custom list and revert to the substitutes provided\n"
-            "with the application for « {name} »?"
-        ),
-
-        # ---- ManageSubstitutionsWindow (Manage substitutions) ----
-        "managesub_title": "Manage substitutions",
-        "managesub_heading": "🔄 Ingredient substitutions",
-        "managesub_intro": (
-            "View or edit the suggested substitutes for an ingredient.\n"
-            "A substitution is a cooking suggestion, not a guaranteed equivalence."
-        ),
-        "managesub_manage_button": "✏️ Manage its substitutes",
-        "managesub_hint": (
-            "Double-click an ingredient in the list to view or edit its\n"
-            "substitutes, or type a name above (including an ingredient with\n"
-            "no known substitute yet) then « ✏️ Manage its substitutes »."
-        ),
-        "managesub_none_with_substitute": "No ingredient with a substitute yet.",
-        "managesub_substitute_count": "{name} ({count} substitute{plural})",
-        "managesub_error_ingredient_required": "Please enter an ingredient.",
-        "managesub_unknown_ingredient_message": (
-            "« {name} » doesn't match any registered ingredient.\n"
-            "Choose one from the dropdown list, or create it first "
-            "from « 🥕 Manage ingredients »."
-        ),
-
-        # ---- IngredientPricesWindow (Manage ingredient prices) ----
-        "ingprices_title": "Manage ingredient prices",
-        "ingprices_heading": "💰 Ingredient prices",
-        "ingprices_intro": (
-            "Enter a price for the ingredients you care\n"
-            "about — no need to do them all. A recipe's\n"
-            "cost is estimated from these prices."
-        ),
-        "ingprices_price_label": "Price (€):",
-        "ingprices_for_one_label": "per 1",
-        "ingprices_save_button": "💾 Save the price",
-        "ingprices_clear_button": "🗑 Clear the price",
-        "ingprices_units_note": (
-            "kg ↔ recipes in g   ·   L ↔ recipes in cl   ·   prices\n"
-            "per piece/spoon apply as-is."
-        ),
-        "ingprices_no_price_set": "  —  (no price set)",
-        "ingprices_price_suffix": "  —  {price} € / {unit}",
-        "ingprices_error_invalid_price": "Enter a valid price (positive number).",
-        "ingprices_saved_message": "Price saved for « {name} ».",
-
-        # ---- IngredientEditWindow (New ingredient / Edit an ingredient) ----
-        "ingedit_title_edit": "Edit an ingredient",
-        "ingedit_title_new": "New ingredient",
-        "ingedit_heading_edit": "✏️ Edit the ingredient",
-        "ingedit_heading_new": "➕ New ingredient",
-        "ingedit_name_label": "Name:",
-        "ingedit_allergens_label": "Allergens present:",
-        "ingedit_nutrition_label": "Nutritional values (per 100 g / 100 ml):",
-        "ingedit_nutri_kcal": "Calories (kcal)",
-        "ingedit_nutri_protein": "Protein (g)",
-        "ingedit_nutri_carbs": "Carbs (g)",
-        "ingedit_nutri_fat": "Fat (g)",
-        "ingedit_nutrition_hint": "Leave blank if you don't know these values.",
-        "ingedit_price_label": "Price:",
-        "ingedit_save_button": "💾 Save",
-        "ingedit_delete_button": "🗑️ Delete this ingredient",
-        "ingedit_error_invalid_field": "« {field} » must be a positive number (or empty).",
-        "ingedit_error_name_required": "Please enter an ingredient name.",
-        "ingedit_error_already_exists": "The ingredient « {name} » already exists.",
-        "ingedit_error_plural_duplicate": (
-            "« {name} » is just a singular/plural variant of the "
-            "already existing ingredient « {existing} ». To avoid "
-            "duplicates in the list, use « {existing} » directly."
-        ),
-        "ingedit_nutri_field_kcal": "Calories",
-        "ingedit_nutri_field_protein": "Protein",
-        "ingedit_nutri_field_carbs": "Carbs",
-        "ingedit_nutri_field_fat": "Fat",
-        "ingedit_error_invalid_price": "The price must be a positive number (or empty).",
-        "ingedit_saved_message": "« {name} » has been saved.",
-
-        # ---- IngredientSpellCheckWindow (Spelling check) ----
-        "spellcheck_title": "Ingredient spelling check",
-        "spellcheck_heading": (
-            "Ingredient pairs that are 90% similar or more\n"
-            "(probable duplicates or typos):"
-        ),
-        "spellcheck_multi_select_hint": (
-            "Multiple selection possible (Ctrl+click or Shift+click) to\n"
-            "merge several pairs at once."
-        ),
-        "spellcheck_merge_button": "🔗 Merge selection",
-        "spellcheck_not_duplicate_button": "✕ Not a duplicate",
-        "spellcheck_rerun_button": "🔄 Re-run the scan",
-        "spellcheck_footer_hint": (
-            "For a single pair, you'll be asked which of the two\n"
-            "spellings to keep. For several pairs at once, the\n"
-            "less-used ingredient in your recipes is automatically merged\n"
-            "into the one used in the most recipes.\n"
-            "« Not a duplicate » permanently removes the selected\n"
-            "pair(s) from this scan, now and in the future."
-        ),
-        "spellcheck_none_found": "No probable duplicate detected. 🎉",
-        "spellcheck_pair_line": "{a}   ↔   {b}     ({percent}% similar)",
-        "spellcheck_select_pair_first": "Select at least one pair from the list.",
-        "spellcheck_dismissed_message": (
-            "{count} pair(s) marked as not being "
-            "duplicates. They won't be suggested again in future scans."
-        ),
-        "spellcheck_merge_dialog_title": "Merge",
-        "spellcheck_merge_dialog_message": (
-            "Merge « {a} » and « {b} »?\n\n"
-            "Yes = rename everything to « {a} »\n"
-            "No = rename everything to « {b} »\n"
-            "Cancel = do nothing"
-        ),
-        "spellcheck_merged_title": "Merged",
-        "spellcheck_merged_one_message": "« {removed} » has been merged with « {kept} ».",
-        "spellcheck_merge_multi_confirm": (
-            "Automatically merge these {count} pairs?\n\n"
-            "For each pair, the less-used ingredient in your "
-            "recipes will be merged into the one used in the most "
-            "recipes (the first alphabetically in case of a tie)."
-        ),
-        "spellcheck_merged_multi_message": "{count} pair(s) merged.",
-
-        # ---- CompareRecipesWindow (Compare two recipes) ----
-        "compare_title": "Compare two recipes",
-        "compare_recipe_a_label": "Recipe A:",
-        "compare_recipe_b_label": "Recipe B:",
-        "compare_button": "⚖️ Compare",
-        "compare_choose_each_list": "Choose a recipe from each list.",
-        "compare_field_category": "Category:",
-        "compare_field_favorite": "Favorite:",
-        "compare_yes": "⭐ Yes",
-        "compare_no": "No",
-        "compare_field_rating": "Rating:",
-        "compare_field_difficulty": "Difficulty:",
-        "compare_field_prep": "Prep:",
-        "compare_field_cook": "Cook:",
-        "compare_field_total_time": "Total time:",
-        "compare_field_cooked": "Cooked:",
-        "compare_times_suffix": "{count} times",
-        "compare_field_cost": "Estimated cost:",
-        "compare_field_nutrition": "Nutrition (kcal):",
-        "compare_field_ingredient_count": "Ingredients:",
-        "compare_common_ingredients": "🟰 Common ({count})",
-        "compare_only_a": "🅰️ Only in « {name} » ({count})",
-        "compare_only_b": "🅱️ Only in « {name} » ({count})",
-        "compare_none": "None",
-
-        # ---- StatisticsWindow (Statistics) ----
-        "stats_title": "Statistics",
-        "stats_heading": "=== Statistics ===\n\n",
-        "stats_total_recipes": "Total number of recipes: {count}\n\n",
-        "stats_by_category": "Breakdown by category:\n",
-        "stats_category_line": "  - {category}: {count}\n",
-        "stats_by_difficulty": "Breakdown by difficulty:\n",
-        "stats_difficulty_line": "  - {difficulty}: {count}\n",
-        "stats_difficulty_unspecified": "Not specified",
-        "stats_favorites_count": "Favorite recipes: {count}\n\n",
-        "stats_avg_rating": "Average rating (rated recipes): {avg} / 5 ({count} recipe(s) rated)\n\n",
-        "stats_no_rated_recipe": "Average rating: no recipe rated yet.\n\n",
-        "stats_five_star_heading": "5-star recipe(s):\n",
-        "stats_recipe_line": "  - {name}\n",
-        "stats_most_cooked_heading": "Most cooked recipes:\n",
-        "stats_cooked_line": "  - {name}: {count} times\n",
-        "stats_none_cooked_yet": (
-            "  No recipe marked as cooked yet.\n"
-            "  (« 🍳 I cooked this! » button in « View a specific recipe »)\n"
-        ),
-        "stats_most_used_tags_heading": "Most used tags:\n",
-        "stats_tag_line": "  - {tag}: {count}\n",
-        "stats_never_cooked_heading": "🕸️ Never cooked recipes:\n",
-        "stats_and_others": "  ... and {count} more\n",
-        "stats_all_cooked": "  All your recipes have already been cooked at least once. 👏\n",
-        "stats_stale_heading": "🕰️ Not cooked in over {days} days:\n",
-        "stats_stale_line": "  - {name} ({days} days ago)\n",
-        "stats_no_stale_recipe": "  No recipe in this case for now.\n",
-        "stats_avg_cost_heading": "💰 Average cost per person:\n",
-        "stats_avg_cost_line": (
-            "  {avg} € on average, across {count} recipe(s) with at "
-            "least one known price ({without_price} without a price set)\n"
-        ),
-        "stats_no_priced_recipe": (
-            "  No recipe with a price set yet.\n"
-            "  (see « 💰 Manage prices » in « Manage ingredients »)\n"
-        ),
-        "stats_avg_kcal_heading": "🥗 Average calories per person:\n",
-        "stats_avg_kcal_line": (
-            "  {avg} kcal on average, across {count} recipe(s) with "
-            "ingredients recognized in the nutrition database\n"
-        ),
-        "stats_no_recognized_recipe": "  No recipe with recognized ingredients yet.\n",
-        "stats_monthly_chart_title": "📈 Recipes cooked per month (last 12 months)",
-        "stats_heatmap_title": "🗓️ Calendar of days cooked (last 12 months)",
-        "stats_heatmap_legend": "Less ⬜ 🟨 🟧 🟥 More",
-        "stats_day_labels": "M,T,W,T,F,S,S",
-        "stats_month_labels_short": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec",
-        "stats_month_labels_lower": "jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec",
-
-        # ---- draw_recipe_content (recipe PDF content, standalone or in cookbook) ----
-        "recipepdf_category_persons": "Category: {cat}    For {persons} serving(s)",
-        "recipepdf_rating": "Rating: {stars}",
-        "recipepdf_prep": "Prep: {time} min",
-        "recipepdf_cook": "Cook: {time} min",
-        "recipepdf_difficulty": "Difficulty: {value}",
-        "recipepdf_allergens": "⚠ Allergens: {list}",
-        "recipepdf_ingredients_heading": "Ingredients:",
-        "recipepdf_cost": "Estimated cost: {cost} €{partial}",
-        "recipepdf_partial_suffix": " (partial, {known}/{total})",
-        "recipepdf_nutrition": "Estimated nutrition{partial}: {kcal} kcal · {protein}g protein · {carbs}g carbs · {fat}g fat",
-        "recipepdf_description_heading": "Description:",
-        "recipepdf_notes_heading": "Personal notes:",
-
-        # ---- build_cookbook_pdf (PDF cookbook) ----
-        "cookbookpdf_page_number": "Page {current} / {total}",
-        "cookbookpdf_generated_on": "Generated on {date}",
-        "cookbookpdf_summary_heading": "Table of Contents",
-        "cookbookpdf_summary_line": "- [{cat}] {name}",
-
-        # ---- CookbookExportWindow (Export the cookbook) ----
-        "cookbookexport_title": "Export the cookbook",
-        "cookbookexport_heading": "📖 Export the cookbook",
-        "cookbookexport_intro": (
-            "Select the recipes to include in a single PDF,\n"
-            "cookbook-style."
-        ),
-        "cookbookexport_filter_label": "Filter by category:",
-        "cookbookexport_check_all_button": "Check all",
-        "cookbookexport_uncheck_all_button": "Uncheck all",
-        "cookbookexport_generate_button": "📄 Generate the book PDF",
-        "cookbookexport_error_select_recipe": "Select at least one recipe.",
-        "cookbookexport_save_dialog_title": "Save the cookbook",
-        "cookbookexport_saved_message": "Cookbook saved:\n{path}",
-
-        # ---- ImportExportWindow (Import / Export data) ----
-        "importexport_title": "Import / Export data",
-        "importexport_heading": "Back up or transfer your data",
-        "importexport_export_intro": (
-            "The export creates a .zip file containing absolutely all\n"
-            "your data: recipes, photos, custom ingredients,\n"
-            "prices, substitutes, pantry, plan and its history,\n"
-            "menus, saved shopping lists, trash and\n"
-            "settings — to back up or transfer everything to\n"
-            "another computer in a single file."
-        ),
-        "importexport_export_button": "📤 Export all my data (.zip)",
-        "importexport_import_intro": (
-            "The import reads a previously exported .zip file.\n"
-            "\"Merge\" adds duplicate recipes/photos under a\n"
-            "new name rather than losing them, and completes the rest\n"
-            "(pantry, menus, lists...) without deleting anything.\n"
-            "\"Replace\" overwrites everything, including settings and the\n"
-            "current plan."
-        ),
-        "importexport_import_button": "📥 Import data (.zip)",
-        "importexport_auto_backups_heading": "🗄️ Automatic backups",
-        "importexport_auto_backups_intro": (
-            "A backup is automatically created when the\n"
-            "application starts (at most one every {hours}h), and the "
-            "{retention} most\nrecent are kept here."
-        ),
-        "importexport_backup_now_button": "💾 Back up now",
-        "importexport_restore_selected_button": "♻️ Restore selection",
-        "importexport_cloud_heading": "☁️ Automatic cloud backup",
-        "importexport_cloud_intro": (
-            "Choose a folder synced by a client already\n"
-            "installed on this PC (Google Drive, OneDrive, Dropbox...).\n"
-            "Each automatic backup will also be copied there, and this\n"
-            "client will take care of sending it to the cloud on its own."
-        ),
-        "importexport_choose_cloud_button": "📁 Choose a cloud folder",
-        "importexport_disable_button": "🚫 Disable",
-        "importexport_cloud_enabled": "✅ Enabled: {folder}",
-        "importexport_cloud_not_configured": "Not configured yet.",
-        "importexport_choose_folder_title": "Choose a synced folder (Google Drive, OneDrive, Dropbox...)",
-        "importexport_cloud_configured_title": "Folder configured",
-        "importexport_cloud_configured_message": (
-            "Cloud folder configured:\n{folder}\n\n"
-            "Do you want to copy a backup there right now?"
-        ),
-        "importexport_disabled_title": "Disabled",
-        "importexport_disabled_message": "Automatic cloud backup is disabled.",
-        "importexport_backup_date_line": "{date}   ({size} KB)",
-        "importexport_no_backups": "No automatic backup yet.",
-        "importexport_backup_failed": "Backup failed:\n{error}",
-        "importexport_backup_created_title": "Backup created",
-        "importexport_backup_created_message": "A new automatic backup has been created.",
-        "importexport_select_backup_first": "Select a backup from the list.",
-        "importexport_restore_mode_title": "Restore mode",
-        "importexport_restore_mode_message": (
-            "How do you want to restore this backup?\n\n"
-            "Yes = Merge (add to current data, without deleting anything)\n"
-            "No = Fully replace the current data\n"
-            "Cancel = do nothing"
-        ),
-        "importexport_restore_failed": "Restore failed:\n{error}",
-        "importexport_restore_done_title": "Restoration complete",
-        "importexport_restore_done_message": "The data has been restored successfully.",
-        "importexport_export_data_title": "Export my data",
-        "importexport_shared_heading": "Shared backup with the mobile app",
-        "importexport_shared_intro": "Format compatible with the mobile application — recipes (with their photos), known ingredients, pantry and customizations. Meal planning, menus and saved shopping lists are not yet included in this format.",
-        "importexport_export_shared_title": "Export in shared format",
-        "importexport_export_shared_button": "Export for the mobile app (.zip)",
-        "importexport_import_shared_button": "Import from the mobile app (.zip)",
-        "importexport_file_too_large": "This file exceeds the {size} MB limit.",
-        "importexport_export_data_success": "Your data has been exported to:\n{path}",
-        "importexport_choose_archive_title": "Choose an archive to import",
-        "importexport_import_mode_title": "Import mode",
-        "importexport_import_mode_message": (
-            "How do you want to import this data?\n\n"
-            "Yes = Merge (add to current data, without deleting anything)\n"
-            "No = Fully replace the current data\n"
-            "Cancel = do nothing"
-        ),
-        "importexport_import_failed": "Import failed:\n{error}",
-        "importexport_import_done_title": "Import complete",
-        "importexport_import_done_message": "The data has been imported successfully.",
-
-        # ---- ShoppingChecklistWindow (Shopping mode) ----
-        "checklist_instruction": "Check off each item as you go through your shopping.",
-        "checklist_check_all_button": "☑️ Check all",
-        "checklist_uncheck_all_button": "⬜ Uncheck all",
-        "checklist_progress_label": "{done} / {total} item(s) checked",
-
-        # ---- ExportFormatDialog (Choose an export format) ----
-        "exportformat_title": "Choose an export format",
-        "exportformat_heading": "📤 Export the shopping list",
-        "exportformat_choose_label": "Choose the desired export format:",
-        "exportformat_txt_button": "📝 Export as text (.txt)",
-        "exportformat_excel_button": "📊 Export as Excel (.xlsx)",
-        "exportformat_pdf_button": "📄 Export as PDF (.pdf)",
-        "exportformat_cancel_button": "Cancel",
-
-        # ---- MenuManagerWindow (My menus) ----
-        "menumanager_title": "My menus",
-        "menumanager_list_label": "My saved menus:",
-        "menumanager_new_button": "➕ New menu",
-        "menumanager_recipe_count": "{name} ({count} recipe(s))",
-        "menumanager_select_menu_first": "Select a menu from the list.",
-        "menumanager_delete_confirm": "Delete the menu « {name} »?",
-
-        # ---- MenuFormWindow (New menu / Edit the menu) ----
-        "menuform_title_edit": "Edit the menu",
-        "menuform_title_new": "New menu",
-        "menuform_name_label": "Menu name:",
-        "menuform_add_recipe_label": "Add a recipe to the menu:",
-        "menuform_persons_short_label": "servings:",
-        "menuform_add_button": "+ Add",
-        "menuform_recipes_label": "Menu recipes:",
-        "menuform_remove_button": "🗑 Remove from menu",
-        "menuform_save_button": "💾 Save the menu",
-        "menuform_compute_button": "Calculate the menu's shopping list",
-        "menuform_empty_list_message": (
-            "No list calculated yet.\n"
-            "Click « Calculate the menu's shopping list » above,\n"
-            "or load a saved list."
-        ),
-        "menuform_total_list_heading": "=== Menu shopping list ===",
-        "menuform_item_row_label": "[{cat}] {name} ({persons} servings)",
-        "menuform_select_recipe_to_remove": "Select a menu recipe to remove.",
-        "menuform_error_name_required": "Please enter a menu name.",
-        "menuform_error_no_recipe": "Add at least one recipe to the menu.",
-        "menuform_saved_message": "The menu « {name} » has been saved.",
-        "menuform_calculate_list_for_export": (
-            "First calculate a shopping list (« Calculate the menu's shopping list » button)."
-        ),
-        "menuform_add_recipe_or_manual": "Add at least one recipe to the menu, or add an ingredient manually.",
-        "menuform_shopping_list_title": "Menu: {name}",
-        "menuform_print_label": "the menu « {name} »",
-
-        # ---- ImportFromUrlWindow (Import a recipe from a link) ----
-        "importurl_title": "Import a recipe from a link",
-        "importurl_heading": "🌐 Import a recipe from a link",
-        "importurl_intro": (
-            "Paste the address (URL) of a recipe page. This works\n"
-            "with most major cooking sites (which use a\n"
-            "standard data format). An internet connection is required."
-        ),
-        "importurl_fetch_button": "🌐 Fetch the recipe",
-        "importurl_after_import_note": (
-            "After import, check and complete the recipe if needed\n"
-            "(detecting quantities and units isn't always perfect)."
-        ),
-        "importurl_paste_url_first": "First paste a web address (URL).",
-        "importurl_fetching": "Fetching...",
-        "importurl_failed_title": "Import failed",
-
-        # ---- ImportFromPhotoWindow (Import a recipe from a photo) ----
-        "importphoto_title": "Import a recipe from a photo",
-        "importphoto_heading": "📷 Import a recipe from a photo",
-        "importphoto_intro": (
-            "Take a photo of (or scan) a handwritten recipe or a\n"
-            "cookbook page, then choose the image here. The text\n"
-            "is extracted automatically, but still needs to be reviewed and organized\n"
-            "yourself (unlike importing from a link, a photo has no\n"
-            "ingredients/steps structure that can be guessed)."
-        ),
-        "importphoto_module_warning": (
-            "⚠ This feature requires the 'pytesseract' module\n"
-            "AND the Tesseract OCR program installed separately on this PC.\n"
-            "See the README for installation instructions."
-        ),
-        "importphoto_no_photo_chosen": "No photo chosen",
-        "importphoto_choose_button": "📁 Choose a photo",
-        "importphoto_extract_button": "🔍 Extract text",
-        "importphoto_extracted_text_label": "Extracted text (editable):",
-        "importphoto_create_button": "➡️ Create the recipe with this text",
-        "importphoto_choose_photo_title": "Choose a recipe photo",
-        "importphoto_choose_first": "First choose a photo.",
-        "importphoto_ocr_module_missing": (
-            "This feature requires the 'pytesseract' module\n"
-            "(pip install pytesseract) AND the Tesseract OCR program\n"
-            "installed separately on this PC. See the README."
-        ),
-        "importphoto_extraction_failed_title": "Extraction failed",
-        "importphoto_extraction_failed_message": (
-            "Text recognition failed. Check that Tesseract OCR "
-            "is properly installed on this PC and accessible.\n\nDetail: {error}"
-        ),
-        "importphoto_no_text_extracted": (
-            "No text could be extracted from this photo. Try a sharper, "
-            "better-framed, or better-lit image."
-        ),
-        "importphoto_no_text_title": "No text",
-        "importphoto_no_text_confirm": (
-            "No text was extracted or entered. Create an empty "
-            "recipe anyway (with just the photo)?"
-        ),
-
-        # ---- TrashWindow (Trash) ----
-        "trash_title": "Trash",
-        "trash_heading": "🗑️ Deleted recipes",
-        "trash_intro": (
-            "Photos of recipes in the trash are kept\n"
-            "until they are permanently deleted."
-        ),
-        "trash_restore_button": "♻️ Restore",
-        "trash_delete_forever_button": "🗑️ Delete permanently",
-        "trash_empty_button": "🧹 Empty trash",
-        "trash_unnamed_recipe": "(unnamed)",
-        "trash_unknown_date": "unknown date",
-        "trash_entry_line": "{name}  —  deleted on {date}",
-        "trash_is_empty": "The trash is empty.",
-        "trash_select_recipe_first": "Select a recipe from the trash.",
-        "trash_restored_suffix": "{name} (restored)",
-        "trash_restored_title": "Restored",
-        "trash_restored_message": "« {name} » has been restored.",
-        "trash_delete_forever_confirm": "Permanently delete « {name} »?\n\nThis action cannot be undone.",
-        "trash_deleted_title": "Deleted",
-        "trash_deleted_message": "The recipe has been permanently deleted.",
-        "trash_already_empty": "The trash is already empty.",
-        "trash_empty_confirm": (
-            "Permanently delete the {count} recipe(s) in the trash?\n\n"
-            "This action cannot be undone."
-        ),
-        "trash_emptied_title": "Trash emptied",
-        "trash_emptied_message": "The trash has been emptied.",
-
-        # ---- CookingModeWindow (Fullscreen cooking mode) ----
-        "cookingmode_title": "Cooking mode — {name}",
-        "cookingmode_close_button": "✕ Close (Esc)",
-        "cookingmode_cooked_button": "🍳 I cooked this!",
-        "cookingmode_fullscreen_hint": "F11: fullscreen",
-        "cookingmode_persons_suffix": "{persons} servings",
-        "cookingmode_speech_button": "🔊 Read aloud",
-        "cookingmode_speech_stop_button": "⏹ Stop reading",
-        "cookingmode_volume_percent": "{percent}%",
-        "cookingmode_tts_module_missing": "Reading aloud requires the 'pyttsx3' module.\nInstall it with: pip install pyttsx3",
-        "cookingmode_no_description_to_read": "This recipe has no description to read (the description field is empty).",
-        "cookingmode_ingredients_heading": "Ingredients",
-        "cookingmode_prep_label": "Prep: {time} min",
-        "cookingmode_cook_label": "Cook: {time} min",
-        "cookingmode_difficulty_label": "Difficulty: {value}",
-        "cookingmode_preparation_heading": "Preparation",
-        "cookingmode_personal_notes_heading": "Personal notes",
-
-        # ---- IngredientSearchWindow (Search by ingredient) ----
-        "ingsearch_title": "Search by ingredient",
-        "ingsearch_question_label": "Which ingredient are you looking for?",
-        "ingsearch_view_recipes_button": "🔍 See recipes using it",
-        "ingsearch_view_selected_button": "📖 View selected recipe",
-        "ingsearch_no_recipe_uses": "No recipe uses « {name} » yet.",
-        "ingsearch_recipes_using": "Recipes using « {name} » ({count}):",
-        "ingsearch_result_line": "{star}[{cat}] {name} ({qty}{unit} per person)",
-        "ingsearch_select_result_first": "Select a recipe from the results list.",
-
-        # ---- TimerRow (a timer row within TimersWindow) ----
-        "timerrow_minutes_label": "Min:",
-        "timerrow_seconds_label": "Sec:",
-        "timerrow_error_invalid_duration": "Invalid duration.",
-        "timerrow_set_duration_first": "Set a duration before starting.",
-
-        # ---- CookLogEntryDialog (Add to cooking log) ----
-        "cooklogentry_title": "📔 Add to cooking log",
-        "cooklogentry_heading": "🍳 « {name} »",
-        "cooklogentry_intro": "How was it? A note and/or a photo\n(optional, you can also just skip this).",
-        "cooklogentry_no_photo_chosen": "No photo chosen",
-        "cooklogentry_choose_photo_button": "📷 Choose a photo",
-        "cooklogentry_skip_button": "Skip",
-        "cooklogentry_choose_photo_title": "Choose a photo",
-
-        # ---- CookLogWindow (Cooking log) ----
-        "cooklog_title": "📔 Cooking log — {name}",
-        "cooklog_heading": "📔 {name}",
-        "cooklog_times_cooked": "Cooked {count} times in total",
-        "cooklog_no_entry": "No note saved yet.\nUse « 🍳 I cooked this! » to add one.",
-        "cooklog_no_note": "(no note)",
-
-        # ---- TimersWindow (Timers) ----
-        "timers_title": "⏲️ Timers",
-        "timers_intro": (
-            "Set each timer then ▶️ to start it.\n"
-            "When done, the row flashes red with a sound alert."
-        ),
-        "timers_add_button": "➕ Add a timer",
-
-        # ---- QRCodeWindow (Recipe QR Code) ----
-        "qrcode_title": "QR Code — {name}",
-        "qrcode_intro": (
-            "Scan with the camera app or a QR code\n"
-            "reader app to see the name and ingredients."
-        ),
-        "qrcode_save_button": "💾 Save as image (PNG)",
-        "qrcode_truncated_warning": (
-            "⚠️ The recipe is long: the QR code contains a\n"
-            "truncated summary (name + ingredients only)."
-        ),
-        "qrcode_encoded_ingredients_heading": "Ingredients ({persons} servings):",
-        "qrcode_save_dialog_title": "Save the QR code",
-        "qrcode_save_failed": "Save failed:\n{error}",
-        "qrcode_saved_message": "QR code saved:\n{path}",
-
-        # ---- UnitConverterWindow (Unit converter) ----
-        "unitconv_title": "Unit converter",
-        "unitconv_heading": "🔄 Unit converter",
-        "unitconv_intro": (
-            "Approximate conversion based on the density of water for\n"
-            "volume units (ml, cl, L, cup, spoons): reliable for\n"
-            "liquids, approximate for solids like flour\n"
-            "or sugar, whose actual density differs a bit."
-        ),
-        "unitconv_quantity_label": "Quantity:",
-        "unitconv_from_label": "From:",
-        "unitconv_to_label": "To:",
-        "unitconv_convert_button": "Convert",
-        "unitconv_error_invalid_quantity": "Invalid quantity.",
-        "unitconv_result": "{quantity} {from_unit} ≈ {result} {to_unit}",
-        "unitconv_gram": "Gram (g)",
-        "unitconv_kilogram": "Kilogram (kg)",
-        "unitconv_ounce": "Ounce (oz)",
-        "unitconv_pound": "Pound (lb)",
-        "unitconv_milliliter": "Milliliter (ml)",
-        "unitconv_centiliter": "Centiliter (cl)",
-        "unitconv_liter": "Liter (L)",
-        "unitconv_teaspoon": "Teaspoon (5 ml)",
-        "unitconv_tablespoon": "Tablespoon (15 ml)",
-        "unitconv_cup": "US Cup (240 ml)",
-
-        # ---- DisclaimerWindow (Disclaimer) ----
-        "disclaimer_title": "Disclaimer",
-        "disclaimer_heading": "⚠ Disclaimer",
-        "disclaimer_intro": "Please read this text before using the application.",
-        "disclaimer_checkbox": "I have read and accept the terms above",
-        "disclaimer_continue_button": "Continue",
-        "disclaimer_quit_button": "Quit the application",
-        "disclaimer_text": (
-            "ARTICLE 1 – EXCLUSION AND LIMITATION OF LIABILITY\n\n"
-            "1.1. Medical alerts and allergen management\n\n"
-            "The Application offers a feature allowing the User to enter, modify, and configure their own "
-            "allergy and allergen criteria. The User expressly acknowledges that:\n\n"
-            "• The accuracy and upkeep of this information is the User's sole and exclusive responsibility.\n"
-            "• The Application is a software tool to assist with browsing recipes and does not, under any "
-            "circumstances, replace medical advice, a diagnosis, or human verification of ingredients.\n"
-            "• The Publisher cannot be held liable for incorrect entries, omissions, misconfiguration by the "
-            "User, or an allergic reaction (intolerance, anaphylactic shock, etc.) occurring after eating a "
-            "dish. It is the User's responsibility to systematically check the labels and actual composition "
-            "of each physical ingredient before any preparation or consumption.\n\n"
-            "1.2. Provided \"as is\" and free of charge\n\n"
-            "The Application is made available to the User entirely free of charge. It is provided \"as is\" "
-            "and \"as available\", without any guarantee of being free of errors, software bugs, or "
-            "interruptions. The Publisher does not guarantee that the Application's features will meet the "
-            "User's specific needs.\n\n"
-            "1.3. Material and immaterial damages\n\n"
-            "The Publisher disclaims all liability for direct or indirect damages caused to the User or to "
-            "third parties. In particular, the Publisher cannot be held liable for:\n\n"
-            "• A failure, overheating, malfunction, or deterioration of the User's computer hardware or "
-            "smartphone while using the Application.\n"
-            "• A loss of computer data, alteration of files, or hacking of the User's system.\n\n"
-            "Because the service is provided free of charge, should the Publisher's liability be established "
-            "by a court, the amount of damages would be expressly capped at zero euros (€0)."
-        ),
-
-        # ---- AddManualIngredientDialog (Add ingredients to shopping list) ----
-        "addmanual_title": "Add ingredients to the shopping list",
-        "addmanual_heading": "➕ Add ingredients to the shopping list",
-        "addmanual_intro": (
-            "Add as many ingredients as you want to the pending\n"
-            "list below, then confirm them all at once."
-        ),
-        "addmanual_new_ingredient_button": "🥕 New ingredient",
-        "addmanual_add_to_list_button": "➕ Add to list",
-        "addmanual_staged_label": "Ingredients pending confirmation:",
-        "addmanual_remove_staged_button": "🗑 Remove from pending list",
-        "addmanual_confirm_all_button": "✅ Confirm all these ingredients",
-        "addmanual_close_button": "Close",
-        "addmanual_select_staged_first": "Select an ingredient from the pending list.",
-        "addmanual_add_staged_first": "Add at least one ingredient to the pending list before confirming.",
-        "addmanual_confirmed_message": "{count} ingredient(s) added to the shopping list.",
-
-        # ---- Shopping list export functions (text/Excel/PDF) ----
-        "shoppingexport_generated_on": "Generated on {date}",
-        "shoppingexport_selected_recipes": "Selected recipes:",
-        "shoppingexport_excel_sheet_recipes": "Recipes",
-        "shoppingexport_excel_col_recipe": "Recipe",
-        "shoppingexport_excel_col_persons": "Number of servings",
-        "shoppingexport_excel_sheet_ingredients": "Ingredients",
-        "shoppingexport_excel_col_rayon": "Aisle",
-        "shoppingexport_excel_col_ingredient": "Ingredient",
-        "shoppingexport_excel_col_total_qty": "Total quantity",
-        "shoppingexport_excel_col_unit": "Unit",
-
-        # ---- SavedShoppingListsWindow (Saved shopping lists) ----
-        "savedlists_title": "Saved shopping lists",
-        "savedlists_heading": "📂 Saved shopping lists",
-        "savedlists_load_button": "📂 Load",
-        "savedlists_delete_button": "🗑 Delete",
-        "savedlists_none_saved": "No list saved yet.",
-        "savedlists_entry_line": "{name} — {count} ingredient(s) — {date}",
-        "savedlists_select_list_first": "Select a list from the list.",
-        "savedlists_delete_confirm": "Permanently delete the list « {name} »?",
-
-        # ---- QuickSearchWindow (Quick search, Ctrl+K) ----
-        "quicksearch_title": "Quick search",
-        "quicksearch_heading": "🔍 Quick recipe search",
-        "quicksearch_no_results": "No recipe found.",
-        "quicksearch_footer_hint": "Enter to open, Esc to close.",
-
-        # ---- AllRecipesWindow (View all recipes / shopping list) ----
-        "allrecipes_title": "All recipes - Shopping list",
-        "allrecipes_select_label": "Select recipes and the number of servings:",
-        "allrecipes_ingredient_filter_title": "Filter by ingredient",
-        "allrecipes_persons_count_label": "Servings:",
-        "allrecipes_add_to_cart_button": "🛒 Add to shopping list",
-        "allrecipes_checklist_mode_button": "☑️ Shopping mode (check off as you go)",
-        "allrecipes_clear_list_button": "🗑 Clear shopping list",
-        "allrecipes_export_button": "📤 Export",
-        "allrecipes_print_button": "🖨️ Print",
-        "allrecipes_add_manual_ingredient_button": "➕ Add an ingredient to the shopping list",
-        "allrecipes_save_list_button": "💾 Save this list for later",
-        "allrecipes_load_list_button": "📂 Load a saved list",
-        "allrecipes_invalid_persons": "Invalid number of servings for « {name} ».",
-        "allrecipes_empty_list_message": (
-            "Your shopping list is empty for now.\n"
-            "Click « 🛒 Add to shopping list » next to a recipe,\n"
-            "add an ingredient manually, or load a saved list."
-        ),
-        "allrecipes_total_list_heading": "=== Total shopping list ===",
-        "allrecipes_manual_items_note": "({count} manually added ingredient(s) included)",
-        "allrecipes_invalid_quantity": "Invalid quantity.",
-        "allrecipes_calculate_list_first": "First calculate a shopping list before saving it.",
-        "allrecipes_save_list_dialog_title": "Save the list",
-        "allrecipes_save_list_dialog_prompt": "Name for this list:",
-        "allrecipes_list_saved_title": "Saved",
-        "allrecipes_list_saved_message": "List « {name} » saved for later.",
-        "allrecipes_empty_list_for_export": (
-            "The shopping list is empty. Add at least one recipe "
-            "(« 🛒 Add to shopping list » button) or a manual ingredient."
-        ),
-        "allrecipes_export_txt_title": "Save the shopping list as text",
-        "allrecipes_export_excel_title": "Save the shopping list as Excel",
-        "allrecipes_export_pdf_title": "Save the shopping list as PDF",
-        "allrecipes_export_saved_message": "Shopping list saved:\n{path}",
-        "allrecipes_excel_module_missing": "Excel export requires the 'openpyxl' module.\nInstall it with: pip install openpyxl",
-        "allrecipes_pdf_module_missing": "PDF export requires the 'reportlab' module.\nInstall it with: pip install reportlab",
-        "allrecipes_print_module_missing": (
-            "Printing requires the 'reportlab' module to generate the layout.\n"
-            "Install it with: pip install reportlab"
-        ),
-        "allrecipes_print_label": "the shopping list",
-        "allrecipes_shopping_list_title": "Shopping list",
-        "allrecipes_close_confirm_title": "Close the shopping list?",
-        "allrecipes_close_confirm_message": (
-            "The displayed shopping list is not saved: it will be "
-            "permanently lost if you close this window now.\n\n"
-            "Tip: use « 💾 Save this list for later » "
-            "before closing if you want to keep it.\n\n"
-            "Close anyway?"
-        ),
-
-        # ---- ManageRecipesWindow (Edit / Delete a recipe) ----
-        "managerecipes_title": "Edit / Delete a recipe",
-        "managerecipes_select_label": "Select a recipe:",
-        "managerecipes_filter_favorites": "⭐ Favorites only",
-        "managerecipes_filter_quick": "⏱️ Quick recipes (≤ 30 min) only",
-        "managerecipes_filter_vegetarian": "🥗 Vegetarian recipes only",
-        "managerecipes_filter_wishlist": "💭 Wish list only",
-        "managerecipes_remove_filter_button": "✕ Remove filter",
-        "managerecipes_search_label": "🔍 Search:",
-        "managerecipes_sort_label": "Sort by:",
-        "managerecipes_category_label": "Category:",
-        "managerecipes_edit_button": "✏️ Edit",
-        "managerecipes_duplicate_button": "📋 Duplicate",
-        "managerecipes_delete_button": "🗑️ Delete",
-        "managerecipes_select_recipe_first": "Select a recipe from the list.",
-        "managerecipes_duplicate_suffix": "(copy)",
-        "managerecipes_duplicated_title": "Duplicated",
-        "managerecipes_duplicated_message": "« {original} » has been duplicated as « {new} ».",
-        "managerecipes_delete_confirm_message": (
-            "Send the recipe « {name} » to the trash?\n\n"
-            "You can restore it later from the « 🗑️ Trash » button."
-        ),
-        "managerecipes_deleted_title": "Sent to trash",
-        "managerecipes_deleted_message": "The recipe has been moved to the trash.",
-
-        # ---- OneRecipeWindow (View a specific recipe) ----
-        "onerecipe_window_title": "View a recipe",
-        "onerecipe_choose_recipe_label": "Choose a recipe:",
-        "onerecipe_search_label": "🔍 Search:",
-        "onerecipe_sort_label": "Sort:",
-        "onerecipe_category_label": "Category:",
-        "onerecipe_persons_label": "Number of servings:",
-        "onerecipe_btn_show": "Show the recipe",
-        "onerecipe_btn_export_pdf": "📄 Export as PDF",
-        "onerecipe_btn_print": "🖨️ Print",
-        "onerecipe_btn_add_to_shopping": "🛒 Add to shopping list",
-        "onerecipe_btn_cooked": "🍳 I cooked this!",
-        "onerecipe_btn_cooking_mode": "🖥️ Cooking mode (fullscreen)",
-        "onerecipe_btn_qr": "📱 QR Code",
-        "onerecipe_btn_timers": "⏲️ Timers",
-        "onerecipe_btn_cook_log": "📔 Cooking log",
-        "onerecipe_btn_substitutions": "🔄 Possible substitutes",
-        "onerecipe_edit_button": "✏️ Edit",
-        "onerecipe_ingredients_info_label": "Ingredients and information:",
-        "onerecipe_description_notes_label": "Description and notes:",
-        "onerecipe_similar_label": "Similar recipes:",
-        "onerecipe_no_photo": "(no photo)",
-        "onerecipe_preview_unavailable": "(preview unavailable)",
-        "onerecipe_select_recipe_first": "Select a recipe from the list.",
-        "onerecipe_display_first": "First display a recipe with « Show the recipe ».",
-        "onerecipe_invalid_persons": "Invalid number of servings.",
-        "onerecipe_added_to_shopping_title": "Added",
-        "onerecipe_added_to_shopping_message": (
-            "« {name} » ({persons} servings) will be automatically added to the shopping list "
-            "next time you open « View all recipes »."
-        ),
-        "onerecipe_pantry_decrement_title": "Pantry",
-        "onerecipe_pantry_decrement_prompt": "Deduct the ingredients of « {name} » ({persons} servings) from your pantry?",
-        "onerecipe_pantry_updated_title": "Pantry updated",
-        "onerecipe_pantry_updated_message": "{count} ingredient(s) deducted from your pantry.",
-        "onerecipe_pantry_none_decremented": (
-            "None of this recipe's ingredients could be deducted "
-            "(missing from the pantry, or unit not comparable)."
-        ),
-        "onerecipe_marked_title": "Marked",
-        "onerecipe_marked_message": "« {name} » has been marked as cooked today!",
-        "onerecipe_no_substitutes_title": "No known substitute",
-        "onerecipe_no_substitutes_message": (
-            "None of this recipe's ingredients has a known substitute yet.\n\n"
-            "You can add one yourself from « 🥕 Manage ingredients » > "
-            "« 🔄 Manage substitutions »."
-        ),
-        "onerecipe_substitutes_title": "Possible substitutes — {name}",
-        "onerecipe_substitutes_heading": "🔄 Possible substitutes for « {name} »",
-        "onerecipe_substitutes_disclaimer": (
-            "Culinary suggestions, not guaranteed equivalences:\nthe result may vary depending on the recipe."
-        ),
-        "onerecipe_close_button": "Close",
-        "onerecipe_rating_label": "Rating: {stars}",
-        "onerecipe_prep_label": "Prep: {time} min",
-        "onerecipe_cook_label": "Cook: {time} min",
-        "onerecipe_difficulty_label": "Difficulty: {value}",
-        "onerecipe_allergens_label": "⚠ Allergens: {list}",
-        "onerecipe_cost_label": "💰 Estimated cost: {cost} €{partial}",
-        "onerecipe_cost_partial": " (partial estimate, {known}/{total} ingredients with known price)",
-        "onerecipe_nutrition_partial": " (partial estimate, {known}/{total} ingredients recognized)",
-        "onerecipe_nutrition_label": (
-            "🥗 Estimated nutritional values{partial}:\n"
-            "   {kcal} kcal · {protein} g protein · {carbs} g carbs · {fat} g fat\n"
-        ),
-        "onerecipe_description_heading": "--- Description ---\n{text}\n",
-        "onerecipe_notes_heading": "\n--- Personal notes ---\n{text}\n",
-        "onerecipe_no_description_notes": "(No description or personal notes for this recipe.)",
-        "onerecipe_export_pdf_title": "Export the recipe as PDF",
-        "onerecipe_export_success_title": "Export successful",
-        "onerecipe_export_success_message": "Recipe exported:\n{path}",
-        "onerecipe_export_failed": "Export failed:\n{error}",
-        "onerecipe_print_failed": "Print preparation failed:\n{error}",
-        "onerecipe_pdf_module_missing": "PDF export requires the 'reportlab' module.\nInstall it with: pip install reportlab",
-        "onerecipe_print_module_missing": (
-            "Printing requires the 'reportlab' module to generate the layout.\n"
-            "Install it with: pip install reportlab"
-        ),
-        "onerecipe_qr_module_missing": "QR code export requires the 'qrcode' module.\nInstall it with: pip install qrcode",
-        "onerecipe_qr_pillow_missing": (
-            "QR code export also requires the 'Pillow' module.\nInstall it with: pip install pillow"
-        ),
-        "onerecipe_default_timer_label": "Timer",
-
-        # ---- RecipeFormWindow (Add / Edit a recipe) ----
-        "recipeform_title_edit": "Edit recipe",
-        "recipeform_title_add": "Add a recipe",
-        "recipeform_name_label": "Recipe name:",
-        "recipeform_favorite_checkbox": "⭐ Mark as favorite recipe",
-        "recipeform_wishlist_checkbox": "💭 Add to my wish list (to try)",
-        "recipeform_rating_label": "My rating:",
-        "recipeform_category_label": "Category:",
-        "recipeform_prep_time_label": "Prep time (min):",
-        "recipeform_cook_time_label": "Cook time (min):",
-        "recipeform_difficulty_label": "Difficulty:",
-        "recipeform_default_persons_label": "   Default servings:",
-        "recipeform_tags_label": "Tags (comma-separated):",
-        "recipeform_tags_example": "e.g. vegetarian, gluten-free, quick, budget-friendly",
-        "recipeform_allergens_label": "Allergens present:",
-        "recipeform_detect_allergens_button": "🔍 Detect automatically",
-        "recipeform_allergens_disclaimer": (
-            "This is for informational purposes only, always check\n"
-            "allergens on the actual product labels."
-        ),
-        "recipeform_allergens_auto_note": (
-            "Automatic detection is based on the recipe's ingredients\n"
-            "already entered below: it checks and unchecks boxes\n"
-            "accordingly, without ever touching boxes you would have\n"
-            "checked yourself unrelated to a detected ingredient."
-        ),
-        "recipeform_photos_label": "Photos:",
-        "recipeform_add_photo_button": "📷 Add a photo",
-        "recipeform_description_label": "Description (information, steps, tips...):",
-        "recipeform_notes_label": "Personal notes (review, adjustments for next time...):",
-        "recipeform_ingredients_label": "Ingredients (quantity for 1 person):",
-        "recipeform_new_ingredient_button": "🥕 New ingredient",
-        "recipeform_no_ingredients_registered": (
-            "No ingredient registered yet. Click « 🥕 New ingredient »\nto create your first one."
-        ),
-        "recipeform_header_ingredient": "Ingredient",
-        "recipeform_header_quantity": "Quantity",
-        "recipeform_header_unit": "Unit",
-        "recipeform_header_other": "(if other)",
-        "recipeform_add_ingredient_button": "+ Add an ingredient",
-        "recipeform_save_button": "Save",
-        "recipeform_delete_button": "Delete this recipe",
-        "recipeform_char_counter": "{count} / {max} characters",
-        "recipeform_add_ingredients_first": "First add ingredients to the recipe.",
-        "recipeform_allergens_updated_title": "Allergens updated",
-        "recipeform_allergens_updated_added": "added: {list}",
-        "recipeform_allergens_updated_removed": "removed: {list}",
-        "recipeform_allergens_updated_message": "Allergen(s) {parts}.",
-        "recipeform_allergens_no_change": "No change: the checked allergens already match the ingredients.",
-        "recipeform_choose_photos_title": "Choose one or more photos",
-        "recipeform_no_photo": "(no photo)",
-        "recipeform_preview_unavailable": "(preview\nunavailable)",
-        "recipeform_remove_photo_button": "🗑 Remove",
-        "recipeform_new_ingredient_dialog_title": "New ingredient",
-        "recipeform_new_ingredient_dialog_prompt": "Name of the new ingredient:",
-        "recipeform_ingredient_already_exists": "The ingredient « {name} » already exists.",
-        "recipeform_ingredient_added_title": "Added",
-        "recipeform_ingredient_added_message": (
-            "The ingredient « {name} » has been added.\nSelect it from one of the dropdown lists."
-        ),
-        "recipeform_error_name_required": "Please enter a recipe name.",
-        "recipeform_error_prep_time": "Prep time must be a positive number (or empty).",
-        "recipeform_error_cook_time": "Cook time must be a positive number (or empty).",
-        "recipeform_unknown_ingredient_title": "Unknown ingredient",
-        "recipeform_unknown_ingredient_message": (
-            "« {name} » doesn't match any registered ingredient.\n"
-            "Choose one from the dropdown list, or click "
-            "« 🥕 New ingredient » to add it first."
-        ),
-        "recipeform_error_invalid_quantity": "Invalid quantity for '{name}'.",
-        "recipeform_error_custom_unit_required": "Please specify the custom unit for '{name}'.",
-        "recipeform_error_no_valid_ingredient": "Add at least one valid ingredient.",
-        "recipeform_duplicate_ingredient_title": "Duplicate ingredient",
-        "recipeform_duplicate_ingredient_message": "« {list} » appears multiple times in this recipe.\n\nSave anyway?",
-        "recipeform_saved_message": "The recipe « {name} » has been saved.",
-        "recipeform_delete_confirm_message": (
-            "Send the recipe « {name} » to the trash?\n\n"
-            "You can restore it later from the « 🗑️ Trash » button."
-        ),
-        "recipeform_deleted_title": "Sent to trash",
-        "recipeform_deleted_message": "The recipe has been moved to the trash.",
-    },
-    "es": {
-        'home_window_title': 'Mes Recettes, Mes Courses',
-        'home_banner_title': '👨\u200d🍳 Mes Recettes, Mes Courses',
-        'home_banner_subtitle': 'Todas tus recetas, al alcance de la mano',
-        'home_donate_button': '☕ Hacer una donación',
-        'home_dark_theme': '🌙 Tema oscuro',
-        'home_light_theme': '☀️ Tema claro',
-        'home_large_text_on': '🔎 Texto ampliado',
-        'home_large_text_off': '🔎 Texto normal',
-        'home_daily_recipe_title': '🎲 Receta del día',
-        'home_open_button': '👁 Abrir',
-        'home_quick_filter_favorites': '⭐ Favoritos',
-        'home_quick_filter_quick': '⏱️ Rápido (≤ 30 min)',
-        'home_quick_filter_vegetarian': '🥗 Vegetariano',
-        'home_quick_filter_wishlist': '💭 Deseos',
-        'home_wishlist_reminder': '💭 {count} receta(s) en tu lista de deseos desde hace más de {days} días — ¿por qué no las pruebas? (haz clic para verlas)',
-        'home_low_stock_reminder': '📦 {count} ingrediente(s) casi agotado(s) en tu despensa: {names} — haz clic para añadirlos a la lista de compras',
-        'home_btn_add_recipe': '➕  Añadir una receta',
-        'home_btn_import_url': '🌐  Importar una receta desde un enlace',
-        'home_btn_import_photo': '📷  Importar una receta desde una foto',
-        'home_btn_view_all_recipes': '🧾  Ver todas las recetas (lista de compras)',
-        'home_btn_view_one_recipe': '🍽️  Ver una receta concreta',
-        'home_btn_manage_recipes': '✏️  Modificar / Eliminar una receta',
-        'home_btn_compare_recipes': '⚖️  Comparar dos recetas',
-        'home_btn_manage_ingredients': '🥕  Gestionar los ingredientes',
-        'home_btn_ingredient_search': '🔎  Búsqueda por ingrediente',
-        'home_btn_what_can_i_cook': '🧊  ¿Qué puedo cocinar?',
-        'home_btn_pantry': '📦  Mi despensa',
-        'home_btn_unit_converter': '🔄  Conversor de unidades',
-        'home_btn_weekly_plan': '📅  Planificación semanal',
-        'home_btn_menus': '📋  Mis menús',
-        'home_btn_statistics': '📊  Estadísticas',
-        'home_btn_export_cookbook': '📖  Exportar el libro de recetas',
-        'home_btn_import_export': '💾  Importar / Exportar datos',
-        'home_btn_trash': '🗑️  Papelera',
-        'home_today_title': '📅 Hoy',
-        'home_recent_title': '🕘 Vistas recientemente',
-        'home_wishlist_title': '💭 Recetas para probar',
-        'home_new_draw_button': '🎲 Nuevo sorteo',
-        'home_footer_recipe_count': '{count} receta(s) guardada(s)',
-        'home_nothing_planned': 'Nada planificado para {day}. Completa la « 📅 Planificación semanal » para verlo aquí.',
-        'home_no_recent_recipe': 'Ninguna receta consultada por el momento.',
-        'home_no_wishlist_recipe': 'Ninguna receta en tu lista de deseos por el momento.',
-        'warning_pillow': 'Pillow no está instalado: las fotos no se mostrarán (pip install pillow)',
-        'warning_reportlab': 'reportlab no está instalado: exportación a PDF no disponible (pip install reportlab)',
-        'warning_openpyxl': 'openpyxl no está instalado: exportación a Excel no disponible (pip install openpyxl)',
-        'warning_qrcode': 'qrcode no está instalado: exportación de código QR no disponible (pip install qrcode)',
-        'warning_pytesseract': 'pytesseract no está instalado: importación desde foto no disponible (pip install pytesseract, + Tesseract OCR)',
-        'common_error': 'Error',
-        'common_info': 'Información',
-        'common_confirm': 'Confirmar',
-        'common_success': 'Éxito',
-        'common_module_missing': 'Módulo faltante',
-        'common_all_categories': 'Todas',
-        'common_export_failed': 'La exportación falló:\n{error}',
-        'common_export_success_title': 'Exportación exitosa',
-        'common_print_failed': 'La preparación de la impresión falló:\n{error}',
-        'common_reset_button': 'Restablecer',
-        'common_want_label': 'Quiero:',
-        'common_exclude_label': 'No quiero:',
-        'common_tags_filter_label': 'Etiquetas (todas requeridas):',
-        'common_filter_hint': 'Escribe las primeras letras para filtrar la lista.',
-        'common_search_label': '🔍 Buscar:',
-        'common_sort_by_label': 'Ordenar por:',
-        'common_category_label': 'Categoría:',
-        'common_edit_button': '✏️ Modificar',
-        'common_unknown_ingredient_title': 'Ingrediente desconocido',
-        'common_unknown_ingredient_simple_message': '« {name} » no corresponde a ningún ingrediente registrado.\nElige uno de la lista desplegable.',
-        'common_ingredient_label': 'Ingrediente:',
-        'common_quantity_label': 'Cantidad:',
-        'common_unit_label': 'Unidad:',
-        'common_new_ingredient_button': '🥕 Nuevo ingrediente',
-        'common_save_button': '💾 Guardar',
-        'pantry_title': 'Mi despensa',
-        'pantry_heading': '📦 Mi despensa',
-        'pantry_intro': 'Indica lo que tienes en casa y en qué cantidad.\n«¿Qué puedo cocinar?» podrá entonces comprobar si tienes suficiente,\ny proponer descontar automáticamente el stock después de cocinar.',
-        'pantry_threshold_label': 'Umbral de alerta (opcional):',
-        'pantry_help_text': 'Para AÑADIR un artículo: indica el ingrediente (créalo primero con\n« 🥕 Nuevo ingrediente » si aún no está en tu lista), la\ncantidad y la unidad, luego haz clic en « 💾 Guardar ».\nPara MODIFICAR un artículo ya existente: haz clic una vez sobre él en la\nlista de abajo — esto carga sus valores en los campos de arriba,\nsin guardar nada: cambia los valores deseados Y LUEGO haz clic en\n« 💾 Guardar » para que el cambio se aplique.\nEl umbral de alerta activa un recordatorio en la página de inicio en cuanto\nla cantidad baja de ese nivel (déjalo vacío para no ser alertado nunca).',
-        'pantry_remove_button': '🗑 Quitar de la despensa',
-        'pantry_empty': 'Tu despensa está vacía por el momento.',
-        'pantry_threshold_suffix': ' (umbral: {threshold})',
-        'pantry_error_ingredient_required': 'Por favor, indica un ingrediente.',
-        'pantry_error_invalid_quantity': 'Cantidad no válida.',
-        'pantry_error_invalid_threshold': 'Umbral de alerta no válido (déjalo vacío si no quieres uno).',
-        'pantry_select_ingredient_first': 'Selecciona un ingrediente de la lista.',
-        'pantry_remove_confirm_message': '¿Quitar « {name} » de la despensa?',
-        'cook_title': '¿Qué puedo cocinar?',
-        'cook_instructions_label': 'Indica los ingredientes que tienes en casa:',
-        'cook_staples_hint': 'Algunos ingredientes básicos comunes ya están marcados al lado\n(sal, aceite, harina...) — quita los que no tengas.',
-        'cook_all_ingredients_label': 'Todos los ingredientes:',
-        'cook_add_button': '➕ Añadir →',
-        'cook_have_label': 'Lo que tengo:',
-        'cook_remove_button': '🗑 Quitar',
-        'cook_load_from_pantry_button': '📦 Cargar desde mi despensa',
-        'cook_compute_button': '🔍 Ver las recetas viables',
-        'cook_open_selected_button': '📖 Consultar la receta seleccionada',
-        'cook_pantry_empty_title': 'Información',
-        'cook_pantry_empty_message': 'Tu despensa está vacía por el momento. Abre « 📦 Mi despensa » desde la página de inicio para añadir ingredientes.',
-        'cook_loaded_title': 'Cargado',
-        'cook_loaded_message': '{count} ingrediente(s) añadido(s) desde tu despensa.',
-        'cook_add_ingredient_first': 'Añade al menos un ingrediente que tengas.',
-        'cook_feasible_header': '✅ Viables con lo que tienes:',
-        'cook_insufficient_quantity': '  ⚠️ cantidad insuficiente: {list}',
-        'cook_none_feasible': 'Ninguna receta es 100% viable con estos ingredientes.',
-        'cook_substitutable_header': '🔄 Viables usando un sustituto:',
-        'cook_almost_header': '🟡 Casi (faltan de 1 a 3 ingredientes):',
-        'cook_missing_label': '   {name} (falta: {list})',
-        'cook_no_results': 'Intenta añadir más ingredientes a tu selección.',
-        'cook_select_recipe_from_results': 'Selecciona una receta de la lista de resultados.',
-        'cook_select_recipe_row': 'Selecciona una fila correspondiente a una receta.',
-        'weekhistory_title': 'Historial de semanas pasadas',
-        'weekhistory_heading': '🕘 Historial de semanas pasadas',
-        'weekhistory_intro': 'Cada semana en la que guardas la planificación se archiva aquí\nautomáticamente (hasta 26 semanas, unos 6 meses), para evitar\nrepetir dos veces lo mismo con demasiada frecuencia.',
-        'weekhistory_reload_button': '♻️ Recargar en la planificación actual',
-        'weekhistory_delete_button': '🗑 Eliminar esta semana',
-        'weekhistory_no_archived_weeks': 'Ninguna semana archivada.',
-        'weekhistory_week_label': 'Semana {week}',
-        'weekhistory_saved_on': 'Guardado el {date}\n\n',
-        'weekhistory_day_heading': '{day}:\n',
-        'weekhistory_slot_line': '   {slot}: {recipe} ({persons} pers.)\n',
-        'weekhistory_empty_week': '(Planificación vacía para esta semana.)',
-        'weekhistory_select_week_first': 'Selecciona una semana de la lista.',
-        'weekhistory_reload_confirm_message': '¿Recargar la planificación de la semana {week} en la planificación actual?\n\nEsto reemplazará las recetas actualmente mostradas (recuerda guardar la planificación en curso antes, si quieres conservarla).',
-        'weekhistory_delete_confirm_message': '¿Eliminar definitivamente el archivo de la semana {week}?',
-        'weektemplates_title': 'Plantillas de semana',
-        'weektemplates_heading': '📋 Plantillas de semana',
-        'weektemplates_intro': 'Guarda la planificación actualmente mostrada como plantilla\nreutilizable, para aplicarla con un clic a otra semana\nen lugar de volver a introducirlo todo.',
-        'weektemplates_name_label': 'Nombre de la nueva plantilla:',
-        'weektemplates_save_button': '💾 Guardar la planificación actual como plantilla',
-        'weektemplates_apply_button': '📋 Aplicar esta plantilla',
-        'weektemplates_delete_button': '🗑 Eliminar esta plantilla',
-        'weektemplates_none_saved': 'Ninguna plantilla guardada por el momento.',
-        'weektemplates_error_name_required': 'Por favor, indica un nombre para esta plantilla.',
-        'weektemplates_empty_plan': 'La planificación actualmente mostrada está vacía: nada que guardar como plantilla.',
-        'weektemplates_saved_message': 'Plantilla « {name} » guardada.',
-        'weektemplates_select_template_first': 'Selecciona una plantilla de la lista.',
-        'weektemplates_apply_confirm_message': '¿Aplicar la plantilla « {name} » a la planificación actual?\n\nEsto reemplazará las recetas actualmente mostradas (recuerda guardar la planificación en curso antes, si quieres conservarla).',
-        'weektemplates_delete_confirm_message': '¿Eliminar definitivamente la plantilla « {name} »?',
-        'common_none_option': '-- Ninguna --',
-        'weekplan_title': 'Planificación semanal',
-        'weekplan_subtitle': 'Vista de calendario: días en columnas, comidas en filas.',
-        'weekplan_save_button': '💾 Guardar la planificación',
-        'weekplan_clear_button': '🗑 Borrar todo',
-        'weekplan_export_ics_button': '📆 Exportar a un calendario (.ics)',
-        'weekplan_compute_button': 'Calcular la lista de compras de la semana',
-        'weekplan_checklist_button': '☑️ Modo compras',
-        'weekplan_empty_list_message': 'Ninguna lista calculada por el momento.\nHaz clic en « Calcular la lista de compras de la semana » arriba,\no carga una lista guardada.',
-        'weekplan_total_list_heading': '=== Lista de compras de la semana ===',
-        'weekplan_calculate_list_for_export': 'Primero calcula una lista de compras (botón « Calcular la lista de compras de la semana »).',
-        'weekplan_invalid_persons_for_slot': 'Número de personas no válido para {day} — {slot}.',
-        'weekplan_saved_message': 'La planificación de la semana ha sido guardada.',
-        'weekplan_clear_confirm_message': '¿Borrar toda la planificación de la semana?',
-        'weekplan_assign_recipe_first': 'Asigna al menos una receta a un espacio de la semana.',
-        'weekplan_export_ics_title': 'Exportar la planificación a un calendario',
-        'weekplan_ics_export_success_message': 'Planificación exportada:\n{path}\n\nImporta este archivo en Google Calendar, Outlook o Calendario para ver tus comidas repetirse cada semana.',
-        'weekplan_assign_or_manual': 'Asigna al menos una receta a un espacio de la semana, o añade un ingrediente manualmente.',
-        'weekplan_export_shopping_list_title': 'Guardar la lista de compras',
-        'weekplan_shopping_list_title': 'Lista de compras de la semana',
-        'weekplan_list_saved_message': 'Lista guardada:\n{path}',
-        'weekplan_excel_module_missing': 'La exportación a Excel requiere: pip install openpyxl',
-        'weekplan_pdf_module_missing': 'La exportación a PDF requiere: pip install reportlab',
-        'weekplan_print_module_missing': 'La impresión requiere: pip install reportlab',
-        'weekplan_print_label': 'la lista de compras de la semana',
-        'manageing_title': 'Gestionar los ingredientes',
-        'manageing_list_label': 'Lista de ingredientes guardados:',
-        'manageing_add_button': '➕ Añadir',
-        'manageing_edit_button': '✏️ Modificar',
-        'manageing_delete_button': '🗑️ Eliminar',
-        'manageing_load_defaults_button': '📚 Cargar los ~1000 ingredientes comunes',
-        'manageing_spell_check_button': '🔤 Comprobar duplicados / errores tipográficos',
-        'manageing_prices_button': '💰 Gestionar los precios (para el coste de las recetas)',
-        'manageing_substitutions_button': '🔄 Gestionar las sustituciones',
-        'manageing_edit_hint': '"Modificar" permite cambiar el nombre (actualizado\nen todos los lugares donde se usa el ingrediente), sus alérgenos,\nsus valores nutricionales y su precio.',
-        'manageing_select_ingredient_first': 'Selecciona un ingrediente de la lista.',
-        'manageing_delete_confirm_message': '¿Eliminar « {name} » de la lista de ingredientes?',
-        'manageing_delete_usage_warning': '\n\nAtención: se usa en {count} receta(s). Estas recetas conservarán este ingrediente, pero ya no se propondrá en el menú desplegable, a menos que lo vuelvas a añadir.',
-        'manageing_missing_file_title': 'Archivo faltante',
-        'manageing_missing_file_message': 'No se encuentra el archivo ingredients_par_defaut.json.\nAsegúrate de que esté en la misma carpeta que main.py.',
-        'manageing_done_title': 'Completado',
-        'manageing_defaults_added_message': '{count} nuevo(s) ingrediente(s) añadido(s) de la lista común.',
-        'manageing_defaults_none_added': 'Todos los ingredientes comunes ya estaban presentes.',
-        'subedit_title': 'Sustitutos para « {name} »',
-        'subedit_heading': '🔄 Sustitutos para « {name} »',
-        'subedit_disclaimer': 'Una sustitución es un consejo culinario, no una equivalencia\ngarantizada: el resultado puede variar según la receta.',
-        'subedit_remove_button': '🗑 Quitar el sustituto seleccionado',
-        'subedit_add_frame_title': 'Añadir un sustituto',
-        'subedit_name_label': 'Nombre:',
-        'subedit_note_label': 'Nota (opcional):',
-        'subedit_add_to_list_button': '➕ Añadir a la lista',
-        'subedit_revert_button': '🔄 Volver a la base proporcionada',
-        'subedit_cancel_button': 'Cancelar',
-        'subedit_no_substitute_yet': 'Ningún sustituto por el momento.',
-        'subedit_error_name_required': 'Por favor, indica un nombre de sustituto.',
-        'subedit_select_to_remove': 'Selecciona un sustituto para quitar.',
-        'subedit_revert_confirm_message': '¿Quitar tu lista personalizada y volver a los sustitutos proporcionados con la aplicación para « {name} »?',
-        'managesub_title': 'Gestionar las sustituciones',
-        'managesub_heading': '🔄 Sustituciones de ingredientes',
-        'managesub_intro': 'Consulta o modifica los sustitutos sugeridos para un ingrediente.\nUna sustitución es un consejo culinario, no una equivalencia garantizada.',
-        'managesub_manage_button': '✏️ Gestionar sus sustitutos',
-        'managesub_hint': 'Haz doble clic en un ingrediente de la lista para ver o modificar sus\nsustitutos, o escribe un nombre arriba (incluso un ingrediente que aún\nno tenga sustituto conocido) y luego « ✏️ Gestionar sus sustitutos ».',
-        'managesub_none_with_substitute': 'Ningún ingrediente con sustituto por el momento.',
-        'managesub_substitute_count': '{name} ({count} sustituto{plural})',
-        'managesub_error_ingredient_required': 'Por favor, indica un ingrediente.',
-        'managesub_unknown_ingredient_message': '« {name} » no corresponde a ningún ingrediente registrado.\nElige uno de la lista desplegable, o créalo primero desde « 🥕 Gestionar los ingredientes ».',
-        'ingprices_title': 'Gestionar los precios de los ingredientes',
-        'ingprices_heading': '💰 Precios de los ingredientes',
-        'ingprices_intro': 'Indica un precio para los ingredientes que te\ninteresen — no es necesario hacerlo con todos. El coste\nde una receta se estima a partir de estos precios.',
-        'ingprices_price_label': 'Precio (€):',
-        'ingprices_for_one_label': 'por 1',
-        'ingprices_save_button': '💾 Guardar el precio',
-        'ingprices_clear_button': '🗑 Borrar el precio',
-        'ingprices_units_note': 'kg ↔ recetas en Gr   ·   L ↔ recetas en cl   ·   los precios\npor unidad/cucharada se aplican tal cual.',
-        'ingprices_no_price_set': '  —  (precio no indicado)',
-        'ingprices_price_suffix': '  —  {price} € / {unit}',
-        'ingprices_error_invalid_price': 'Introduce un precio válido (número positivo).',
-        'ingprices_saved_message': 'Precio guardado para « {name} ».',
-        'ingedit_title_edit': 'Modificar un ingrediente',
-        'ingedit_title_new': 'Nuevo ingrediente',
-        'ingedit_heading_edit': '✏️ Modificar el ingrediente',
-        'ingedit_heading_new': '➕ Nuevo ingrediente',
-        'ingedit_name_label': 'Nombre:',
-        'ingedit_allergens_label': 'Alérgenos presentes:',
-        'ingedit_nutrition_label': 'Valores nutricionales (por 100 g / 100 ml):',
-        'ingedit_nutri_kcal': 'Calorías (kcal)',
-        'ingedit_nutri_protein': 'Proteínas (g)',
-        'ingedit_nutri_carbs': 'Carbohidratos (g)',
-        'ingedit_nutri_fat': 'Grasas (g)',
-        'ingedit_nutrition_hint': 'Déjalo vacío si no conoces estos valores.',
-        'ingedit_price_label': 'Precio:',
-        'ingedit_save_button': '💾 Guardar',
-        'ingedit_delete_button': '🗑️ Eliminar este ingrediente',
-        'ingedit_error_invalid_field': '« {field} » debe ser un número positivo (o estar vacío).',
-        'ingedit_error_name_required': 'Por favor, indica un nombre de ingrediente.',
-        'ingedit_error_already_exists': 'El ingrediente « {name} » ya existe.',
-        'ingedit_error_plural_duplicate': '« {name} » es solo una variante singular/plural del ingrediente ya existente « {existing} ». Para evitar duplicados en la lista, usa directamente « {existing} ».',
-        'ingedit_nutri_field_kcal': 'Calorías',
-        'ingedit_nutri_field_protein': 'Proteínas',
-        'ingedit_nutri_field_carbs': 'Carbohidratos',
-        'ingedit_nutri_field_fat': 'Grasas',
-        'ingedit_error_invalid_price': 'El precio debe ser un número positivo (o estar vacío).',
-        'ingedit_saved_message': '« {name} » ha sido guardado.',
-        'spellcheck_title': 'Comprobación ortográfica de ingredientes',
-        'spellcheck_heading': 'Pares de ingredientes que se parecen en un 90% o más\n(probables duplicados o errores tipográficos):',
-        'spellcheck_multi_select_hint': 'Selección múltiple posible (Ctrl+clic o Mayús+clic) para\nfusionar varios pares a la vez.',
-        'spellcheck_merge_button': '🔗 Fusionar la selección',
-        'spellcheck_not_duplicate_button': '✕ No es un duplicado',
-        'spellcheck_rerun_button': '🔄 Repetir el análisis',
-        'spellcheck_footer_hint': 'Para un solo par, se te preguntará cuál de las dos\ngrafías conservar. Para varios pares a la vez, el ingrediente\nmenos usado en tus recetas se fusiona automáticamente\ncon el usado en más recetas.\n« No es un duplicado » retira definitivamente el o los\npares seleccionados de este análisis, ahora y en el futuro.',
-        'spellcheck_none_found': 'No se detectó ningún duplicado probable. 🎉',
-        'spellcheck_pair_line': '{a}   ↔   {b}     ({percent}% similares)',
-        'spellcheck_select_pair_first': 'Selecciona al menos un par de la lista.',
-        'spellcheck_dismissed_message': '{count} par(es) marcado(s) como no duplicados. Ya no se propondrán en los próximos análisis.',
-        'spellcheck_merge_dialog_title': 'Fusionar',
-        'spellcheck_merge_dialog_message': '¿Fusionar « {a} » y « {b} »?\n\nSí = renombrar todo como « {a} »\nNo = renombrar todo como « {b} »\nCancelar = no hacer nada',
-        'spellcheck_merged_title': 'Fusionado',
-        'spellcheck_merged_one_message': '« {removed} » se ha fusionado con « {kept} ».',
-        'spellcheck_merge_multi_confirm': '¿Fusionar automáticamente estos {count} pares?\n\nPara cada par, el ingrediente menos usado en tus recetas se fusionará con el usado en más recetas (el primero por orden alfabético en caso de empate).',
-        'spellcheck_merged_multi_message': '{count} par(es) fusionado(s).',
-        'compare_title': 'Comparar dos recetas',
-        'compare_recipe_a_label': 'Receta A:',
-        'compare_recipe_b_label': 'Receta B:',
-        'compare_button': '⚖️ Comparar',
-        'compare_choose_each_list': 'Elige una receta en cada lista.',
-        'compare_field_category': 'Categoría:',
-        'compare_field_favorite': 'Favorito:',
-        'compare_yes': '⭐ Sí',
-        'compare_no': 'No',
-        'compare_field_rating': 'Valoración:',
-        'compare_field_difficulty': 'Dificultad:',
-        'compare_field_prep': 'Preparación:',
-        'compare_field_cook': 'Cocción:',
-        'compare_field_total_time': 'Tiempo total:',
-        'compare_field_cooked': 'Cocinada:',
-        'compare_times_suffix': '{count} veces',
-        'compare_field_cost': 'Coste estimado:',
-        'compare_field_nutrition': 'Nutrición (kcal):',
-        'compare_field_ingredient_count': 'N.º ingredientes:',
-        'compare_common_ingredients': '🟰 Comunes ({count})',
-        'compare_only_a': '🅰️ Solo en « {name} » ({count})',
-        'compare_only_b': '🅱️ Solo en « {name} » ({count})',
-        'compare_none': 'Ninguno',
-        'stats_title': 'Estadísticas',
-        'stats_heading': '=== Estadísticas ===\n\n',
-        'stats_total_recipes': 'Número total de recetas: {count}\n\n',
-        'stats_by_category': 'Distribución por categoría:\n',
-        'stats_category_line': '  - {category}: {count}\n',
-        'stats_by_difficulty': 'Distribución por dificultad:\n',
-        'stats_difficulty_line': '  - {difficulty}: {count}\n',
-        'stats_difficulty_unspecified': 'No especificada',
-        'stats_favorites_count': 'Recetas favoritas: {count}\n\n',
-        'stats_avg_rating': 'Valoración media (recetas valoradas): {avg} / 5 ({count} receta(s) valorada(s))\n\n',
-        'stats_no_rated_recipe': 'Valoración media: ninguna receta valorada por el momento.\n\n',
-        'stats_five_star_heading': 'Receta(s) valorada(s) con 5 estrellas:\n',
-        'stats_recipe_line': '  - {name}\n',
-        'stats_most_cooked_heading': 'Recetas más cocinadas:\n',
-        'stats_cooked_line': '  - {name}: {count} veces\n',
-        'stats_none_cooked_yet': '  Ninguna receta marcada como cocinada por el momento.\n  (botón « 🍳 ¡Cociné esto! » en « Ver una receta concreta »)\n',
-        'stats_most_used_tags_heading': 'Etiquetas más usadas:\n',
-        'stats_tag_line': '  - {tag}: {count}\n',
-        'stats_never_cooked_heading': '🕸️ Recetas nunca cocinadas:\n',
-        'stats_and_others': '  ... y {count} más\n',
-        'stats_all_cooked': '  Todas tus recetas ya se han cocinado al menos una vez. 👏\n',
-        'stats_stale_heading': '🕰️ No cocinadas desde hace más de {days} días:\n',
-        'stats_stale_line': '  - {name} (hace {days} días)\n',
-        'stats_no_stale_recipe': '  Ninguna receta en este caso por el momento.\n',
-        'stats_avg_cost_heading': '💰 Coste medio por persona:\n',
-        'stats_avg_cost_line': '  {avg} € de media, sobre {count} receta(s) con al menos un precio conocido ({without_price} sin precio indicado)\n',
-        'stats_no_priced_recipe': '  Ninguna receta con precio indicado por el momento.\n  (ver « 💰 Gestionar los precios » en « Gestionar los ingredientes »)\n',
-        'stats_avg_kcal_heading': '🥗 Calorías medias por persona:\n',
-        'stats_avg_kcal_line': '  {avg} kcal de media, sobre {count} receta(s) con ingredientes reconocidos en la base nutricional\n',
-        'stats_no_recognized_recipe': '  Ninguna receta con ingredientes reconocidos por el momento.\n',
-        'stats_monthly_chart_title': '📈 Recetas cocinadas por mes (últimos 12 meses)',
-        'stats_heatmap_title': '🗓️ Calendario de días cocinados (últimos 12 meses)',
-        'stats_heatmap_legend': 'Menos ⬜ 🟨 🟧 🟥 Más',
-        'stats_day_labels': 'L,M,X,J,V,S,D',
-        'stats_month_labels_short': 'Ene,Feb,Mar,Abr,May,Jun,Jul,Ago,Sep,Oct,Nov,Dic',
-        'stats_month_labels_lower': 'ene,feb,mar,abr,may,jun,jul,ago,sep,oct,nov,dic',
-        'recipepdf_category_persons': 'Categoría: {cat}    Para {persons} persona(s)',
-        'recipepdf_rating': 'Valoración: {stars}',
-        'recipepdf_prep': 'Preparación: {time} min',
-        'recipepdf_cook': 'Cocción: {time} min',
-        'recipepdf_difficulty': 'Dificultad: {value}',
-        'recipepdf_allergens': '⚠ Alérgenos: {list}',
-        'recipepdf_ingredients_heading': 'Ingredientes:',
-        'recipepdf_cost': 'Coste estimado: {cost} €{partial}',
-        'recipepdf_partial_suffix': ' (parcial, {known}/{total})',
-        'recipepdf_nutrition': 'Nutrición estimada{partial}: {kcal} kcal · {protein}g prot. · {carbs}g carb. · {fat}g grasa',
-        'recipepdf_description_heading': 'Descripción:',
-        'recipepdf_notes_heading': 'Notas personales:',
-        'cookbookpdf_page_number': 'Página {current} / {total}',
-        'cookbookpdf_generated_on': 'Generado el {date}',
-        'cookbookpdf_summary_heading': 'Índice',
-        'cookbookpdf_summary_line': '- [{cat}] {name}',
-        'cookbookexport_title': 'Exportar el libro de recetas',
-        'cookbookexport_heading': '📖 Exportar el libro de recetas',
-        'cookbookexport_intro': 'Selecciona las recetas a incluir en un solo PDF,\nestilo libro de cocina.',
-        'cookbookexport_filter_label': 'Filtrar por categoría:',
-        'cookbookexport_check_all_button': 'Marcar todo',
-        'cookbookexport_uncheck_all_button': 'Desmarcar todo',
-        'cookbookexport_generate_button': '📄 Generar el PDF del libro',
-        'cookbookexport_error_select_recipe': 'Selecciona al menos una receta.',
-        'cookbookexport_save_dialog_title': 'Guardar el libro de recetas',
-        'cookbookexport_saved_message': 'Libro de recetas guardado:\n{path}',
-        'importexport_title': 'Importar / Exportar datos',
-        'importexport_heading': 'Respaldar o transferir tus datos',
-        'importexport_export_intro': 'La exportación crea un archivo .zip que contiene absolutamente\ntodos tus datos: recetas, fotos, ingredientes personalizados,\nprecios, sustitutos, despensa, planificación y su historial,\nmenús, listas de compras guardadas, papelera y\nconfiguración — para respaldar o transferir todo a\notro ordenador en un solo archivo.',
-        'importexport_export_button': '📤 Exportar todos mis datos (.zip)',
-        'importexport_import_intro': 'La importación lee un archivo .zip exportado previamente.\n"Fusionar" añade las recetas/fotos duplicadas con un\nnuevo nombre en lugar de perderlas, y completa el resto\n(despensa, menús, listas...) sin eliminar nada.\n"Reemplazar" sobrescribe todo, incluida la configuración y la\nplanificación en curso.',
-        'importexport_import_button': '📥 Importar datos (.zip)',
-        'importexport_auto_backups_heading': '🗄️ Copias de seguridad automáticas',
-        'importexport_auto_backups_intro': 'Se crea una copia de seguridad automáticamente al iniciar la\naplicación (como máximo una cada {hours}h), y las {retention} más\nrecientes se conservan aquí.',
-        'importexport_backup_now_button': '💾 Hacer copia de seguridad ahora',
-        'importexport_restore_selected_button': '♻️ Restaurar la selección',
-        'importexport_cloud_heading': '☁️ Copia de seguridad automática en la nube',
-        'importexport_cloud_intro': 'Elige una carpeta sincronizada por un cliente ya\ninstalado en este PC (Google Drive, OneDrive, Dropbox...).\nCada copia de seguridad automática también se copiará allí, y este\ncliente se encargará de enviarla a la nube por sí solo.',
-        'importexport_choose_cloud_button': '📁 Elegir una carpeta en la nube',
-        'importexport_disable_button': '🚫 Desactivar',
-        'importexport_cloud_enabled': '✅ Activado: {folder}',
-        'importexport_cloud_not_configured': 'No configurado por el momento.',
-        'importexport_choose_folder_title': 'Elegir una carpeta sincronizada (Google Drive, OneDrive, Dropbox...)',
-        'importexport_cloud_configured_title': 'Carpeta configurada',
-        'importexport_cloud_configured_message': 'Carpeta en la nube configurada:\n{folder}\n\n¿Quieres copiar una copia de seguridad ahora mismo?',
-        'importexport_disabled_title': 'Desactivado',
-        'importexport_disabled_message': 'La copia de seguridad automática en la nube está desactivada.',
-        'importexport_backup_date_line': '{date}   ({size} KB)',
-        'importexport_no_backups': 'Ninguna copia de seguridad automática por el momento.',
-        'importexport_backup_failed': 'La copia de seguridad falló:\n{error}',
-        'importexport_backup_created_title': 'Copia de seguridad creada',
-        'importexport_backup_created_message': 'Se ha creado una nueva copia de seguridad automática.',
-        'importexport_select_backup_first': 'Selecciona una copia de seguridad de la lista.',
-        'importexport_restore_mode_title': 'Modo de restauración',
-        'importexport_restore_mode_message': '¿Cómo restaurar esta copia de seguridad?\n\nSí = Fusionar (añadir a los datos actuales, sin eliminar nada)\nNo = Reemplazar completamente los datos actuales\nCancelar = no hacer nada',
-        'importexport_restore_failed': 'La restauración falló:\n{error}',
-        'importexport_restore_done_title': 'Restauración completada',
-        'importexport_restore_done_message': 'Los datos se han restaurado correctamente.',
-        'importexport_export_data_title': 'Exportar mis datos',
-        'importexport_shared_heading': 'Copia compartida con la app móvil',
-        'importexport_shared_intro': 'Formato compatible con la aplicación móvil — recetas (con sus fotos), ingredientes conocidos, despensa y personalizaciones. La planificación, los menús y las listas de compra guardadas aún no están incluidos en este formato.',
-        'importexport_export_shared_title': 'Exportar en formato compartido',
-        'importexport_export_shared_button': 'Exportar para la app móvil (.zip)',
-        'importexport_import_shared_button': 'Importar desde la app móvil (.zip)',
-        'importexport_file_too_large': 'Este archivo supera el límite de {size} MB.',
-        'importexport_export_data_success': 'Tus datos han sido exportados a:\n{path}',
-        'importexport_choose_archive_title': 'Elegir un archivo para importar',
-        'importexport_import_mode_title': 'Modo de importación',
-        'importexport_import_mode_message': '¿Cómo importar estos datos?\n\nSí = Fusionar (añadir a los datos actuales, sin eliminar nada)\nNo = Reemplazar completamente los datos actuales\nCancelar = no hacer nada',
-        'importexport_import_failed': 'La importación falló:\n{error}',
-        'importexport_import_done_title': 'Importación completada',
-        'importexport_import_done_message': 'Los datos se han importado correctamente.',
-        'checklist_instruction': 'Marca cada artículo a medida que hagas tus compras.',
-        'checklist_check_all_button': '☑️ Marcar todo',
-        'checklist_uncheck_all_button': '⬜ Desmarcar todo',
-        'checklist_progress_label': '{done} / {total} artículo(s) marcado(s)',
-        'exportformat_title': 'Elegir un formato de exportación',
-        'exportformat_heading': '📤 Exportar la lista de compras',
-        'exportformat_choose_label': 'Elige el formato de exportación deseado:',
-        'exportformat_txt_button': '📝 Exportar como texto (.txt)',
-        'exportformat_excel_button': '📊 Exportar como Excel (.xlsx)',
-        'exportformat_pdf_button': '📄 Exportar como PDF (.pdf)',
-        'exportformat_cancel_button': 'Cancelar',
-        'menumanager_title': 'Mis menús',
-        'menumanager_list_label': 'Mis menús guardados:',
-        'menumanager_new_button': '➕ Nuevo menú',
-        'menumanager_recipe_count': '{name} ({count} receta(s))',
-        'menumanager_select_menu_first': 'Selecciona un menú de la lista.',
-        'menumanager_delete_confirm': '¿Eliminar el menú « {name} »?',
-        'menuform_title_edit': 'Modificar el menú',
-        'menuform_title_new': 'Nuevo menú',
-        'menuform_name_label': 'Nombre del menú:',
-        'menuform_add_recipe_label': 'Añadir una receta al menú:',
-        'menuform_persons_short_label': 'pers.:',
-        'menuform_add_button': '+ Añadir',
-        'menuform_recipes_label': 'Recetas del menú:',
-        'menuform_remove_button': '🗑 Quitar del menú',
-        'menuform_save_button': '💾 Guardar el menú',
-        'menuform_compute_button': 'Calcular la lista de compras del menú',
-        'menuform_empty_list_message': 'Ninguna lista calculada por el momento.\nHaz clic en « Calcular la lista de compras del menú » arriba,\no carga una lista guardada.',
-        'menuform_total_list_heading': '=== Lista de compras del menú ===',
-        'menuform_item_row_label': '[{cat}] {name} ({persons} pers.)',
-        'menuform_select_recipe_to_remove': 'Selecciona una receta del menú para quitar.',
-        'menuform_error_name_required': 'Por favor, indica un nombre de menú.',
-        'menuform_error_no_recipe': 'Añade al menos una receta al menú.',
-        'menuform_saved_message': 'El menú « {name} » ha sido guardado.',
-        'menuform_calculate_list_for_export': 'Primero calcula una lista de compras (botón « Calcular la lista de compras del menú »).',
-        'menuform_add_recipe_or_manual': 'Añade al menos una receta al menú, o añade un ingrediente manualmente.',
-        'menuform_shopping_list_title': 'Menú: {name}',
-        'menuform_print_label': 'el menú « {name} »',
-        'importurl_title': 'Importar una receta desde un enlace',
-        'importurl_heading': '🌐 Importar una receta desde un enlace',
-        'importurl_intro': 'Pega la dirección (URL) de una página de receta. Esto funciona\ncon la mayoría de los grandes sitios de cocina (que usan un\nformato de datos estándar). Se requiere conexión a internet.',
-        'importurl_fetch_button': '🌐 Obtener la receta',
-        'importurl_after_import_note': 'Después de importar, revisa y completa la receta si es necesario\n(la detección de cantidades y unidades no siempre es perfecta).',
-        'importurl_paste_url_first': 'Primero pega una dirección de internet (URL).',
-        'importurl_fetching': 'Obteniendo...',
-        'importurl_failed_title': 'Error al importar',
-        'importphoto_title': 'Importar una receta desde una foto',
-        'importphoto_heading': '📷 Importar una receta desde una foto',
-        'importphoto_intro': 'Toma una foto (o escanea) una receta manuscrita o una\npágina de un libro de cocina, luego elige la imagen aquí. El texto\nse extrae automáticamente, pero aún debes revisarlo y organizarlo\ntú mismo (a diferencia de la importación desde un enlace, una foto\nno tiene una estructura de ingredientes/pasos que se pueda adivinar).',
-        'importphoto_module_warning': "⚠ Esta función requiere el módulo 'pytesseract'\nY el programa Tesseract OCR instalado por separado en este PC.\nConsulta el LÉEME para las instrucciones de instalación.",
-        'importphoto_no_photo_chosen': 'Ninguna foto elegida',
-        'importphoto_choose_button': '📁 Elegir una foto',
-        'importphoto_extract_button': '🔍 Extraer el texto',
-        'importphoto_extracted_text_label': 'Texto extraído (editable):',
-        'importphoto_create_button': '➡️ Crear la receta con este texto',
-        'importphoto_choose_photo_title': 'Elegir una foto de receta',
-        'importphoto_choose_first': 'Primero elige una foto.',
-        'importphoto_ocr_module_missing': "Esta función requiere el módulo 'pytesseract'\n(pip install pytesseract) Y el programa Tesseract OCR\ninstalado por separado en este PC. Consulta el LÉEME.",
-        'importphoto_extraction_failed_title': 'Error de extracción',
-        'importphoto_extraction_failed_message': 'El reconocimiento de texto falló. Comprueba que Tesseract OCR esté correctamente instalado en este PC y sea accesible.\n\nDetalle: {error}',
-        'importphoto_no_text_extracted': 'No se pudo extraer texto de esta foto. Prueba con una imagen más nítida, mejor encuadrada o mejor iluminada.',
-        'importphoto_no_text_title': 'Sin texto',
-        'importphoto_no_text_confirm': 'No se ha extraído ni introducido ningún texto. ¿Crear de todos modos una receta vacía (solo con la foto)?',
-        'trash_title': 'Papelera',
-        'trash_heading': '🗑️ Recetas eliminadas',
-        'trash_intro': 'Las fotos de las recetas de la papelera se conservan\nhasta su eliminación definitiva.',
-        'trash_restore_button': '♻️ Restaurar',
-        'trash_delete_forever_button': '🗑️ Eliminar definitivamente',
-        'trash_empty_button': '🧹 Vaciar la papelera',
-        'trash_unnamed_recipe': '(sin nombre)',
-        'trash_unknown_date': 'fecha desconocida',
-        'trash_entry_line': '{name}  —  eliminada el {date}',
-        'trash_is_empty': 'La papelera está vacía.',
-        'trash_select_recipe_first': 'Selecciona una receta en la papelera.',
-        'trash_restored_suffix': '{name} (restaurada)',
-        'trash_restored_title': 'Restaurada',
-        'trash_restored_message': '« {name} » ha sido restaurada.',
-        'trash_delete_forever_confirm': '¿Eliminar definitivamente « {name} »?\n\nEsta acción es irreversible.',
-        'trash_deleted_title': 'Eliminada',
-        'trash_deleted_message': 'La receta ha sido eliminada definitivamente.',
-        'trash_already_empty': 'La papelera ya está vacía.',
-        'trash_empty_confirm': '¿Eliminar definitivamente las {count} receta(s) de la papelera?\n\nEsta acción es irreversible.',
-        'trash_emptied_title': 'Papelera vaciada',
-        'trash_emptied_message': 'La papelera ha sido vaciada.',
-        'cookingmode_title': 'Modo cocina — {name}',
-        'cookingmode_close_button': '✕ Cerrar (Esc)',
-        'cookingmode_cooked_button': '🍳 ¡Cociné esto!',
-        'cookingmode_fullscreen_hint': 'F11: pantalla completa',
-        'cookingmode_persons_suffix': '{persons} pers.',
-        'cookingmode_speech_button': '🔊 Leer en voz alta',
-        'cookingmode_speech_stop_button': '⏹ Detener la lectura',
-        'cookingmode_volume_percent': '{percent}%',
-        'cookingmode_tts_module_missing': "La lectura en voz alta requiere el módulo 'pyttsx3'.\nInstálalo con: pip install pyttsx3",
-        'cookingmode_no_description_to_read': 'Esta receta no tiene descripción para leer (el campo de descripción está vacío).',
-        'cookingmode_ingredients_heading': 'Ingredientes',
-        'cookingmode_prep_label': 'Preparación: {time} min',
-        'cookingmode_cook_label': 'Cocción: {time} min',
-        'cookingmode_difficulty_label': 'Dificultad: {value}',
-        'cookingmode_preparation_heading': 'Preparación',
-        'cookingmode_personal_notes_heading': 'Notas personales',
-        'ingsearch_title': 'Búsqueda por ingrediente',
-        'ingsearch_question_label': '¿Qué ingrediente estás buscando?',
-        'ingsearch_view_recipes_button': '🔍 Ver las recetas que lo usan',
-        'ingsearch_view_selected_button': '📖 Consultar la receta seleccionada',
-        'ingsearch_no_recipe_uses': 'Ninguna receta usa « {name} » por el momento.',
-        'ingsearch_recipes_using': 'Recetas que usan « {name} » ({count}):',
-        'ingsearch_result_line': '{star}[{cat}] {name} ({qty}{unit} por 1 persona)',
-        'ingsearch_select_result_first': 'Selecciona una receta de la lista de resultados.',
-        'timerrow_minutes_label': 'Min:',
-        'timerrow_seconds_label': 'Seg:',
-        'timerrow_error_invalid_duration': 'Duración no válida.',
-        'timerrow_set_duration_first': 'Establece una duración antes de iniciar.',
-        'cooklogentry_title': '📔 Añadir al diario de cocina',
-        'cooklogentry_heading': '🍳 « {name} »',
-        'cooklogentry_intro': '¿Qué tal estuvo? Una nota y/o una foto\n(opcional, también puedes omitir esto).',
-        'cooklogentry_no_photo_chosen': 'Ninguna foto elegida',
-        'cooklogentry_choose_photo_button': '📷 Elegir una foto',
-        'cooklogentry_skip_button': 'Omitir',
-        'cooklogentry_choose_photo_title': 'Elegir una foto',
-        'cooklog_title': '📔 Diario de cocina — {name}',
-        'cooklog_heading': '📔 {name}',
-        'cooklog_times_cooked': 'Cocinada {count} veces en total',
-        'cooklog_no_entry': 'Ninguna nota guardada por el momento.\nUsa « 🍳 ¡Cociné esto! » para añadir una.',
-        'cooklog_no_note': '(sin nota)',
-        'timers_title': '⏲️ Temporizadores',
-        'timers_intro': 'Ajusta cada temporizador y luego pulsa ▶️ para iniciarlo.\nAl terminar, la fila parpadea en rojo con una alerta sonora.',
-        'timers_add_button': '➕ Añadir un temporizador',
-        'qrcode_title': 'Código QR — {name}',
-        'qrcode_intro': 'Escanea con la cámara o una aplicación de lectura de\ncódigos QR para ver el nombre y los ingredientes.',
-        'qrcode_save_button': '💾 Guardar como imagen (PNG)',
-        'qrcode_truncated_warning': '⚠️ La receta es larga: el código QR contiene un\nresumen truncado (solo nombre + ingredientes).',
-        'qrcode_encoded_ingredients_heading': 'Ingredientes ({persons} pers.):',
-        'qrcode_save_dialog_title': 'Guardar el código QR',
-        'qrcode_save_failed': 'El guardado falló:\n{error}',
-        'qrcode_saved_message': 'Código QR guardado:\n{path}',
-        'unitconv_title': 'Conversor de unidades',
-        'unitconv_heading': '🔄 Conversor de unidades',
-        'unitconv_intro': 'Conversión aproximada basada en la densidad del agua para\nlas unidades de volumen (ml, cl, L, taza, cucharas): fiable para\nlíquidos, aproximada para sólidos como la harina\no el azúcar, cuya densidad real difiere un poco.',
-        'unitconv_quantity_label': 'Cantidad:',
-        'unitconv_from_label': 'De:',
-        'unitconv_to_label': 'A:',
-        'unitconv_convert_button': 'Convertir',
-        'unitconv_error_invalid_quantity': 'Cantidad no válida.',
-        'unitconv_result': '{quantity} {from_unit} ≈ {result} {to_unit}',
-        'unitconv_gram': 'Gramo (g)',
-        'unitconv_kilogram': 'Kilogramo (kg)',
-        'unitconv_ounce': 'Onza (oz)',
-        'unitconv_pound': 'Libra (lb)',
-        'unitconv_milliliter': 'Mililitro (ml)',
-        'unitconv_centiliter': 'Centilitro (cl)',
-        'unitconv_liter': 'Litro (L)',
-        'unitconv_teaspoon': 'Cucharadita (5 ml)',
-        'unitconv_tablespoon': 'Cucharada (15 ml)',
-        'unitconv_cup': 'Taza EE. UU. (240 ml)',
-        'disclaimer_title': 'Cláusula de responsabilidad',
-        'disclaimer_heading': '⚠ Cláusula de responsabilidad',
-        'disclaimer_intro': 'Por favor, lee este texto antes de usar la aplicación.',
-        'disclaimer_checkbox': 'He leído y acepto las condiciones anteriores',
-        'disclaimer_continue_button': 'Continuar',
-        'disclaimer_quit_button': 'Salir de la aplicación',
-        'disclaimer_text': 'ARTÍCULO 1 – EXCLUSIÓN Y LIMITACIÓN DE RESPONSABILIDAD\n\n1.1. Alertas médicas y gestión de alérgenos\n\nLa Aplicación ofrece una función que permite al Usuario indicar, modificar y configurar sus propios criterios de alergias y alérgenos. El Usuario reconoce expresamente que:\n\n• La exactitud y la actualización de esta información es responsabilidad exclusiva del Usuario.\n• La Aplicación es una herramienta informática de ayuda para consultar recetas y no sustituye en ningún caso un consejo médico, un diagnóstico o el control humano de los ingredientes.\n• El Editor no podrá ser considerado responsable en caso de entrada incorrecta, omisión, configuración errónea por parte del Usuario, o reacción alérgica (intolerancia, choque anafiláctico, etc.) ocurrida después de consumir un plato. Corresponde al Usuario verificar sistemáticamente las etiquetas y la composición real de cada ingrediente físico antes de cualquier preparación o ingestión.\n\n1.2. Suministro «tal cual» y gratuidad\n\nLa Aplicación se pone a disposición del Usuario de forma completamente gratuita. Se proporciona «tal cual» y «según su disponibilidad», sin garantía alguna de ausencia de errores, fallos informáticos o interrupciones. El Editor no garantiza que las funciones de la Aplicación satisfagan las necesidades específicas del Usuario.\n\n1.3. Daños materiales e inmateriales\n\nEl Editor rechaza toda responsabilidad por los daños directos o indirectos causados al Usuario o a terceros. En particular, el Editor no podrá ser demandado por:\n\n• Una avería, sobrecalentamiento, mal funcionamiento o deterioro del equipo informático o del smartphone del Usuario al usar la Aplicación.\n• Una pérdida de datos informáticos, alteración de archivos o pirateo del sistema del Usuario.\n\nDebido a la gratuidad del servicio, si la responsabilidad del Editor fuera declarada por un tribunal, el importe de los daños y perjuicios quedaría expresamente limitado a la suma de cero euros (0 €).',
-        'addmanual_title': 'Añadir ingredientes a la lista de compras',
-        'addmanual_heading': '➕ Añadir ingredientes a la lista de compras',
-        'addmanual_intro': 'Añade todos los ingredientes que quieras a la lista\nde espera de abajo, y luego confírmalos todos a la vez.',
-        'addmanual_new_ingredient_button': '🥕 Nuevo ingrediente',
-        'addmanual_add_to_list_button': '➕ Añadir a la lista',
-        'addmanual_staged_label': 'Ingredientes pendientes de confirmación:',
-        'addmanual_remove_staged_button': '🗑 Quitar de la lista de espera',
-        'addmanual_confirm_all_button': '✅ Confirmar todos estos ingredientes',
-        'addmanual_close_button': 'Cerrar',
-        'addmanual_select_staged_first': 'Selecciona un ingrediente de la lista de espera.',
-        'addmanual_add_staged_first': 'Añade al menos un ingrediente a la lista de espera antes de confirmar.',
-        'addmanual_confirmed_message': '{count} ingrediente(s) añadido(s) a la lista de compras.',
-        'shoppingexport_generated_on': 'Generada el {date}',
-        'shoppingexport_selected_recipes': 'Recetas seleccionadas:',
-        'shoppingexport_excel_sheet_recipes': 'Recetas',
-        'shoppingexport_excel_col_recipe': 'Receta',
-        'shoppingexport_excel_col_persons': 'Número de personas',
-        'shoppingexport_excel_sheet_ingredients': 'Ingredientes',
-        'shoppingexport_excel_col_rayon': 'Sección',
-        'shoppingexport_excel_col_ingredient': 'Ingrediente',
-        'shoppingexport_excel_col_total_qty': 'Cantidad total',
-        'shoppingexport_excel_col_unit': 'Unidad',
-        'savedlists_title': 'Listas de compras guardadas',
-        'savedlists_heading': '📂 Listas de compras guardadas',
-        'savedlists_load_button': '📂 Cargar',
-        'savedlists_delete_button': '🗑 Eliminar',
-        'savedlists_none_saved': 'Ninguna lista guardada por el momento.',
-        'savedlists_entry_line': '{name} — {count} ingrediente(s) — {date}',
-        'savedlists_select_list_first': 'Selecciona una lista de la lista.',
-        'savedlists_delete_confirm': '¿Eliminar definitivamente la lista « {name} »?',
-        'quicksearch_title': 'Búsqueda rápida',
-        'quicksearch_heading': '🔍 Búsqueda rápida de recetas',
-        'quicksearch_no_results': 'No se encontró ninguna receta.',
-        'quicksearch_footer_hint': 'Intro para abrir, Esc para cerrar.',
-        'allrecipes_title': 'Todas las recetas - Lista de compras',
-        'allrecipes_select_label': 'Selecciona las recetas y el número de personas:',
-        'allrecipes_ingredient_filter_title': 'Filtrar por ingrediente',
-        'allrecipes_persons_count_label': 'N.º personas:',
-        'allrecipes_add_to_cart_button': '🛒 Añadir a la compra',
-        'allrecipes_checklist_mode_button': '☑️ Modo compras (marcar a medida)',
-        'allrecipes_clear_list_button': '🗑 Vaciar la lista de compras',
-        'allrecipes_export_button': '📤 Exportar',
-        'allrecipes_print_button': '🖨️ Imprimir',
-        'allrecipes_add_manual_ingredient_button': '➕ Añadir un ingrediente a la lista de compras',
-        'allrecipes_save_list_button': '💾 Guardar esta lista para más tarde',
-        'allrecipes_load_list_button': '📂 Cargar una lista guardada',
-        'allrecipes_invalid_persons': 'Número de personas no válido para « {name} ».',
-        'allrecipes_empty_list_message': 'Tu lista de compras está vacía por el momento.\nHaz clic en « 🛒 Añadir a la compra » junto a una receta,\nañade un ingrediente manualmente, o carga una lista guardada.',
-        'allrecipes_total_list_heading': '=== Lista de compras total ===',
-        'allrecipes_manual_items_note': '({count} ingrediente(s) añadido(s) manualmente incluido(s))',
-        'allrecipes_invalid_quantity': 'Cantidad no válida.',
-        'allrecipes_calculate_list_first': 'Primero calcula una lista de compras antes de guardarla.',
-        'allrecipes_save_list_dialog_title': 'Guardar la lista',
-        'allrecipes_save_list_dialog_prompt': 'Nombre para esta lista:',
-        'allrecipes_list_saved_title': 'Guardado',
-        'allrecipes_list_saved_message': 'Lista « {name} » guardada para más tarde.',
-        'allrecipes_empty_list_for_export': 'La lista de compras está vacía. Añade al menos una receta (botón « 🛒 Añadir a la compra ») o un ingrediente manual.',
-        'allrecipes_export_txt_title': 'Guardar la lista de compras como texto',
-        'allrecipes_export_excel_title': 'Guardar la lista de compras como Excel',
-        'allrecipes_export_pdf_title': 'Guardar la lista de compras como PDF',
-        'allrecipes_export_saved_message': 'Lista de compras guardada:\n{path}',
-        'allrecipes_excel_module_missing': "La exportación a Excel requiere el módulo 'openpyxl'.\nInstálalo con: pip install openpyxl",
-        'allrecipes_pdf_module_missing': "La exportación a PDF requiere el módulo 'reportlab'.\nInstálalo con: pip install reportlab",
-        'allrecipes_print_module_missing': "La impresión requiere el módulo 'reportlab' para generar el diseño.\nInstálalo con: pip install reportlab",
-        'allrecipes_print_label': 'la lista de compras',
-        'allrecipes_shopping_list_title': 'Lista de compras',
-        'allrecipes_close_confirm_title': '¿Cerrar la lista de compras?',
-        'allrecipes_close_confirm_message': 'La lista de compras mostrada no está guardada: se perderá definitivamente si cierras esta ventana ahora.\n\nConsejo: usa « 💾 Guardar esta lista para más tarde » antes de cerrar si quieres conservarla.\n\n¿Cerrar de todos modos?',
-        'managerecipes_title': 'Modificar / Eliminar una receta',
-        'managerecipes_select_label': 'Selecciona una receta:',
-        'managerecipes_filter_favorites': '⭐ Solo favoritos',
-        'managerecipes_filter_quick': '⏱️ Solo recetas rápidas (≤ 30 min)',
-        'managerecipes_filter_vegetarian': '🥗 Solo recetas vegetarianas',
-        'managerecipes_filter_wishlist': '💭 Solo lista de deseos',
-        'managerecipes_remove_filter_button': '✕ Quitar el filtro',
-        'managerecipes_search_label': '🔍 Buscar:',
-        'managerecipes_sort_label': 'Ordenar por:',
-        'managerecipes_category_label': 'Categoría:',
-        'managerecipes_edit_button': '✏️ Modificar',
-        'managerecipes_duplicate_button': '📋 Duplicar',
-        'managerecipes_delete_button': '🗑️ Eliminar',
-        'managerecipes_select_recipe_first': 'Selecciona una receta de la lista.',
-        'managerecipes_duplicate_suffix': '(copia)',
-        'managerecipes_duplicated_title': 'Duplicada',
-        'managerecipes_duplicated_message': '« {original} » se ha duplicado con el nombre « {new} ».',
-        'managerecipes_delete_confirm_message': '¿Enviar la receta « {name} » a la papelera?\n\nPodrás restaurarla más tarde desde el botón « 🗑️ Papelera ».',
-        'managerecipes_deleted_title': 'Enviada a la papelera',
-        'managerecipes_deleted_message': 'La receta se ha movido a la papelera.',
-        'onerecipe_window_title': 'Ver una receta',
-        'onerecipe_choose_recipe_label': 'Elige una receta:',
-        'onerecipe_search_label': '🔍 Buscar:',
-        'onerecipe_sort_label': 'Ordenar:',
-        'onerecipe_category_label': 'Categoría:',
-        'onerecipe_persons_label': 'Número de personas:',
-        'onerecipe_btn_show': 'Mostrar la receta',
-        'onerecipe_btn_export_pdf': '📄 Exportar a PDF',
-        'onerecipe_btn_print': '🖨️ Imprimir',
-        'onerecipe_btn_add_to_shopping': '🛒 Añadir a la lista de compras',
-        'onerecipe_btn_cooked': '🍳 ¡Cociné esto!',
-        'onerecipe_btn_cooking_mode': '🖥️ Modo cocina (pantalla completa)',
-        'onerecipe_btn_qr': '📱 Código QR',
-        'onerecipe_btn_timers': '⏲️ Temporizadores',
-        'onerecipe_btn_cook_log': '📔 Diario de cocina',
-        'onerecipe_btn_substitutions': '🔄 Sustitutos posibles',
-        'onerecipe_edit_button': '✏️ Modificar',
-        'onerecipe_ingredients_info_label': 'Ingredientes e información:',
-        'onerecipe_description_notes_label': 'Descripción y notas:',
-        'onerecipe_similar_label': 'Recetas similares:',
-        'onerecipe_no_photo': '(sin foto)',
-        'onerecipe_preview_unavailable': '(vista previa no disponible)',
-        'onerecipe_select_recipe_first': 'Selecciona una receta de la lista.',
-        'onerecipe_display_first': 'Primero muestra una receta con « Mostrar la receta ».',
-        'onerecipe_invalid_persons': 'Número de personas no válido.',
-        'onerecipe_added_to_shopping_title': 'Añadido',
-        'onerecipe_added_to_shopping_message': '« {name} » ({persons} pers.) se añadirá automáticamente a la lista de compras la próxima vez que abras « Ver todas las recetas ».',
-        'onerecipe_pantry_decrement_title': 'Despensa',
-        'onerecipe_pantry_decrement_prompt': '¿Descontar los ingredientes de « {name} » ({persons} pers.) de tu despensa?',
-        'onerecipe_pantry_updated_title': 'Despensa actualizada',
-        'onerecipe_pantry_updated_message': '{count} ingrediente(s) descontado(s) de tu despensa.',
-        'onerecipe_pantry_none_decremented': 'No se pudo descontar ningún ingrediente de esta receta (ausente de la despensa, o unidad no comparable).',
-        'onerecipe_marked_title': 'Marcada',
-        'onerecipe_marked_message': '¡« {name} » ha sido marcada como cocinada hoy!',
-        'onerecipe_no_substitutes_title': 'Ningún sustituto conocido',
-        'onerecipe_no_substitutes_message': 'Ningún ingrediente de esta receta tiene un sustituto conocido por el momento.\n\nPuedes añadir uno tú mismo desde « 🥕 Gestionar los ingredientes » > « 🔄 Gestionar las sustituciones ».',
-        'onerecipe_substitutes_title': 'Sustitutos posibles — {name}',
-        'onerecipe_substitutes_heading': '🔄 Sustitutos posibles para « {name} »',
-        'onerecipe_substitutes_disclaimer': 'Sugerencias culinarias, no equivalencias garantizadas:\nel resultado puede variar según la receta.',
-        'onerecipe_close_button': 'Cerrar',
-        'onerecipe_rating_label': 'Valoración: {stars}',
-        'onerecipe_prep_label': 'Preparación: {time} min',
-        'onerecipe_cook_label': 'Cocción: {time} min',
-        'onerecipe_difficulty_label': 'Dificultad: {value}',
-        'onerecipe_allergens_label': '⚠ Alérgenos: {list}',
-        'onerecipe_cost_label': '💰 Coste estimado: {cost} €{partial}',
-        'onerecipe_cost_partial': ' (estimación parcial, {known}/{total} ingredientes con precio conocido)',
-        'onerecipe_nutrition_partial': ' (estimación parcial, {known}/{total} ingredientes reconocidos)',
-        'onerecipe_nutrition_label': '🥗 Valores nutricionales estimados{partial}:\n   {kcal} kcal · {protein} g proteínas · {carbs} g carbohidratos · {fat} g grasas\n',
-        'onerecipe_description_heading': '--- Descripción ---\n{text}\n',
-        'onerecipe_notes_heading': '\n--- Notas personales ---\n{text}\n',
-        'onerecipe_no_description_notes': '(Ninguna descripción ni nota personal para esta receta.)',
-        'onerecipe_export_pdf_title': 'Exportar la receta a PDF',
-        'onerecipe_export_success_title': 'Exportación exitosa',
-        'onerecipe_export_success_message': 'Receta exportada:\n{path}',
-        'onerecipe_export_failed': 'La exportación falló:\n{error}',
-        'onerecipe_print_failed': 'La preparación de la impresión falló:\n{error}',
-        'onerecipe_pdf_module_missing': "La exportación a PDF requiere el módulo 'reportlab'.\nInstálalo con: pip install reportlab",
-        'onerecipe_print_module_missing': "La impresión requiere el módulo 'reportlab' para generar el diseño.\nInstálalo con: pip install reportlab",
-        'onerecipe_qr_module_missing': "La exportación a código QR requiere el módulo 'qrcode'.\nInstálalo con: pip install qrcode",
-        'onerecipe_qr_pillow_missing': "La exportación a código QR también requiere el módulo 'Pillow'.\nInstálalo con: pip install pillow",
-        'onerecipe_default_timer_label': 'Temporizador',
-        'recipeform_title_edit': 'Modificar la receta',
-        'recipeform_title_add': 'Añadir una receta',
-        'recipeform_name_label': 'Nombre de la receta:',
-        'recipeform_favorite_checkbox': '⭐ Marcar como receta favorita',
-        'recipeform_wishlist_checkbox': '💭 Añadir a mi lista de deseos (para probar)',
-        'recipeform_rating_label': 'Mi valoración:',
-        'recipeform_category_label': 'Categoría:',
-        'recipeform_prep_time_label': 'Preparación (min):',
-        'recipeform_cook_time_label': 'Cocción (min):',
-        'recipeform_difficulty_label': 'Dificultad:',
-        'recipeform_default_persons_label': '   Personas por defecto:',
-        'recipeform_tags_label': 'Etiquetas (separadas por comas):',
-        'recipeform_tags_example': 'ej. vegetariano, sin gluten, rápido, económico',
-        'recipeform_allergens_label': 'Alérgenos presentes:',
-        'recipeform_detect_allergens_button': '🔍 Detectar automáticamente',
-        'recipeform_allergens_disclaimer': 'Esto es solo informativo, verifica siempre los\nalérgenos en las etiquetas de los productos físicos.',
-        'recipeform_allergens_auto_note': 'La detección automática se basa en los ingredientes de la\nreceta ya introducidos abajo: marca y desmarca las\ncasillas en consecuencia, sin tocar nunca las que\nhubieras marcado tú mismo sin relación con un ingrediente detectado.',
-        'recipeform_photos_label': 'Fotos:',
-        'recipeform_add_photo_button': '📷 Añadir una foto',
-        'recipeform_description_label': 'Descripción (información, pasos, consejos...):',
-        'recipeform_notes_label': 'Notas personales (opinión, ajustes para la próxima vez...):',
-        'recipeform_ingredients_label': 'Ingredientes (cantidad para 1 persona):',
-        'recipeform_new_ingredient_button': '🥕 Nuevo ingrediente',
-        'recipeform_no_ingredients_registered': 'Ningún ingrediente registrado. Haz clic en « 🥕 Nuevo ingrediente »\npara crear el primero.',
-        'recipeform_header_ingredient': 'Ingrediente',
-        'recipeform_header_quantity': 'Cantidad',
-        'recipeform_header_unit': 'Unidad',
-        'recipeform_header_other': '(si es otro)',
-        'recipeform_add_ingredient_button': '+ Añadir un ingrediente',
-        'recipeform_save_button': 'Guardar',
-        'recipeform_delete_button': 'Eliminar esta receta',
-        'recipeform_char_counter': '{count} / {max} caracteres',
-        'recipeform_add_ingredients_first': 'Primero añade ingredientes a la receta.',
-        'recipeform_allergens_updated_title': 'Alérgenos actualizados',
-        'recipeform_allergens_updated_added': 'añadido(s): {list}',
-        'recipeform_allergens_updated_removed': 'quitado(s): {list}',
-        'recipeform_allergens_updated_message': 'Alérgeno(s) {parts}.',
-        'recipeform_allergens_no_change': 'Sin cambios: los alérgenos marcados ya corresponden a los ingredientes.',
-        'recipeform_choose_photos_title': 'Elegir una o varias fotos',
-        'recipeform_no_photo': '(sin foto)',
-        'recipeform_preview_unavailable': '(vista previa\nno disponible)',
-        'recipeform_remove_photo_button': '🗑 Quitar',
-        'recipeform_new_ingredient_dialog_title': 'Nuevo ingrediente',
-        'recipeform_new_ingredient_dialog_prompt': 'Nombre del nuevo ingrediente:',
-        'recipeform_ingredient_already_exists': 'El ingrediente « {name} » ya existe.',
-        'recipeform_ingredient_added_title': 'Añadido',
-        'recipeform_ingredient_added_message': 'El ingrediente « {name} » ha sido añadido.\nSelecciónalo en una de las listas desplegables.',
-        'recipeform_error_name_required': 'Por favor, indica un nombre de receta.',
-        'recipeform_error_prep_time': 'El tiempo de preparación debe ser un número positivo (o estar vacío).',
-        'recipeform_error_cook_time': 'El tiempo de cocción debe ser un número positivo (o estar vacío).',
-        'recipeform_unknown_ingredient_title': 'Ingrediente desconocido',
-        'recipeform_unknown_ingredient_message': '« {name} » no corresponde a ningún ingrediente registrado.\nElige uno de la lista desplegable, o haz clic en « 🥕 Nuevo ingrediente » para añadirlo primero.',
-        'recipeform_error_invalid_quantity': "Cantidad no válida para '{name}'.",
-        'recipeform_error_custom_unit_required': "Especifica la unidad personalizada para '{name}'.",
-        'recipeform_error_no_valid_ingredient': 'Añade al menos un ingrediente válido.',
-        'recipeform_duplicate_ingredient_title': 'Ingrediente duplicado',
-        'recipeform_duplicate_ingredient_message': '« {list} » aparece varias veces en esta receta.\n\n¿Guardar de todos modos?',
-        'recipeform_saved_message': 'La receta « {name} » ha sido guardada.',
-        'recipeform_delete_confirm_message': '¿Enviar la receta « {name} » a la papelera?\n\nPodrás restaurarla más tarde desde el botón « 🗑️ Papelera ».',
-        'recipeform_deleted_title': 'Enviada a la papelera',
-        'recipeform_deleted_message': 'La receta se ha movido a la papelera.',
-    },
-    "de": {
-        'home_window_title': 'Mes Recettes, Mes Courses',
-        'home_banner_title': '👨\u200d🍳 Mes Recettes, Mes Courses',
-        'home_banner_subtitle': 'Alle Ihre Rezepte griffbereit',
-        'home_donate_button': '☕ Spenden',
-        'home_dark_theme': '🌙 Dunkles Design',
-        'home_light_theme': '☀️ Helles Design',
-        'home_large_text_on': '🔎 Vergrößerte Schrift',
-        'home_large_text_off': '🔎 Normale Schrift',
-        'home_daily_recipe_title': '🎲 Rezept des Tages',
-        'home_open_button': '👁 Öffnen',
-        'home_quick_filter_favorites': '⭐ Favoriten',
-        'home_quick_filter_quick': '⏱️ Schnell (≤ 30 Min.)',
-        'home_quick_filter_vegetarian': '🥗 Vegetarisch',
-        'home_quick_filter_wishlist': '💭 Wunschliste',
-        'home_wishlist_reminder': '💭 {count} Rezept(e) seit mehr als {days} Tagen auf Ihrer Wunschliste — wie wäre es, sie auszuprobieren? (klicken, um sie anzuzeigen)',
-        'home_low_stock_reminder': '📦 {count} Zutat(en) in Ihrer Vorratskammer fast aufgebraucht: {names} — klicken, um sie zur Einkaufsliste hinzuzufügen',
-        'home_btn_add_recipe': '➕  Rezept hinzufügen',
-        'home_btn_import_url': '🌐  Rezept von einem Link importieren',
-        'home_btn_import_photo': '📷  Rezept von einem Foto importieren',
-        'home_btn_view_all_recipes': '🧾  Alle Rezepte anzeigen (Einkaufsliste)',
-        'home_btn_view_one_recipe': '🍽️  Ein bestimmtes Rezept anzeigen',
-        'home_btn_manage_recipes': '✏️  Rezept ändern / löschen',
-        'home_btn_compare_recipes': '⚖️  Zwei Rezepte vergleichen',
-        'home_btn_manage_ingredients': '🥕  Zutaten verwalten',
-        'home_btn_ingredient_search': '🔎  Suche nach Zutat',
-        'home_btn_what_can_i_cook': '🧊  Was kann ich kochen?',
-        'home_btn_pantry': '📦  Meine Vorratskammer',
-        'home_btn_unit_converter': '🔄  Einheitenumrechner',
-        'home_btn_weekly_plan': '📅  Wochenplan',
-        'home_btn_menus': '📋  Meine Menüs',
-        'home_btn_statistics': '📊  Statistiken',
-        'home_btn_export_cookbook': '📖  Kochbuch exportieren',
-        'home_btn_import_export': '💾  Daten importieren / exportieren',
-        'home_btn_trash': '🗑️  Papierkorb',
-        'home_today_title': '📅 Heute',
-        'home_recent_title': '🕘 Kürzlich angesehen',
-        'home_wishlist_title': '💭 Rezepte zum Ausprobieren',
-        'home_new_draw_button': '🎲 Neue Auswahl',
-        'home_footer_recipe_count': '{count} gespeicherte(s) Rezept(e)',
-        'home_nothing_planned': 'Nichts geplant für {day}. Füllen Sie den « 📅 Wochenplan » aus, um es hier zu sehen.',
-        'home_no_recent_recipe': 'Noch kein Rezept angesehen.',
-        'home_no_wishlist_recipe': 'Noch kein Rezept auf Ihrer Wunschliste.',
-        'warning_pillow': 'Pillow nicht installiert: Fotos werden nicht angezeigt (pip install pillow)',
-        'warning_reportlab': 'reportlab nicht installiert: PDF-Export nicht verfügbar (pip install reportlab)',
-        'warning_openpyxl': 'openpyxl nicht installiert: Excel-Export nicht verfügbar (pip install openpyxl)',
-        'warning_qrcode': 'qrcode nicht installiert: QR-Code-Export nicht verfügbar (pip install qrcode)',
-        'warning_pytesseract': 'pytesseract nicht installiert: Import von Foto nicht verfügbar (pip install pytesseract, + Tesseract OCR)',
-        'common_error': 'Fehler',
-        'common_info': 'Info',
-        'common_confirm': 'Bestätigen',
-        'common_success': 'Erfolg',
-        'common_module_missing': 'Modul fehlt',
-        'common_all_categories': 'Alle',
-        'common_export_failed': 'Export fehlgeschlagen:\n{error}',
-        'common_export_success_title': 'Export erfolgreich',
-        'common_print_failed': 'Vorbereitung des Drucks fehlgeschlagen:\n{error}',
-        'common_reset_button': 'Zurücksetzen',
-        'common_want_label': 'Ich möchte:',
-        'common_exclude_label': 'Ich möchte nicht:',
-        'common_tags_filter_label': 'Tags (alle erforderlich):',
-        'common_filter_hint': 'Geben Sie die ersten Buchstaben ein, um die Liste zu filtern.',
-        'common_search_label': '🔍 Suchen:',
-        'common_sort_by_label': 'Sortieren nach:',
-        'common_category_label': 'Kategorie:',
-        'common_edit_button': '✏️ Ändern',
-        'common_unknown_ingredient_title': 'Unbekannte Zutat',
-        'common_unknown_ingredient_simple_message': '« {name} » entspricht keiner gespeicherten Zutat.\nWählen Sie eine aus der Dropdown-Liste aus.',
-        'common_ingredient_label': 'Zutat:',
-        'common_quantity_label': 'Menge:',
-        'common_unit_label': 'Einheit:',
-        'common_new_ingredient_button': '🥕 Neue Zutat',
-        'common_save_button': '💾 Speichern',
-        'pantry_title': 'Meine Vorratskammer',
-        'pantry_heading': '📦 Meine Vorratskammer',
-        'pantry_intro': 'Geben Sie an, was Sie zu Hause haben und in welcher Menge.\n„Was kann ich kochen?“ kann dann prüfen, ob Sie genug davon haben,\nund vorschlagen, den Bestand nach dem Kochen automatisch abzuziehen.',
-        'pantry_threshold_label': 'Warnschwelle (optional):',
-        'pantry_help_text': 'Um einen Artikel HINZUZUFÜGEN: Geben Sie die Zutat an (legen Sie sie zuerst mit\n« 🥕 Neue Zutat » an, falls sie noch nicht in Ihrer Liste ist), die\nMenge und die Einheit, und klicken Sie dann auf « 💾 Speichern ».\nUm einen bereits vorhandenen Artikel zu ÄNDERN: Klicken Sie einmal darauf in der\nListe unten — dies lädt seine Werte in die Felder oben,\nohne etwas zu speichern: Ändern Sie die gewünschten Werte UND klicken Sie dann auf\n« 💾 Speichern », damit die Änderung übernommen wird.\nDie Warnschwelle löst eine Erinnerung auf der Startseite aus, sobald die\nMenge darunter fällt (leer lassen, wenn Sie nie benachrichtigt werden möchten).',
-        'pantry_remove_button': '🗑 Aus der Vorratskammer entfernen',
-        'pantry_empty': 'Ihre Vorratskammer ist derzeit leer.',
-        'pantry_threshold_suffix': ' (Schwelle: {threshold})',
-        'pantry_error_ingredient_required': 'Bitte geben Sie eine Zutat an.',
-        'pantry_error_invalid_quantity': 'Ungültige Menge.',
-        'pantry_error_invalid_threshold': 'Ungültige Warnschwelle (leer lassen, wenn Sie keine möchten).',
-        'pantry_select_ingredient_first': 'Wählen Sie eine Zutat aus der Liste aus.',
-        'pantry_remove_confirm_message': '« {name} » aus der Vorratskammer entfernen?',
-        'cook_title': 'Was kann ich kochen?',
-        'cook_instructions_label': 'Geben Sie die Zutaten an, die Sie zu Hause haben:',
-        'cook_staples_hint': 'Einige gängige Grundzutaten sind bereits nebenan angekreuzt\n(Salz, Öl, Mehl...) — entfernen Sie diejenigen, die Sie nicht haben.',
-        'cook_all_ingredients_label': 'Alle Zutaten:',
-        'cook_add_button': '➕ Hinzufügen →',
-        'cook_have_label': 'Was ich habe:',
-        'cook_remove_button': '🗑 Entfernen',
-        'cook_load_from_pantry_button': '📦 Aus meiner Vorratskammer laden',
-        'cook_compute_button': '🔍 Machbare Rezepte anzeigen',
-        'cook_open_selected_button': '📖 Ausgewähltes Rezept anzeigen',
-        'cook_pantry_empty_title': 'Info',
-        'cook_pantry_empty_message': 'Ihre Vorratskammer ist derzeit leer. Öffnen Sie « 📦 Meine Vorratskammer » von der Startseite aus, um Zutaten hinzuzufügen.',
-        'cook_loaded_title': 'Geladen',
-        'cook_loaded_message': '{count} Zutat(en) aus Ihrer Vorratskammer hinzugefügt.',
-        'cook_add_ingredient_first': 'Fügen Sie mindestens eine Zutat hinzu, die Sie haben.',
-        'cook_feasible_header': '✅ Machbar mit dem, was Sie haben:',
-        'cook_insufficient_quantity': '  ⚠️ unzureichende Menge: {list}',
-        'cook_none_feasible': 'Mit diesen Zutaten ist kein Rezept zu 100% machbar.',
-        'cook_substitutable_header': '🔄 Machbar mit einem Ersatz:',
-        'cook_almost_header': '🟡 Fast (es fehlen 1 bis 3 Zutaten):',
-        'cook_missing_label': '   {name} (fehlt: {list})',
-        'cook_no_results': 'Versuchen Sie, weitere Zutaten zu Ihrer Auswahl hinzuzufügen.',
-        'cook_select_recipe_from_results': 'Wählen Sie ein Rezept aus der Ergebnisliste aus.',
-        'cook_select_recipe_row': 'Wählen Sie eine Zeile aus, die einem Rezept entspricht.',
-        'weekhistory_title': 'Verlauf vergangener Wochen',
-        'weekhistory_heading': '🕘 Verlauf vergangener Wochen',
-        'weekhistory_intro': 'Jede Woche, in der Sie den Plan speichern, wird hier automatisch\narchiviert (bis zu 26 Wochen, etwa 6 Monate), um zu vermeiden,\ndasselbe zu oft zu wiederholen.',
-        'weekhistory_reload_button': '♻️ In den aktuellen Plan neu laden',
-        'weekhistory_delete_button': '🗑 Diese Woche löschen',
-        'weekhistory_no_archived_weeks': 'Keine archivierte Woche.',
-        'weekhistory_week_label': 'Woche {week}',
-        'weekhistory_saved_on': 'Gespeichert am {date}\n\n',
-        'weekhistory_day_heading': '{day}:\n',
-        'weekhistory_slot_line': '   {slot}: {recipe} ({persons} Pers.)\n',
-        'weekhistory_empty_week': '(Plan für diese Woche leer.)',
-        'weekhistory_select_week_first': 'Wählen Sie eine Woche aus der Liste aus.',
-        'weekhistory_reload_confirm_message': 'Den Plan der Woche {week} in den aktuellen Plan neu laden?\n\nDies ersetzt die aktuell angezeigten Rezepte (denken Sie daran, den laufenden Plan vorher zu speichern, wenn Sie ihn behalten möchten).',
-        'weekhistory_delete_confirm_message': 'Das Archiv der Woche {week} endgültig löschen?',
-        'weektemplates_title': 'Wochenvorlagen',
-        'weektemplates_heading': '📋 Wochenvorlagen',
-        'weektemplates_intro': 'Speichern Sie den aktuell angezeigten Plan als wiederverwendbare\nVorlage, um ihn mit einem Klick auf eine andere Woche anzuwenden,\nanstatt alles neu einzugeben.',
-        'weektemplates_name_label': 'Name der neuen Vorlage:',
-        'weektemplates_save_button': '💾 Aktuellen Plan als Vorlage speichern',
-        'weektemplates_apply_button': '📋 Diese Vorlage anwenden',
-        'weektemplates_delete_button': '🗑 Diese Vorlage löschen',
-        'weektemplates_none_saved': 'Noch keine Vorlage gespeichert.',
-        'weektemplates_error_name_required': 'Bitte geben Sie einen Namen für diese Vorlage an.',
-        'weektemplates_empty_plan': 'Der aktuell angezeigte Plan ist leer: nichts als Vorlage zu speichern.',
-        'weektemplates_saved_message': 'Vorlage « {name} » gespeichert.',
-        'weektemplates_select_template_first': 'Wählen Sie eine Vorlage aus der Liste aus.',
-        'weektemplates_apply_confirm_message': 'Die Vorlage « {name} » auf den aktuellen Plan anwenden?\n\nDies ersetzt die aktuell angezeigten Rezepte (denken Sie daran, den laufenden Plan vorher zu speichern, wenn Sie ihn behalten möchten).',
-        'weektemplates_delete_confirm_message': 'Die Vorlage « {name} » endgültig löschen?',
-        'common_none_option': '-- Keine --',
-        'weekplan_title': 'Wochenplan',
-        'weekplan_subtitle': 'Kalenderansicht: Tage in Spalten, Mahlzeiten in Zeilen.',
-        'weekplan_save_button': '💾 Plan speichern',
-        'weekplan_clear_button': '🗑 Alles löschen',
-        'weekplan_export_ics_button': '📆 In einen Kalender exportieren (.ics)',
-        'weekplan_compute_button': 'Einkaufsliste der Woche berechnen',
-        'weekplan_checklist_button': '☑️ Einkaufsmodus',
-        'weekplan_empty_list_message': 'Noch keine Liste berechnet.\nKlicken Sie oben auf « Einkaufsliste der Woche berechnen »,\noder laden Sie eine gespeicherte Liste.',
-        'weekplan_total_list_heading': '=== Einkaufsliste der Woche ===',
-        'weekplan_calculate_list_for_export': 'Berechnen Sie zuerst eine Einkaufsliste (Schaltfläche « Einkaufsliste der Woche berechnen »).',
-        'weekplan_invalid_persons_for_slot': 'Ungültige Personenanzahl für {day} — {slot}.',
-        'weekplan_saved_message': 'Der Wochenplan wurde gespeichert.',
-        'weekplan_clear_confirm_message': 'Den gesamten Wochenplan löschen?',
-        'weekplan_assign_recipe_first': 'Weisen Sie mindestens ein Rezept einem Termin der Woche zu.',
-        'weekplan_export_ics_title': 'Plan in einen Kalender exportieren',
-        'weekplan_ics_export_success_message': 'Plan exportiert:\n{path}\n\nImportieren Sie diese Datei in Google Kalender, Outlook oder Kalender, um Ihre Mahlzeiten dort jede Woche wiederholt zu sehen.',
-        'weekplan_assign_or_manual': 'Weisen Sie mindestens ein Rezept einem Termin der Woche zu, oder fügen Sie eine Zutat manuell hinzu.',
-        'weekplan_export_shopping_list_title': 'Einkaufsliste speichern',
-        'weekplan_shopping_list_title': 'Einkaufsliste der Woche',
-        'weekplan_list_saved_message': 'Liste gespeichert:\n{path}',
-        'weekplan_excel_module_missing': 'Der Excel-Export erfordert: pip install openpyxl',
-        'weekplan_pdf_module_missing': 'Der PDF-Export erfordert: pip install reportlab',
-        'weekplan_print_module_missing': 'Das Drucken erfordert: pip install reportlab',
-        'weekplan_print_label': 'die Einkaufsliste der Woche',
-        'manageing_title': 'Zutaten verwalten',
-        'manageing_list_label': 'Liste der gespeicherten Zutaten:',
-        'manageing_add_button': '➕ Hinzufügen',
-        'manageing_edit_button': '✏️ Ändern',
-        'manageing_delete_button': '🗑️ Löschen',
-        'manageing_load_defaults_button': '📚 Die ~1000 gängigen Zutaten laden',
-        'manageing_spell_check_button': '🔤 Duplikate / Tippfehler prüfen',
-        'manageing_prices_button': '💰 Preise verwalten (für Rezeptkosten)',
-        'manageing_substitutions_button': '🔄 Ersatzzutaten verwalten',
-        'manageing_edit_hint': '„Ändern“ ermöglicht es, den Namen zu ändern (überall aktualisiert,\nwo die Zutat verwendet wird), ihre Allergene,\nihre Nährwerte und ihren Preis.',
-        'manageing_select_ingredient_first': 'Wählen Sie eine Zutat aus der Liste aus.',
-        'manageing_delete_confirm_message': '« {name} » aus der Zutatenliste löschen?',
-        'manageing_delete_usage_warning': '\n\nAchtung: sie wird in {count} Rezept(en) verwendet. Diese Rezepte behalten diese Zutat, aber sie wird nicht mehr im Dropdown-Menü vorgeschlagen, es sei denn, Sie fügen sie erneut hinzu.',
-        'manageing_missing_file_title': 'Datei fehlt',
-        'manageing_missing_file_message': 'Die Datei ingredients_par_defaut.json wurde nicht gefunden.\nStellen Sie sicher, dass sie sich im selben Ordner wie main.py befindet.',
-        'manageing_done_title': 'Fertig',
-        'manageing_defaults_added_message': '{count} neue Zutat(en) aus der gängigen Liste hinzugefügt.',
-        'manageing_defaults_none_added': 'Alle gängigen Zutaten waren bereits vorhanden.',
-        'subedit_title': 'Ersatzzutaten für « {name} »',
-        'subedit_heading': '🔄 Ersatzzutaten für « {name} »',
-        'subedit_disclaimer': 'Ein Ersatz ist ein kulinarischer Ratschlag, keine garantierte\nGleichwertigkeit: Das Ergebnis kann je nach Rezept variieren.',
-        'subedit_remove_button': '🗑 Ausgewählten Ersatz entfernen',
-        'subedit_add_frame_title': 'Ersatz hinzufügen',
-        'subedit_name_label': 'Name:',
-        'subedit_note_label': 'Notiz (optional):',
-        'subedit_add_to_list_button': '➕ Zur Liste hinzufügen',
-        'subedit_revert_button': '🔄 Zur mitgelieferten Basis zurückkehren',
-        'subedit_cancel_button': 'Abbrechen',
-        'subedit_no_substitute_yet': 'Noch kein Ersatz.',
-        'subedit_error_name_required': 'Bitte geben Sie einen Namen für den Ersatz an.',
-        'subedit_select_to_remove': 'Wählen Sie einen zu entfernenden Ersatz aus.',
-        'subedit_revert_confirm_message': 'Ihre benutzerdefinierte Liste entfernen und zu den mit der Anwendung gelieferten Ersatzzutaten für « {name} » zurückkehren?',
-        'managesub_title': 'Ersatzzutaten verwalten',
-        'managesub_heading': '🔄 Zutatenersatz',
-        'managesub_intro': 'Sehen oder ändern Sie die vorgeschlagenen Ersatzzutaten für eine Zutat.\nEin Ersatz ist ein kulinarischer Ratschlag, keine garantierte Gleichwertigkeit.',
-        'managesub_manage_button': '✏️ Ihre Ersatzzutaten verwalten',
-        'managesub_hint': 'Doppelklicken Sie auf eine Zutat in der Liste, um ihre\nErsatzzutaten anzuzeigen oder zu ändern, oder geben Sie oben einen Namen ein (auch eine Zutat, die noch\nkeinen bekannten Ersatz hat) und dann « ✏️ Ihre Ersatzzutaten verwalten ».',
-        'managesub_none_with_substitute': 'Noch keine Zutat mit Ersatz.',
-        'managesub_substitute_count': '{name} ({count} Ersatzzutat(en){plural})',
-        'managesub_error_ingredient_required': 'Bitte geben Sie eine Zutat an.',
-        'managesub_unknown_ingredient_message': '« {name} » entspricht keiner gespeicherten Zutat.\nWählen Sie eine aus der Dropdown-Liste aus, oder legen Sie sie zuerst über « 🥕 Zutaten verwalten » an.',
-        'ingprices_title': 'Zutatenpreise verwalten',
-        'ingprices_heading': '💰 Zutatenpreise',
-        'ingprices_intro': 'Geben Sie einen Preis für die Zutaten an, die Sie\ninteressieren — es ist nicht nötig, alle einzutragen. Die Kosten\neines Rezepts werden anhand dieser Preise geschätzt.',
-        'ingprices_price_label': 'Preis (€):',
-        'ingprices_for_one_label': 'für 1',
-        'ingprices_save_button': '💾 Preis speichern',
-        'ingprices_clear_button': '🗑 Preis löschen',
-        'ingprices_units_note': 'kg ↔ Rezepte in Gr   ·   L ↔ Rezepte in cl   ·   Preise\npro Stück/Löffel gelten unverändert.',
-        'ingprices_no_price_set': '  —  (kein Preis angegeben)',
-        'ingprices_price_suffix': '  —  {price} € / {unit}',
-        'ingprices_error_invalid_price': 'Geben Sie einen gültigen Preis ein (positive Zahl).',
-        'ingprices_saved_message': 'Preis für « {name} » gespeichert.',
-        'ingedit_title_edit': 'Zutat ändern',
-        'ingedit_title_new': 'Neue Zutat',
-        'ingedit_heading_edit': '✏️ Zutat ändern',
-        'ingedit_heading_new': '➕ Neue Zutat',
-        'ingedit_name_label': 'Name:',
-        'ingedit_allergens_label': 'Enthaltene Allergene:',
-        'ingedit_nutrition_label': 'Nährwerte (pro 100 g / 100 ml):',
-        'ingedit_nutri_kcal': 'Kalorien (kcal)',
-        'ingedit_nutri_protein': 'Eiweiß (g)',
-        'ingedit_nutri_carbs': 'Kohlenhydrate (g)',
-        'ingedit_nutri_fat': 'Fett (g)',
-        'ingedit_nutrition_hint': 'Leer lassen, wenn Sie diese Werte nicht kennen.',
-        'ingedit_price_label': 'Preis:',
-        'ingedit_save_button': '💾 Speichern',
-        'ingedit_delete_button': '🗑️ Diese Zutat löschen',
-        'ingedit_error_invalid_field': '« {field} » muss eine positive Zahl sein (oder leer).',
-        'ingedit_error_name_required': 'Bitte geben Sie einen Zutatennamen an.',
-        'ingedit_error_already_exists': 'Die Zutat « {name} » existiert bereits.',
-        'ingedit_error_plural_duplicate': '« {name} » ist nur eine Singular-/Plural-Variante der bereits vorhandenen Zutat « {existing} ». Um Duplikate in der Liste zu vermeiden, verwenden Sie direkt « {existing} ».',
-        'ingedit_nutri_field_kcal': 'Kalorien',
-        'ingedit_nutri_field_protein': 'Eiweiß',
-        'ingedit_nutri_field_carbs': 'Kohlenhydrate',
-        'ingedit_nutri_field_fat': 'Fett',
-        'ingedit_error_invalid_price': 'Der Preis muss eine positive Zahl sein (oder leer).',
-        'ingedit_saved_message': '« {name} » wurde gespeichert.',
-        'spellcheck_title': 'Rechtschreibprüfung der Zutaten',
-        'spellcheck_heading': 'Zutatenpaare, die sich zu 90% oder mehr ähneln\n(vermutliche Duplikate oder Tippfehler):',
-        'spellcheck_multi_select_hint': 'Mehrfachauswahl möglich (Strg+Klick oder Umschalt+Klick), um\nmehrere Paare auf einmal zusammenzuführen.',
-        'spellcheck_merge_button': '🔗 Auswahl zusammenführen',
-        'spellcheck_not_duplicate_button': '✕ Kein Duplikat',
-        'spellcheck_rerun_button': '🔄 Analyse erneut starten',
-        'spellcheck_footer_hint': 'Bei einem einzelnen Paar werden Sie gefragt, welche der beiden\nSchreibweisen beibehalten werden soll. Bei mehreren Paaren gleichzeitig wird die\nin Ihren Rezepten am wenigsten verwendete Zutat automatisch\nmit der in den meisten Rezepten verwendeten zusammengeführt.\n„Kein Duplikat“ entfernt das oder die ausgewählten\nPaare endgültig aus dieser Analyse, heute und in Zukunft.',
-        'spellcheck_none_found': 'Kein wahrscheinliches Duplikat gefunden. 🎉',
-        'spellcheck_pair_line': '{a}   ↔   {b}     ({percent}% ähnlich)',
-        'spellcheck_select_pair_first': 'Wählen Sie mindestens ein Paar aus der Liste aus.',
-        'spellcheck_dismissed_message': '{count} Paar(e) als kein Duplikat markiert. Sie werden bei zukünftigen Analysen nicht mehr vorgeschlagen.',
-        'spellcheck_merge_dialog_title': 'Zusammenführen',
-        'spellcheck_merge_dialog_message': '« {a} » und « {b} » zusammenführen?\n\nJa = alles in « {a} » umbenennen\nNein = alles in « {b} » umbenennen\nAbbrechen = nichts tun',
-        'spellcheck_merged_title': 'Zusammengeführt',
-        'spellcheck_merged_one_message': '« {removed} » wurde mit « {kept} » zusammengeführt.',
-        'spellcheck_merge_multi_confirm': 'Diese {count} Paare automatisch zusammenführen?\n\nFür jedes Paar wird die in Ihren Rezepten am wenigsten verwendete Zutat mit der in den meisten Rezepten verwendeten zusammengeführt (bei Gleichstand die erste in alphabetischer Reihenfolge).',
-        'spellcheck_merged_multi_message': '{count} Paar(e) zusammengeführt.',
-        'compare_title': 'Zwei Rezepte vergleichen',
-        'compare_recipe_a_label': 'Rezept A:',
-        'compare_recipe_b_label': 'Rezept B:',
-        'compare_button': '⚖️ Vergleichen',
-        'compare_choose_each_list': 'Wählen Sie ein Rezept in jeder Liste aus.',
-        'compare_field_category': 'Kategorie:',
-        'compare_field_favorite': 'Favorit:',
-        'compare_yes': '⭐ Ja',
-        'compare_no': 'Nein',
-        'compare_field_rating': 'Bewertung:',
-        'compare_field_difficulty': 'Schwierigkeit:',
-        'compare_field_prep': 'Zubereitung:',
-        'compare_field_cook': 'Kochzeit:',
-        'compare_field_total_time': 'Gesamtzeit:',
-        'compare_field_cooked': 'Gekocht:',
-        'compare_times_suffix': '{count} Mal',
-        'compare_field_cost': 'Geschätzte Kosten:',
-        'compare_field_nutrition': 'Nährwerte (kcal):',
-        'compare_field_ingredient_count': 'Anz. Zutaten:',
-        'compare_common_ingredients': '🟰 Gemeinsam ({count})',
-        'compare_only_a': '🅰️ Nur in « {name} » ({count})',
-        'compare_only_b': '🅱️ Nur in « {name} » ({count})',
-        'compare_none': 'Keine',
-        'stats_title': 'Statistiken',
-        'stats_heading': '=== Statistiken ===\n\n',
-        'stats_total_recipes': 'Gesamtzahl der Rezepte: {count}\n\n',
-        'stats_by_category': 'Verteilung nach Kategorie:\n',
-        'stats_category_line': '  - {category}: {count}\n',
-        'stats_by_difficulty': 'Verteilung nach Schwierigkeit:\n',
-        'stats_difficulty_line': '  - {difficulty}: {count}\n',
-        'stats_difficulty_unspecified': 'Nicht angegeben',
-        'stats_favorites_count': 'Lieblingsrezepte: {count}\n\n',
-        'stats_avg_rating': 'Durchschnittliche Bewertung (bewertete Rezepte): {avg} / 5 ({count} bewertete(s) Rezept(e))\n\n',
-        'stats_no_rated_recipe': 'Durchschnittliche Bewertung: noch kein Rezept bewertet.\n\n',
-        'stats_five_star_heading': 'Mit 5 Sternen bewertete(s) Rezept(e):\n',
-        'stats_recipe_line': '  - {name}\n',
-        'stats_most_cooked_heading': 'Am häufigsten gekochte Rezepte:\n',
-        'stats_cooked_line': '  - {name}: {count} Mal\n',
-        'stats_none_cooked_yet': '  Noch kein Rezept als gekocht markiert.\n  (Schaltfläche « 🍳 Habe ich gekocht! » in « Ein bestimmtes Rezept anzeigen »)\n',
-        'stats_most_used_tags_heading': 'Am häufigsten verwendete Tags:\n',
-        'stats_tag_line': '  - {tag}: {count}\n',
-        'stats_never_cooked_heading': '🕸️ Nie gekochte Rezepte:\n',
-        'stats_and_others': '  ... und {count} weitere\n',
-        'stats_all_cooked': '  Alle Ihre Rezepte wurden bereits mindestens einmal gekocht. 👏\n',
-        'stats_stale_heading': '🕰️ Seit mehr als {days} Tagen nicht gekocht:\n',
-        'stats_stale_line': '  - {name} (vor {days} Tagen)\n',
-        'stats_no_stale_recipe': '  Derzeit kein Rezept in diesem Fall.\n',
-        'stats_avg_cost_heading': '💰 Durchschnittliche Kosten pro Person:\n',
-        'stats_avg_cost_line': '  {avg} € im Durchschnitt, über {count} Rezept(e) mit mindestens einem bekannten Preis ({without_price} ohne angegebenen Preis)\n',
-        'stats_no_priced_recipe': '  Noch kein Rezept mit angegebenem Preis.\n  (siehe « 💰 Preise verwalten » in « Zutaten verwalten »)\n',
-        'stats_avg_kcal_heading': '🥗 Durchschnittliche Kalorien pro Person:\n',
-        'stats_avg_kcal_line': '  {avg} kcal im Durchschnitt, über {count} Rezept(e) mit in der Nährwertdatenbank erkannten Zutaten\n',
-        'stats_no_recognized_recipe': '  Noch kein Rezept mit erkannten Zutaten.\n',
-        'stats_monthly_chart_title': '📈 Gekochte Rezepte pro Monat (letzte 12 Monate)',
-        'stats_heatmap_title': '🗓️ Kalender der Kochtage (letzte 12 Monate)',
-        'stats_heatmap_legend': 'Weniger ⬜ 🟨 🟧 🟥 Mehr',
-        'stats_day_labels': 'M,D,M,D,F,S,S',
-        'stats_month_labels_short': 'Jan,Feb,Mär,Apr,Mai,Jun,Jul,Aug,Sep,Okt,Nov,Dez',
-        'stats_month_labels_lower': 'jan,feb,mär,apr,mai,jun,jul,aug,sep,okt,nov,dez',
-        'recipepdf_category_persons': 'Kategorie: {cat}    Für {persons} Person(en)',
-        'recipepdf_rating': 'Bewertung: {stars}',
-        'recipepdf_prep': 'Zubereitung: {time} Min.',
-        'recipepdf_cook': 'Kochzeit: {time} Min.',
-        'recipepdf_difficulty': 'Schwierigkeit: {value}',
-        'recipepdf_allergens': '⚠ Allergene: {list}',
-        'recipepdf_ingredients_heading': 'Zutaten:',
-        'recipepdf_cost': 'Geschätzte Kosten: {cost} €{partial}',
-        'recipepdf_partial_suffix': ' (teilweise, {known}/{total})',
-        'recipepdf_nutrition': 'Geschätzte Nährwerte{partial}: {kcal} kcal · {protein}g Eiweiß · {carbs}g Kohlenhydrate · {fat}g Fett',
-        'recipepdf_description_heading': 'Beschreibung:',
-        'recipepdf_notes_heading': 'Persönliche Notizen:',
-        'cookbookpdf_page_number': 'Seite {current} / {total}',
-        'cookbookpdf_generated_on': 'Erstellt am {date}',
-        'cookbookpdf_summary_heading': 'Inhaltsverzeichnis',
-        'cookbookpdf_summary_line': '- [{cat}] {name}',
-        'cookbookexport_title': 'Kochbuch exportieren',
-        'cookbookexport_heading': '📖 Kochbuch exportieren',
-        'cookbookexport_intro': 'Wählen Sie die Rezepte aus, die in ein einzelnes PDF im\nKochbuchstil aufgenommen werden sollen.',
-        'cookbookexport_filter_label': 'Nach Kategorie filtern:',
-        'cookbookexport_check_all_button': 'Alle ankreuzen',
-        'cookbookexport_uncheck_all_button': 'Alle abwählen',
-        'cookbookexport_generate_button': '📄 PDF des Buches erstellen',
-        'cookbookexport_error_select_recipe': 'Wählen Sie mindestens ein Rezept aus.',
-        'cookbookexport_save_dialog_title': 'Kochbuch speichern',
-        'cookbookexport_saved_message': 'Kochbuch gespeichert:\n{path}',
-        'importexport_title': 'Daten importieren / exportieren',
-        'importexport_heading': 'Ihre Daten sichern oder übertragen',
-        'importexport_export_intro': 'Der Export erstellt eine .zip-Datei mit absolut allen\nIhren Daten: Rezepte, Fotos, benutzerdefinierte Zutaten,\nPreise, Ersatzzutaten, Vorratskammer, Plan und dessen Verlauf,\nMenüs, gespeicherte Einkaufslisten, Papierkorb und\nEinstellungen — um alles in einer einzigen Datei zu sichern oder auf einen\nanderen Computer zu übertragen.',
-        'importexport_export_button': '📤 Alle meine Daten exportieren (.zip)',
-        'importexport_import_intro': 'Der Import liest eine zuvor exportierte .zip-Datei.\n„Zusammenführen“ fügt doppelte Rezepte/Fotos unter einem\nneuen Namen hinzu, anstatt sie zu verlieren, und ergänzt den Rest\n(Vorratskammer, Menüs, Listen...), ohne etwas zu löschen.\n„Ersetzen“ überschreibt alles, einschließlich der Einstellungen und des\naktuellen Plans.',
-        'importexport_import_button': '📥 Daten importieren (.zip)',
-        'importexport_auto_backups_heading': '🗄️ Automatische Sicherungen',
-        'importexport_auto_backups_intro': 'Beim Start der Anwendung wird automatisch eine Sicherung erstellt\n(höchstens eine alle {hours} Std.), und die {retention} neuesten\nwerden hier aufbewahrt.',
-        'importexport_backup_now_button': '💾 Jetzt sichern',
-        'importexport_restore_selected_button': '♻️ Auswahl wiederherstellen',
-        'importexport_cloud_heading': '☁️ Automatische Cloud-Sicherung',
-        'importexport_cloud_intro': 'Wählen Sie einen Ordner, der von einem bereits auf diesem PC\ninstallierten Client synchronisiert wird (Google Drive, OneDrive, Dropbox...).\nJede automatische Sicherung wird dorthin kopiert, und dieser\nClient kümmert sich selbst um das Senden in die Cloud.',
-        'importexport_choose_cloud_button': '📁 Cloud-Ordner auswählen',
-        'importexport_disable_button': '🚫 Deaktivieren',
-        'importexport_cloud_enabled': '✅ Aktiviert: {folder}',
-        'importexport_cloud_not_configured': 'Derzeit nicht konfiguriert.',
-        'importexport_choose_folder_title': 'Synchronisierten Ordner auswählen (Google Drive, OneDrive, Dropbox...)',
-        'importexport_cloud_configured_title': 'Ordner konfiguriert',
-        'importexport_cloud_configured_message': 'Cloud-Ordner konfiguriert:\n{folder}\n\nMöchten Sie jetzt eine Sicherung dorthin kopieren?',
-        'importexport_disabled_title': 'Deaktiviert',
-        'importexport_disabled_message': 'Die automatische Cloud-Sicherung ist deaktiviert.',
-        'importexport_backup_date_line': '{date}   ({size} KB)',
-        'importexport_no_backups': 'Noch keine automatische Sicherung.',
-        'importexport_backup_failed': 'Sicherung fehlgeschlagen:\n{error}',
-        'importexport_backup_created_title': 'Sicherung erstellt',
-        'importexport_backup_created_message': 'Eine neue automatische Sicherung wurde erstellt.',
-        'importexport_select_backup_first': 'Wählen Sie eine Sicherung aus der Liste aus.',
-        'importexport_restore_mode_title': 'Wiederherstellungsmodus',
-        'importexport_restore_mode_message': 'Wie soll diese Sicherung wiederhergestellt werden?\n\nJa = Zusammenführen (zu aktuellen Daten hinzufügen, ohne etwas zu löschen)\nNein = Aktuelle Daten vollständig ersetzen\nAbbrechen = nichts tun',
-        'importexport_restore_failed': 'Wiederherstellung fehlgeschlagen:\n{error}',
-        'importexport_restore_done_title': 'Wiederherstellung abgeschlossen',
-        'importexport_restore_done_message': 'Die Daten wurden erfolgreich wiederhergestellt.',
-        'importexport_export_data_title': 'Meine Daten exportieren',
-        'importexport_shared_heading': 'Gemeinsame Sicherung mit der mobilen App',
-        'importexport_shared_intro': 'Mit der mobilen Anwendung kompatibles Format — Rezepte (mit Fotos), bekannte Zutaten, Vorratskammer und Anpassungen. Essensplanung, Menüs und gespeicherte Einkaufslisten sind in diesem Format noch nicht enthalten.',
-        'importexport_export_shared_title': 'Im gemeinsamen Format exportieren',
-        'importexport_export_shared_button': 'Für die mobile App exportieren (.zip)',
-        'importexport_import_shared_button': 'Aus der mobilen App importieren (.zip)',
-        'importexport_file_too_large': 'Diese Datei überschreitet das Limit von {size} MB.',
-        'importexport_export_data_success': 'Ihre Daten wurden exportiert nach:\n{path}',
-        'importexport_choose_archive_title': 'Zu importierendes Archiv auswählen',
-        'importexport_import_mode_title': 'Importmodus',
-        'importexport_import_mode_message': 'Wie sollen diese Daten importiert werden?\n\nJa = Zusammenführen (zu aktuellen Daten hinzufügen, ohne etwas zu löschen)\nNein = Aktuelle Daten vollständig ersetzen\nAbbrechen = nichts tun',
-        'importexport_import_failed': 'Import fehlgeschlagen:\n{error}',
-        'importexport_import_done_title': 'Import abgeschlossen',
-        'importexport_import_done_message': 'Die Daten wurden erfolgreich importiert.',
-        'checklist_instruction': 'Kreuzen Sie jeden Artikel während Ihres Einkaufs an.',
-        'checklist_check_all_button': '☑️ Alle ankreuzen',
-        'checklist_uncheck_all_button': '⬜ Alle abwählen',
-        'checklist_progress_label': '{done} / {total} Artikel angekreuzt',
-        'exportformat_title': 'Exportformat auswählen',
-        'exportformat_heading': '📤 Einkaufsliste exportieren',
-        'exportformat_choose_label': 'Wählen Sie das gewünschte Exportformat:',
-        'exportformat_txt_button': '📝 Als Text exportieren (.txt)',
-        'exportformat_excel_button': '📊 Als Excel exportieren (.xlsx)',
-        'exportformat_pdf_button': '📄 Als PDF exportieren (.pdf)',
-        'exportformat_cancel_button': 'Abbrechen',
-        'menumanager_title': 'Meine Menüs',
-        'menumanager_list_label': 'Meine gespeicherten Menüs:',
-        'menumanager_new_button': '➕ Neues Menü',
-        'menumanager_recipe_count': '{name} ({count} Rezept(e))',
-        'menumanager_select_menu_first': 'Wählen Sie ein Menü aus der Liste aus.',
-        'menumanager_delete_confirm': 'Das Menü « {name} » löschen?',
-        'menuform_title_edit': 'Menü ändern',
-        'menuform_title_new': 'Neues Menü',
-        'menuform_name_label': 'Name des Menüs:',
-        'menuform_add_recipe_label': 'Rezept zum Menü hinzufügen:',
-        'menuform_persons_short_label': 'Pers.:',
-        'menuform_add_button': '+ Hinzufügen',
-        'menuform_recipes_label': 'Rezepte des Menüs:',
-        'menuform_remove_button': '🗑 Aus dem Menü entfernen',
-        'menuform_save_button': '💾 Menü speichern',
-        'menuform_compute_button': 'Einkaufsliste des Menüs berechnen',
-        'menuform_empty_list_message': 'Noch keine Liste berechnet.\nKlicken Sie oben auf « Einkaufsliste des Menüs berechnen »,\noder laden Sie eine gespeicherte Liste.',
-        'menuform_total_list_heading': '=== Einkaufsliste des Menüs ===',
-        'menuform_item_row_label': '[{cat}] {name} ({persons} Pers.)',
-        'menuform_select_recipe_to_remove': 'Wählen Sie ein Rezept des Menüs zum Entfernen aus.',
-        'menuform_error_name_required': 'Bitte geben Sie einen Namen für das Menü an.',
-        'menuform_error_no_recipe': 'Fügen Sie mindestens ein Rezept zum Menü hinzu.',
-        'menuform_saved_message': 'Das Menü « {name} » wurde gespeichert.',
-        'menuform_calculate_list_for_export': 'Berechnen Sie zuerst eine Einkaufsliste (Schaltfläche « Einkaufsliste des Menüs berechnen »).',
-        'menuform_add_recipe_or_manual': 'Fügen Sie mindestens ein Rezept zum Menü hinzu, oder fügen Sie eine Zutat manuell hinzu.',
-        'menuform_shopping_list_title': 'Menü: {name}',
-        'menuform_print_label': 'das Menü « {name} »',
-        'importurl_title': 'Rezept von einem Link importieren',
-        'importurl_heading': '🌐 Rezept von einem Link importieren',
-        'importurl_intro': 'Fügen Sie die Adresse (URL) einer Rezeptseite ein. Dies funktioniert\nmit den meisten großen Kochseiten (die ein Standarddatenformat verwenden). Eine Internetverbindung ist erforderlich.',
-        'importurl_fetch_button': '🌐 Rezept abrufen',
-        'importurl_after_import_note': 'Überprüfen und vervollständigen Sie das Rezept nach dem Import bei Bedarf\n(die Erkennung von Mengen und Einheiten ist nicht immer perfekt).',
-        'importurl_paste_url_first': 'Fügen Sie zuerst eine Internetadresse (URL) ein.',
-        'importurl_fetching': 'Wird abgerufen...',
-        'importurl_failed_title': 'Import fehlgeschlagen',
-        'importphoto_title': 'Rezept von einem Foto importieren',
-        'importphoto_heading': '📷 Rezept von einem Foto importieren',
-        'importphoto_intro': 'Fotografieren (oder scannen) Sie ein handgeschriebenes Rezept oder eine\nKochbuchseite, und wählen Sie dann das Bild hier aus. Der Text\nwird automatisch extrahiert, muss aber noch selbst überprüft und organisiert\nwerden (im Gegensatz zum Import von einem Link hat ein Foto\nkeine Zutaten-/Schritte-Struktur, die erraten werden kann).',
-        'importphoto_module_warning': "⚠ Diese Funktion erfordert das Modul 'pytesseract'\nUND das separat auf diesem PC installierte Programm Tesseract OCR.\nSiehe LIESMICH für die Installationsanweisungen.",
-        'importphoto_no_photo_chosen': 'Kein Foto ausgewählt',
-        'importphoto_choose_button': '📁 Foto auswählen',
-        'importphoto_extract_button': '🔍 Text extrahieren',
-        'importphoto_extracted_text_label': 'Extrahierter Text (bearbeitbar):',
-        'importphoto_create_button': '➡️ Rezept mit diesem Text erstellen',
-        'importphoto_choose_photo_title': 'Rezeptfoto auswählen',
-        'importphoto_choose_first': 'Wählen Sie zuerst ein Foto aus.',
-        'importphoto_ocr_module_missing': "Diese Funktion erfordert das Modul 'pytesseract'\n(pip install pytesseract) UND das separat auf diesem PC installierte Programm Tesseract OCR. Siehe LIESMICH.",
-        'importphoto_extraction_failed_title': 'Extraktion fehlgeschlagen',
-        'importphoto_extraction_failed_message': 'Die Texterkennung ist fehlgeschlagen. Überprüfen Sie, ob Tesseract OCR auf diesem PC korrekt installiert und zugänglich ist.\n\nDetails: {error}',
-        'importphoto_no_text_extracted': 'Aus diesem Foto konnte kein Text extrahiert werden. Versuchen Sie ein schärferes, besser gerahmtes oder besser beleuchtetes Bild.',
-        'importphoto_no_text_title': 'Kein Text',
-        'importphoto_no_text_confirm': 'Es wurde kein Text extrahiert oder eingegeben. Trotzdem ein leeres Rezept erstellen (nur mit dem Foto)?',
-        'trash_title': 'Papierkorb',
-        'trash_heading': '🗑️ Gelöschte Rezepte',
-        'trash_intro': 'Fotos von Rezepten im Papierkorb werden bis zu ihrer\nendgültigen Löschung aufbewahrt.',
-        'trash_restore_button': '♻️ Wiederherstellen',
-        'trash_delete_forever_button': '🗑️ Endgültig löschen',
-        'trash_empty_button': '🧹 Papierkorb leeren',
-        'trash_unnamed_recipe': '(unbenannt)',
-        'trash_unknown_date': 'unbekanntes Datum',
-        'trash_entry_line': '{name}  —  gelöscht am {date}',
-        'trash_is_empty': 'Der Papierkorb ist leer.',
-        'trash_select_recipe_first': 'Wählen Sie ein Rezept im Papierkorb aus.',
-        'trash_restored_suffix': '{name} (wiederhergestellt)',
-        'trash_restored_title': 'Wiederhergestellt',
-        'trash_restored_message': '« {name} » wurde wiederhergestellt.',
-        'trash_delete_forever_confirm': '« {name} » endgültig löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.',
-        'trash_deleted_title': 'Gelöscht',
-        'trash_deleted_message': 'Das Rezept wurde endgültig gelöscht.',
-        'trash_already_empty': 'Der Papierkorb ist bereits leer.',
-        'trash_empty_confirm': 'Die {count} Rezept(e) im Papierkorb endgültig löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.',
-        'trash_emptied_title': 'Papierkorb geleert',
-        'trash_emptied_message': 'Der Papierkorb wurde geleert.',
-        'cookingmode_title': 'Kochmodus — {name}',
-        'cookingmode_close_button': '✕ Schließen (Esc)',
-        'cookingmode_cooked_button': '🍳 Habe ich gekocht!',
-        'cookingmode_fullscreen_hint': 'F11: Vollbild',
-        'cookingmode_persons_suffix': '{persons} Pers.',
-        'cookingmode_speech_button': '🔊 Vorlesen',
-        'cookingmode_speech_stop_button': '⏹ Vorlesen stoppen',
-        'cookingmode_volume_percent': '{percent}%',
-        'cookingmode_tts_module_missing': "Das Vorlesen erfordert das Modul 'pyttsx3'.\nInstallieren Sie es mit: pip install pyttsx3",
-        'cookingmode_no_description_to_read': 'Dieses Rezept hat keine Beschreibung zum Vorlesen (das Beschreibungsfeld ist leer).',
-        'cookingmode_ingredients_heading': 'Zutaten',
-        'cookingmode_prep_label': 'Zubereitung: {time} Min.',
-        'cookingmode_cook_label': 'Kochzeit: {time} Min.',
-        'cookingmode_difficulty_label': 'Schwierigkeit: {value}',
-        'cookingmode_preparation_heading': 'Zubereitung',
-        'cookingmode_personal_notes_heading': 'Persönliche Notizen',
-        'ingsearch_title': 'Suche nach Zutat',
-        'ingsearch_question_label': 'Welche Zutat suchen Sie?',
-        'ingsearch_view_recipes_button': '🔍 Rezepte anzeigen, die sie verwenden',
-        'ingsearch_view_selected_button': '📖 Ausgewähltes Rezept anzeigen',
-        'ingsearch_no_recipe_uses': 'Derzeit verwendet kein Rezept « {name} ».',
-        'ingsearch_recipes_using': 'Rezepte, die « {name} » verwenden ({count}):',
-        'ingsearch_result_line': '{star}[{cat}] {name} ({qty}{unit} für 1 Person)',
-        'ingsearch_select_result_first': 'Wählen Sie ein Rezept aus der Ergebnisliste aus.',
-        'timerrow_minutes_label': 'Min.:',
-        'timerrow_seconds_label': 'Sek.:',
-        'timerrow_error_invalid_duration': 'Ungültige Dauer.',
-        'timerrow_set_duration_first': 'Stellen Sie eine Dauer ein, bevor Sie starten.',
-        'cooklogentry_title': '📔 Zum Kochtagebuch hinzufügen',
-        'cooklogentry_heading': '🍳 « {name} »',
-        'cooklogentry_intro': 'Wie war es? Eine Notiz und/oder ein Foto\n(optional, Sie können dies auch überspringen).',
-        'cooklogentry_no_photo_chosen': 'Kein Foto ausgewählt',
-        'cooklogentry_choose_photo_button': '📷 Foto auswählen',
-        'cooklogentry_skip_button': 'Überspringen',
-        'cooklogentry_choose_photo_title': 'Foto auswählen',
-        'cooklog_title': '📔 Kochtagebuch — {name}',
-        'cooklog_heading': '📔 {name}',
-        'cooklog_times_cooked': 'Insgesamt {count} Mal gekocht',
-        'cooklog_no_entry': 'Noch keine Notiz gespeichert.\nVerwenden Sie « 🍳 Habe ich gekocht! », um eine hinzuzufügen.',
-        'cooklog_no_note': '(keine Notiz)',
-        'timers_title': '⏲️ Timer',
-        'timers_intro': 'Stellen Sie jeden Timer ein und drücken Sie dann ▶️, um ihn zu starten.\nAm Ende blinkt die Zeile rot mit einem akustischen Signal.',
-        'timers_add_button': '➕ Timer hinzufügen',
-        'qrcode_title': 'QR-Code — {name}',
-        'qrcode_intro': 'Scannen Sie mit der Kamera oder einer App zum Lesen\nvon QR-Codes, um Name und Zutaten anzuzeigen.',
-        'qrcode_save_button': '💾 Als Bild speichern (PNG)',
-        'qrcode_truncated_warning': '⚠️ Das Rezept ist lang: Der QR-Code enthält eine\ngekürzte Zusammenfassung (nur Name + Zutaten).',
-        'qrcode_encoded_ingredients_heading': 'Zutaten ({persons} Pers.):',
-        'qrcode_save_dialog_title': 'QR-Code speichern',
-        'qrcode_save_failed': 'Speichern fehlgeschlagen:\n{error}',
-        'qrcode_saved_message': 'QR-Code gespeichert:\n{path}',
-        'unitconv_title': 'Einheitenumrechner',
-        'unitconv_heading': '🔄 Einheitenumrechner',
-        'unitconv_intro': 'Ungefähre Umrechnung basierend auf der Dichte von Wasser für\nVolumeneinheiten (ml, cl, L, Tasse, Löffel): zuverlässig für\nFlüssigkeiten, ungefähr für Feststoffe wie Mehl\noder Zucker, deren tatsächliche Dichte etwas abweicht.',
-        'unitconv_quantity_label': 'Menge:',
-        'unitconv_from_label': 'Von:',
-        'unitconv_to_label': 'Zu:',
-        'unitconv_convert_button': 'Umrechnen',
-        'unitconv_error_invalid_quantity': 'Ungültige Menge.',
-        'unitconv_result': '{quantity} {from_unit} ≈ {result} {to_unit}',
-        'unitconv_gram': 'Gramm (g)',
-        'unitconv_kilogram': 'Kilogramm (kg)',
-        'unitconv_ounce': 'Unze (oz)',
-        'unitconv_pound': 'Pfund (lb)',
-        'unitconv_milliliter': 'Milliliter (ml)',
-        'unitconv_centiliter': 'Zentiliter (cl)',
-        'unitconv_liter': 'Liter (L)',
-        'unitconv_teaspoon': 'Teelöffel (5 ml)',
-        'unitconv_tablespoon': 'Esslöffel (15 ml)',
-        'unitconv_cup': 'US-Tasse (240 ml)',
-        'disclaimer_title': 'Haftungsausschluss',
-        'disclaimer_heading': '⚠ Haftungsausschluss',
-        'disclaimer_intro': 'Bitte lesen Sie diesen Text, bevor Sie die Anwendung verwenden.',
-        'disclaimer_checkbox': 'Ich habe die obigen Bedingungen gelesen und akzeptiere sie',
-        'disclaimer_continue_button': 'Weiter',
-        'disclaimer_quit_button': 'Anwendung beenden',
-        'disclaimer_text': 'ARTIKEL 1 – HAFTUNGSAUSSCHLUSS UND -BESCHRÄNKUNG\n\n1.1. Medizinische Hinweise und Allergenverwaltung\n\nDie Anwendung bietet eine Funktion, mit der der Nutzer seine eigenen Allergie- und Allergenkriterien angeben, ändern und konfigurieren kann. Der Nutzer erkennt ausdrücklich an, dass:\n\n• Die Richtigkeit und Aktualität dieser Informationen liegt allein in seiner Verantwortung.\n• Die Anwendung ist ein Software-Hilfsmittel zum Durchsuchen von Rezepten und ersetzt in keinem Fall einen ärztlichen Rat, eine Diagnose oder die menschliche Kontrolle der Zutaten.\n• Der Herausgeber kann nicht haftbar gemacht werden für fehlerhafte Eingaben, Auslassungen, Fehlkonfigurationen durch den Nutzer oder eine allergische Reaktion (Unverträglichkeit, anaphylaktischer Schock usw.), die nach dem Verzehr eines Gerichts auftritt. Es liegt in der Verantwortung des Nutzers, systematisch die Etiketten und die tatsächliche Zusammensetzung jeder physischen Zutat vor jeder Zubereitung oder Einnahme zu überprüfen.\n\n1.2. Bereitstellung „wie besehen“ und Kostenlosigkeit\n\nDie Anwendung wird dem Nutzer vollständig kostenlos zur Verfügung gestellt. Sie wird „wie besehen“ und „je nach Verfügbarkeit“ bereitgestellt, ohne jegliche Garantie für die Fehlerfreiheit, Software-Fehler oder Unterbrechungen. Der Herausgeber garantiert nicht, dass die Funktionen der Anwendung den spezifischen Bedürfnissen des Nutzers entsprechen.\n\n1.3. Materielle und immaterielle Schäden\n\nDer Herausgeber lehnt jegliche Haftung für direkte oder indirekte Schäden ab, die dem Nutzer oder Dritten entstehen. Insbesondere kann der Herausgeber nicht belangt werden für:\n\n• Einen Ausfall, eine Überhitzung, eine Fehlfunktion oder eine Beschädigung der Computerhardware oder des Smartphones des Nutzers bei der Verwendung der Anwendung.\n• Einen Verlust von Computerdaten, eine Veränderung von Dateien oder ein Eindringen in das System des Nutzers.\n\nAufgrund der Kostenlosigkeit des Dienstes wäre, sollte die Haftung des Herausgebers durch ein Gericht festgestellt werden, der Schadensersatzbetrag ausdrücklich auf null Euro (0 €) begrenzt.',
-        'addmanual_title': 'Zutaten zur Einkaufsliste hinzufügen',
-        'addmanual_heading': '➕ Zutaten zur Einkaufsliste hinzufügen',
-        'addmanual_intro': 'Fügen Sie so viele Zutaten wie gewünscht zur\nWarteliste unten hinzu, und bestätigen Sie sie dann alle auf einmal.',
-        'addmanual_new_ingredient_button': '🥕 Neue Zutat',
-        'addmanual_add_to_list_button': '➕ Zur Liste hinzufügen',
-        'addmanual_staged_label': 'Zutaten, die auf Bestätigung warten:',
-        'addmanual_remove_staged_button': '🗑 Von der Warteliste entfernen',
-        'addmanual_confirm_all_button': '✅ Alle diese Zutaten bestätigen',
-        'addmanual_close_button': 'Schließen',
-        'addmanual_select_staged_first': 'Wählen Sie eine Zutat aus der Warteliste aus.',
-        'addmanual_add_staged_first': 'Fügen Sie mindestens eine Zutat zur Warteliste hinzu, bevor Sie bestätigen.',
-        'addmanual_confirmed_message': '{count} Zutat(en) zur Einkaufsliste hinzugefügt.',
-        'shoppingexport_generated_on': 'Erstellt am {date}',
-        'shoppingexport_selected_recipes': 'Ausgewählte Rezepte:',
-        'shoppingexport_excel_sheet_recipes': 'Rezepte',
-        'shoppingexport_excel_col_recipe': 'Rezept',
-        'shoppingexport_excel_col_persons': 'Anzahl der Personen',
-        'shoppingexport_excel_sheet_ingredients': 'Zutaten',
-        'shoppingexport_excel_col_rayon': 'Abteilung',
-        'shoppingexport_excel_col_ingredient': 'Zutat',
-        'shoppingexport_excel_col_total_qty': 'Gesamtmenge',
-        'shoppingexport_excel_col_unit': 'Einheit',
-        'savedlists_title': 'Gespeicherte Einkaufslisten',
-        'savedlists_heading': '📂 Gespeicherte Einkaufslisten',
-        'savedlists_load_button': '📂 Laden',
-        'savedlists_delete_button': '🗑 Löschen',
-        'savedlists_none_saved': 'Noch keine Liste gespeichert.',
-        'savedlists_entry_line': '{name} — {count} Zutat(en) — {date}',
-        'savedlists_select_list_first': 'Wählen Sie eine Liste aus der Liste aus.',
-        'savedlists_delete_confirm': 'Die Liste « {name} » endgültig löschen?',
-        'quicksearch_title': 'Schnellsuche',
-        'quicksearch_heading': '🔍 Schnellsuche nach Rezept',
-        'quicksearch_no_results': 'Kein Rezept gefunden.',
-        'quicksearch_footer_hint': 'Eingabetaste zum Öffnen, Esc zum Schließen.',
-        'allrecipes_title': 'Alle Rezepte - Einkaufsliste',
-        'allrecipes_select_label': 'Wählen Sie die Rezepte und die Personenanzahl aus:',
-        'allrecipes_ingredient_filter_title': 'Nach Zutat filtern',
-        'allrecipes_persons_count_label': 'Anz. Personen:',
-        'allrecipes_add_to_cart_button': '🛒 Zum Einkauf hinzufügen',
-        'allrecipes_checklist_mode_button': '☑️ Einkaufsmodus (schrittweise ankreuzen)',
-        'allrecipes_clear_list_button': '🗑 Einkaufsliste leeren',
-        'allrecipes_export_button': '📤 Exportieren',
-        'allrecipes_print_button': '🖨️ Drucken',
-        'allrecipes_add_manual_ingredient_button': '➕ Zutat zur Einkaufsliste hinzufügen',
-        'allrecipes_save_list_button': '💾 Diese Liste für später speichern',
-        'allrecipes_load_list_button': '📂 Gespeicherte Liste laden',
-        'allrecipes_invalid_persons': 'Ungültige Personenanzahl für « {name} ».',
-        'allrecipes_empty_list_message': 'Ihre Einkaufsliste ist derzeit leer.\nKlicken Sie auf « 🛒 Zum Einkauf hinzufügen » neben einem Rezept,\nfügen Sie eine Zutat manuell hinzu, oder laden Sie eine gespeicherte Liste.',
-        'allrecipes_total_list_heading': '=== Gesamte Einkaufsliste ===',
-        'allrecipes_manual_items_note': '({count} manuell hinzugefügte Zutat(en) enthalten)',
-        'allrecipes_invalid_quantity': 'Ungültige Menge.',
-        'allrecipes_calculate_list_first': 'Berechnen Sie zuerst eine Einkaufsliste, bevor Sie sie speichern.',
-        'allrecipes_save_list_dialog_title': 'Liste speichern',
-        'allrecipes_save_list_dialog_prompt': 'Name für diese Liste:',
-        'allrecipes_list_saved_title': 'Gespeichert',
-        'allrecipes_list_saved_message': 'Liste « {name} » für später gespeichert.',
-        'allrecipes_empty_list_for_export': 'Die Einkaufsliste ist leer. Fügen Sie mindestens ein Rezept (Schaltfläche « 🛒 Zum Einkauf hinzufügen ») oder eine manuelle Zutat hinzu.',
-        'allrecipes_export_txt_title': 'Einkaufsliste als Text speichern',
-        'allrecipes_export_excel_title': 'Einkaufsliste als Excel speichern',
-        'allrecipes_export_pdf_title': 'Einkaufsliste als PDF speichern',
-        'allrecipes_export_saved_message': 'Einkaufsliste gespeichert:\n{path}',
-        'allrecipes_excel_module_missing': "Der Excel-Export erfordert das Modul 'openpyxl'.\nInstallieren Sie es mit: pip install openpyxl",
-        'allrecipes_pdf_module_missing': "Der PDF-Export erfordert das Modul 'reportlab'.\nInstallieren Sie es mit: pip install reportlab",
-        'allrecipes_print_module_missing': "Das Drucken erfordert das Modul 'reportlab', um das Layout zu erstellen.\nInstallieren Sie es mit: pip install reportlab",
-        'allrecipes_print_label': 'die Einkaufsliste',
-        'allrecipes_shopping_list_title': 'Einkaufsliste',
-        'allrecipes_close_confirm_title': 'Einkaufsliste schließen?',
-        'allrecipes_close_confirm_message': 'Die angezeigte Einkaufsliste ist nicht gespeichert: Sie geht endgültig verloren, wenn Sie dieses Fenster jetzt schließen.\n\nTipp: Verwenden Sie « 💾 Diese Liste für später speichern » vor dem Schließen, wenn Sie sie behalten möchten.\n\nTrotzdem schließen?',
-        'managerecipes_title': 'Rezept ändern / löschen',
-        'managerecipes_select_label': 'Wählen Sie ein Rezept aus:',
-        'managerecipes_filter_favorites': '⭐ Nur Favoriten',
-        'managerecipes_filter_quick': '⏱️ Nur schnelle Rezepte (≤ 30 Min.)',
-        'managerecipes_filter_vegetarian': '🥗 Nur vegetarische Rezepte',
-        'managerecipes_filter_wishlist': '💭 Nur Wunschliste',
-        'managerecipes_remove_filter_button': '✕ Filter entfernen',
-        'managerecipes_search_label': '🔍 Suchen:',
-        'managerecipes_sort_label': 'Sortieren nach:',
-        'managerecipes_category_label': 'Kategorie:',
-        'managerecipes_edit_button': '✏️ Ändern',
-        'managerecipes_duplicate_button': '📋 Duplizieren',
-        'managerecipes_delete_button': '🗑️ Löschen',
-        'managerecipes_select_recipe_first': 'Wählen Sie ein Rezept aus der Liste aus.',
-        'managerecipes_duplicate_suffix': '(Kopie)',
-        'managerecipes_duplicated_title': 'Dupliziert',
-        'managerecipes_duplicated_message': '« {original} » wurde unter dem Namen « {new} » dupliziert.',
-        'managerecipes_delete_confirm_message': 'Das Rezept « {name} » in den Papierkorb verschieben?\n\nSie können es später über die Schaltfläche « 🗑️ Papierkorb » wiederherstellen.',
-        'managerecipes_deleted_title': 'In den Papierkorb verschoben',
-        'managerecipes_deleted_message': 'Das Rezept wurde in den Papierkorb verschoben.',
-        'onerecipe_window_title': 'Ein Rezept anzeigen',
-        'onerecipe_choose_recipe_label': 'Wählen Sie ein Rezept aus:',
-        'onerecipe_search_label': '🔍 Suchen:',
-        'onerecipe_sort_label': 'Sortieren:',
-        'onerecipe_category_label': 'Kategorie:',
-        'onerecipe_persons_label': 'Anzahl der Personen:',
-        'onerecipe_btn_show': 'Rezept anzeigen',
-        'onerecipe_btn_export_pdf': '📄 Als PDF exportieren',
-        'onerecipe_btn_print': '🖨️ Drucken',
-        'onerecipe_btn_add_to_shopping': '🛒 Zur Einkaufsliste hinzufügen',
-        'onerecipe_btn_cooked': '🍳 Habe ich gekocht!',
-        'onerecipe_btn_cooking_mode': '🖥️ Kochmodus (Vollbild)',
-        'onerecipe_btn_qr': '📱 QR-Code',
-        'onerecipe_btn_timers': '⏲️ Timer',
-        'onerecipe_btn_cook_log': '📔 Kochtagebuch',
-        'onerecipe_btn_substitutions': '🔄 Mögliche Ersatzzutaten',
-        'onerecipe_edit_button': '✏️ Ändern',
-        'onerecipe_ingredients_info_label': 'Zutaten und Informationen:',
-        'onerecipe_description_notes_label': 'Beschreibung und Notizen:',
-        'onerecipe_similar_label': 'Ähnliche Rezepte:',
-        'onerecipe_no_photo': '(kein Foto)',
-        'onerecipe_preview_unavailable': '(Vorschau nicht verfügbar)',
-        'onerecipe_select_recipe_first': 'Wählen Sie ein Rezept aus der Liste aus.',
-        'onerecipe_display_first': 'Zeigen Sie zuerst ein Rezept mit « Rezept anzeigen » an.',
-        'onerecipe_invalid_persons': 'Ungültige Personenanzahl.',
-        'onerecipe_added_to_shopping_title': 'Hinzugefügt',
-        'onerecipe_added_to_shopping_message': '« {name} » ({persons} Pers.) wird beim nächsten Öffnen von « Alle Rezepte anzeigen » automatisch zur Einkaufsliste hinzugefügt.',
-        'onerecipe_pantry_decrement_title': 'Vorratskammer',
-        'onerecipe_pantry_decrement_prompt': 'Die Zutaten von « {name} » ({persons} Pers.) von Ihrer Vorratskammer abziehen?',
-        'onerecipe_pantry_updated_title': 'Vorratskammer aktualisiert',
-        'onerecipe_pantry_updated_message': '{count} Zutat(en) von Ihrer Vorratskammer abgezogen.',
-        'onerecipe_pantry_none_decremented': 'Keine Zutat dieses Rezepts konnte abgezogen werden (nicht in der Vorratskammer, oder Einheit nicht vergleichbar).',
-        'onerecipe_marked_title': 'Markiert',
-        'onerecipe_marked_message': '« {name} » wurde heute als gekocht markiert!',
-        'onerecipe_no_substitutes_title': 'Kein bekannter Ersatz',
-        'onerecipe_no_substitutes_message': 'Derzeit hat keine Zutat dieses Rezepts einen bekannten Ersatz.\n\nSie können selbst einen hinzufügen über « 🥕 Zutaten verwalten » > « 🔄 Ersatzzutaten verwalten ».',
-        'onerecipe_substitutes_title': 'Mögliche Ersatzzutaten — {name}',
-        'onerecipe_substitutes_heading': '🔄 Mögliche Ersatzzutaten für « {name} »',
-        'onerecipe_substitutes_disclaimer': 'Kulinarische Vorschläge, keine garantierten Gleichwertigkeiten:\nDas Ergebnis kann je nach Rezept variieren.',
-        'onerecipe_close_button': 'Schließen',
-        'onerecipe_rating_label': 'Bewertung: {stars}',
-        'onerecipe_prep_label': 'Zubereitung: {time} Min.',
-        'onerecipe_cook_label': 'Kochzeit: {time} Min.',
-        'onerecipe_difficulty_label': 'Schwierigkeit: {value}',
-        'onerecipe_allergens_label': '⚠ Allergene: {list}',
-        'onerecipe_cost_label': '💰 Geschätzte Kosten: {cost} €{partial}',
-        'onerecipe_cost_partial': ' (teilweise Schätzung, {known}/{total} Zutaten mit bekanntem Preis)',
-        'onerecipe_nutrition_partial': ' (teilweise Schätzung, {known}/{total} erkannte Zutaten)',
-        'onerecipe_nutrition_label': '🥗 Geschätzte Nährwerte{partial}:\n   {kcal} kcal · {protein} g Eiweiß · {carbs} g Kohlenhydrate · {fat} g Fett\n',
-        'onerecipe_description_heading': '--- Beschreibung ---\n{text}\n',
-        'onerecipe_notes_heading': '\n--- Persönliche Notizen ---\n{text}\n',
-        'onerecipe_no_description_notes': '(Keine Beschreibung oder persönliche Notiz für dieses Rezept.)',
-        'onerecipe_export_pdf_title': 'Rezept als PDF exportieren',
-        'onerecipe_export_success_title': 'Export erfolgreich',
-        'onerecipe_export_success_message': 'Rezept exportiert:\n{path}',
-        'onerecipe_export_failed': 'Export fehlgeschlagen:\n{error}',
-        'onerecipe_print_failed': 'Vorbereitung des Drucks fehlgeschlagen:\n{error}',
-        'onerecipe_pdf_module_missing': "Der PDF-Export erfordert das Modul 'reportlab'.\nInstallieren Sie es mit: pip install reportlab",
-        'onerecipe_print_module_missing': "Das Drucken erfordert das Modul 'reportlab', um das Layout zu erstellen.\nInstallieren Sie es mit: pip install reportlab",
-        'onerecipe_qr_module_missing': "Der QR-Code-Export erfordert das Modul 'qrcode'.\nInstallieren Sie es mit: pip install qrcode",
-        'onerecipe_qr_pillow_missing': "Der QR-Code-Export erfordert außerdem das Modul 'Pillow'.\nInstallieren Sie es mit: pip install pillow",
-        'onerecipe_default_timer_label': 'Timer',
-        'recipeform_title_edit': 'Rezept ändern',
-        'recipeform_title_add': 'Rezept hinzufügen',
-        'recipeform_name_label': 'Name des Rezepts:',
-        'recipeform_favorite_checkbox': '⭐ Als Lieblingsrezept markieren',
-        'recipeform_wishlist_checkbox': '💭 Zu meiner Wunschliste hinzufügen (auszuprobieren)',
-        'recipeform_rating_label': 'Meine Bewertung:',
-        'recipeform_category_label': 'Kategorie:',
-        'recipeform_prep_time_label': 'Zubereitung (Min.):',
-        'recipeform_cook_time_label': 'Kochzeit (Min.):',
-        'recipeform_difficulty_label': 'Schwierigkeit:',
-        'recipeform_default_persons_label': '   Standardpersonenanzahl:',
-        'recipeform_tags_label': 'Tags (durch Kommas getrennt):',
-        'recipeform_tags_example': 'z. B. vegetarisch, glutenfrei, schnell, günstig',
-        'recipeform_allergens_label': 'Enthaltene Allergene:',
-        'recipeform_detect_allergens_button': '🔍 Automatisch erkennen',
-        'recipeform_allergens_disclaimer': 'Dies dient nur zur Information, überprüfen Sie immer die\nAllergene auf den Etiketten der physischen Produkte.',
-        'recipeform_allergens_auto_note': 'Die automatische Erkennung basiert auf den unten bereits\neingegebenen Zutaten des Rezepts: Sie kreuzt entsprechend Felder\nan und ab, ohne jemals die Felder zu berühren, die Sie selbst\nohne Bezug zu einer erkannten Zutat angekreuzt hätten.',
-        'recipeform_photos_label': 'Fotos:',
-        'recipeform_add_photo_button': '📷 Foto hinzufügen',
-        'recipeform_description_label': 'Beschreibung (Informationen, Schritte, Tipps...):',
-        'recipeform_notes_label': 'Persönliche Notizen (Meinung, Anpassungen für nächstes Mal...):',
-        'recipeform_ingredients_label': 'Zutaten (Menge für 1 Person):',
-        'recipeform_new_ingredient_button': '🥕 Neue Zutat',
-        'recipeform_no_ingredients_registered': 'Keine Zutat gespeichert. Klicken Sie auf « 🥕 Neue Zutat »,\num die erste anzulegen.',
-        'recipeform_header_ingredient': 'Zutat',
-        'recipeform_header_quantity': 'Menge',
-        'recipeform_header_unit': 'Einheit',
-        'recipeform_header_other': '(falls andere)',
-        'recipeform_add_ingredient_button': '+ Zutat hinzufügen',
-        'recipeform_save_button': 'Speichern',
-        'recipeform_delete_button': 'Dieses Rezept löschen',
-        'recipeform_char_counter': '{count} / {max} Zeichen',
-        'recipeform_add_ingredients_first': 'Fügen Sie zuerst Zutaten zum Rezept hinzu.',
-        'recipeform_allergens_updated_title': 'Allergene aktualisiert',
-        'recipeform_allergens_updated_added': 'hinzugefügt: {list}',
-        'recipeform_allergens_updated_removed': 'entfernt: {list}',
-        'recipeform_allergens_updated_message': 'Allergen(e) {parts}.',
-        'recipeform_allergens_no_change': 'Keine Änderung: Die angekreuzten Allergene entsprechen bereits den Zutaten.',
-        'recipeform_choose_photos_title': 'Ein oder mehrere Fotos auswählen',
-        'recipeform_no_photo': '(kein Foto)',
-        'recipeform_preview_unavailable': '(Vorschau\nnicht verfügbar)',
-        'recipeform_remove_photo_button': '🗑 Entfernen',
-        'recipeform_new_ingredient_dialog_title': 'Neue Zutat',
-        'recipeform_new_ingredient_dialog_prompt': 'Name der neuen Zutat:',
-        'recipeform_ingredient_already_exists': 'Die Zutat « {name} » existiert bereits.',
-        'recipeform_ingredient_added_title': 'Hinzugefügt',
-        'recipeform_ingredient_added_message': 'Die Zutat « {name} » wurde hinzugefügt.\nWählen Sie sie in einer der Dropdown-Listen aus.',
-        'recipeform_error_name_required': 'Bitte geben Sie einen Namen für das Rezept an.',
-        'recipeform_error_prep_time': 'Die Zubereitungszeit muss eine positive Zahl sein (oder leer).',
-        'recipeform_error_cook_time': 'Die Kochzeit muss eine positive Zahl sein (oder leer).',
-        'recipeform_unknown_ingredient_title': 'Unbekannte Zutat',
-        'recipeform_unknown_ingredient_message': '« {name} » entspricht keiner gespeicherten Zutat.\nWählen Sie eine aus der Dropdown-Liste aus, oder klicken Sie auf « 🥕 Neue Zutat », um sie zuerst hinzuzufügen.',
-        'recipeform_error_invalid_quantity': "Ungültige Menge für '{name}'.",
-        'recipeform_error_custom_unit_required': "Geben Sie die benutzerdefinierte Einheit für '{name}' an.",
-        'recipeform_error_no_valid_ingredient': 'Fügen Sie mindestens eine gültige Zutat hinzu.',
-        'recipeform_duplicate_ingredient_title': 'Doppelte Zutat',
-        'recipeform_duplicate_ingredient_message': '„{list}“ kommt in diesem Rezept mehrmals vor.\n\nTrotzdem speichern?',
-        'recipeform_saved_message': 'Das Rezept « {name} » wurde gespeichert.',
-        'recipeform_delete_confirm_message': 'Das Rezept « {name} » in den Papierkorb verschieben?\n\nSie können es später über die Schaltfläche « 🗑️ Papierkorb » wiederherstellen.',
-        'recipeform_deleted_title': 'In den Papierkorb verschoben',
-        'recipeform_deleted_message': 'Das Rezept wurde in den Papierkorb verschoben.',
-    },
-}
+def _load_ui_translations():
+    """Charge les textes UI depuis un fichier séparé, plus simple à auditer.
+
+    Le fichier est livré à côté de l'exécutable comme les autres bases JSON.
+    Une erreur de traduction est journalisée et un noyau français minimal
+    garde l'application démarrable plutôt que de provoquer un crash opaque.
+    """
+    path = os.path.join(BASE_DIR, "i18n_desktop.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        fr = payload.get("fr")
+        translations = payload.get("translations")
+        if not isinstance(fr, dict) or not isinstance(translations, dict):
+            raise ValueError("invalid i18n_desktop.json")
+        for lang in ("en", "es", "de"):
+            if not isinstance(translations.get(lang), dict):
+                raise ValueError(f"missing language: {lang}")
+        return fr, translations
+    except Exception as exc:
+        log_internal_error("load_ui_translations", exc)
+        return {
+            "home_window_title": "Mes Recettes, Mes Courses",
+            "common_error": "Erreur",
+            "common_info": "Information",
+            "common_confirm": "Confirmer",
+        }, {"en": {}, "es": {}, "de": {}}
+
+
+FRENCH_STRINGS, TRANSLATIONS = _load_ui_translations()
 
 
 def detect_system_language():
@@ -6905,8 +5034,8 @@ def detect_system_language():
                 return "es"
             if lang_code_lower.startswith("de"):
                 return "de"
-    except Exception:
-        pass
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
     return "fr"
 
 
@@ -6965,6 +5094,450 @@ def set_disclaimer_accepted(value):
     save_settings(settings)
 
 
+
+def _ui_iter_toplevels(root):
+    """Parcourt aussi les dialogues dont le parent est une autre fenêtre."""
+    try:
+        children = root.winfo_children()
+    except tk.TclError:
+        return
+    for child in children:
+        if isinstance(child, tk.Toplevel):
+            yield child
+        yield from _ui_iter_toplevels(child)
+
+
+def _ui_refresh_open_windows(root):
+    """Notifie les fenêtres ouvertes après langue/thème/police.
+
+    Les fenêtres qui possèdent une méthode ``refresh_ui`` peuvent reconstruire
+    leur contenu en conservant leur état ; les autres reçoivent un événement
+    afin d'évoluer progressivement sans détruire une saisie en cours.
+    """
+    try:
+        for child in _ui_iter_toplevels(root):
+            try:
+                refresher = getattr(child, "refresh_ui", None)
+                if callable(refresher):
+                    refresher()
+                child.event_generate("<<AppearanceChanged>>", when="tail")
+                child.update_idletasks()
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
+
+
+def _language_catalog(language):
+    """Retourne un catalogue complet, avec le français comme secours."""
+    catalog = dict(FRENCH_STRINGS)
+    if language != "fr":
+        catalog.update(TRANSLATIONS.get(language, {}))
+    return catalog
+
+
+def _ui_translate_open_windows(root, old_language, new_language):
+    """Traduit les libellés statiques des fenêtres ouvertes sans les fermer.
+
+    Les champs de saisie ne sont jamais parcourus : seul le texte de widgets
+    d'interface (boutons, labels, onglets, menus, en-têtes et listes de choix)
+    est remplacé. L'état transitoire des formulaires reste donc intact.
+    """
+    old_catalog = _language_catalog(old_language)
+    new_catalog = _language_catalog(new_language)
+    exact = {}
+    formatted = []
+    for key, old_text in old_catalog.items():
+        if not isinstance(old_text, str):
+            continue
+        if "{" not in old_text:
+            exact.setdefault(old_text, new_catalog.get(key, old_text))
+            continue
+        placeholder_matches = list(re.finditer(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", old_text))
+        literal_length = len(re.sub(r"\{[^{}]+\}", "", old_text).strip())
+        if not placeholder_matches or literal_length < 4:
+            continue
+        parts = []
+        cursor = 0
+        names = set()
+        for match in placeholder_matches:
+            parts.append(re.escape(old_text[cursor:match.start()]))
+            name = match.group(1)
+            if name in names:
+                parts.append(f"(?P={name})")
+            else:
+                parts.append(f"(?P<{name}>.*?)")
+                names.add(name)
+            cursor = match.end()
+        parts.append(re.escape(old_text[cursor:]))
+        formatted.append((
+            len(old_text), re.compile("^" + "".join(parts) + "$", re.DOTALL),
+            new_catalog.get(key, old_text)
+        ))
+    formatted.sort(key=lambda item: item[0], reverse=True)
+
+    old_ingredients = load_ingredient_translations(old_language) if old_language != "fr" else {}
+    new_ingredients = load_ingredient_translations(new_language) if new_language != "fr" else {}
+    for french_name in load_default_ingredients():
+        key = str(french_name).strip().lower()
+        old_name = old_ingredients.get(key, french_name)
+        new_name = new_ingredients.get(key, french_name)
+        exact.setdefault(old_name, new_name)
+
+    def translate_text(value):
+        if not isinstance(value, str) or not value:
+            return value
+        replacement = exact.get(value)
+        if replacement is not None:
+            return replacement
+        for _length, pattern, target_template in formatted:
+            match = pattern.match(value)
+            if match:
+                try:
+                    return target_template.format(**match.groupdict())
+                except (KeyError, ValueError):
+                    return value
+        return value
+
+    def visit(widget):
+        try:
+            if isinstance(widget, tk.Toplevel):
+                widget.title(translate_text(widget.title()))
+            if not isinstance(widget, (tk.Entry, tk.Text, ttk.Entry)):
+                try:
+                    current = widget.cget("text")
+                    translated = translate_text(current)
+                    if translated != current:
+                        widget.configure(text=translated)
+                except (tk.TclError, TypeError):
+                    pass
+            if isinstance(widget, ttk.Notebook):
+                for tab_id in widget.tabs():
+                    current = widget.tab(tab_id, "text")
+                    translated = translate_text(current)
+                    if translated != current:
+                        widget.tab(tab_id, text=translated)
+            if isinstance(widget, tk.Menu):
+                end = widget.index("end")
+                for index in range((end + 1) if end is not None else 0):
+                    try:
+                        if widget.type(index) == "separator":
+                            continue
+                        current = widget.entrycget(index, "label")
+                        translated = translate_text(current)
+                        if translated != current:
+                            widget.entryconfigure(index, label=translated)
+                    except tk.TclError:
+                        pass
+            if isinstance(widget, ttk.Combobox):
+                values = list(widget.cget("values"))
+                translated_values = [translate_text(value) for value in values]
+                if translated_values != values:
+                    current = widget.get()
+                    widget.configure(values=translated_values)
+                    translated_current = translate_text(current)
+                    if translated_current != current:
+                        widget.set(translated_current)
+            if isinstance(widget, ttk.Treeview):
+                for column in ("#0",) + tuple(widget.cget("columns")):
+                    try:
+                        current = widget.heading(column, "text")
+                        translated = translate_text(current)
+                        if translated != current:
+                            widget.heading(column, text=translated)
+                    except tk.TclError:
+                        pass
+                pending = list(widget.get_children(""))
+                while pending:
+                    item_id = pending.pop()
+                    pending.extend(widget.get_children(item_id))
+                    item = widget.item(item_id)
+                    old_item_text = item.get("text", "")
+                    new_item_text = translate_text(old_item_text)
+                    old_values = list(item.get("values", ()))
+                    new_values = [translate_text(str(value)) for value in old_values]
+                    if new_item_text != old_item_text or new_values != old_values:
+                        widget.item(item_id, text=new_item_text, values=new_values)
+            if isinstance(widget, tk.Listbox):
+                for index in range(widget.size()):
+                    current = widget.get(index)
+                    translated = translate_text(current)
+                    if translated != current:
+                        selected = index in widget.curselection()
+                        widget.delete(index)
+                        widget.insert(index, translated)
+                        if selected:
+                            widget.selection_set(index)
+            if isinstance(widget, tk.Canvas):
+                for item_id in widget.find_all():
+                    try:
+                        current = widget.itemcget(item_id, "text")
+                        translated = translate_text(current)
+                        if translated != current:
+                            widget.itemconfigure(item_id, text=translated)
+                    except tk.TclError:
+                        pass
+            for child in widget.winfo_children():
+                if not isinstance(child, tk.Toplevel):
+                    visit(child)
+        except tk.TclError:
+            return
+
+    for child in _ui_iter_toplevels(root):
+        visit(child)
+
+
+def _ui_recolor_open_windows(root, old_palette, new_palette):
+    """Remplace les couleurs de l'ancien thème dans les fenêtres ouvertes."""
+    color_map = {
+        old_palette[key].lower(): new_palette[key]
+        for key in old_palette.keys() & new_palette.keys()
+    }
+    options = (
+        "background", "foreground", "activebackground", "activeforeground",
+        "disabledforeground", "highlightbackground", "highlightcolor",
+        "selectbackground", "selectforeground", "insertbackground",
+    )
+
+    def visit(widget):
+        for option in options:
+            try:
+                current = str(widget.cget(option))
+                replacement = color_map.get(current.lower())
+                if replacement:
+                    widget.configure(**{option: replacement})
+            except (tk.TclError, TypeError):
+                pass
+        if isinstance(widget, tk.Canvas):
+            for item_id in widget.find_all():
+                for option in ("fill", "outline", "activefill", "activeoutline"):
+                    try:
+                        current = str(widget.itemcget(item_id, option))
+                        replacement = color_map.get(current.lower())
+                        if replacement:
+                            widget.itemconfigure(item_id, **{option: replacement})
+                    except tk.TclError:
+                        pass
+        for child in widget.winfo_children():
+            if not isinstance(child, tk.Toplevel):
+                visit(child)
+
+    for child in _ui_iter_toplevels(root):
+        try:
+            visit(child)
+        except tk.TclError:
+            pass
+
+
+def _ui_rescale_open_window_fonts(root, ratio):
+    """Redimensionne les polices explicites sans reconstruire les fenêtres."""
+    if not ratio or abs(ratio - 1.0) < 0.001:
+        return
+
+    def visit(widget):
+        try:
+            font_spec = widget.cget("font")
+            if font_spec:
+                current_font = tkfont.Font(root=widget, font=font_spec)
+                size = int(current_font.cget("size") or 0)
+                if size:
+                    current_font.configure(size=max(1, round(size * ratio)))
+                    widget.configure(font=current_font)
+                    refs = getattr(widget, "_scaled_font_refs", [])
+                    refs.append(current_font)
+                    widget._scaled_font_refs = refs[-2:]
+        except (tk.TclError, TypeError, ValueError):
+            pass
+        if isinstance(widget, tk.Canvas):
+            for item_id in widget.find_all():
+                try:
+                    font_spec = widget.itemcget(item_id, "font")
+                    if not font_spec:
+                        continue
+                    current_font = tkfont.Font(root=widget, font=font_spec)
+                    size = int(current_font.cget("size") or 0)
+                    if size:
+                        current_font.configure(size=max(1, round(size * ratio)))
+                        widget.itemconfigure(item_id, font=current_font)
+                        refs = getattr(widget, "_scaled_canvas_font_refs", [])
+                        refs.append(current_font)
+                        widget._scaled_canvas_font_refs = refs[-50:]
+                except (tk.TclError, TypeError, ValueError):
+                    pass
+        for child in widget.winfo_children():
+            if not isinstance(child, tk.Toplevel):
+                visit(child)
+
+    for child in _ui_iter_toplevels(root):
+        visit(child)
+
+
+def _ui_bind_local_mousewheel(canvas, container, callback):
+    """Lie la molette uniquement aux widgets d'une zone défilable.
+
+    Un bindtag propre à la zone remplace bind_all/unbind_all. Deux fenêtres
+    ouvertes ne peuvent ainsi plus supprimer ou détourner leurs événements.
+    """
+    bindtag = f"LocalMouseWheel:{str(canvas)}"
+    prefix = "LocalMouseWheel:"
+    canvas.bind_class(bindtag, "<MouseWheel>", callback, add="+")
+
+    def attach(widget):
+        try:
+            tags = tuple(tag for tag in widget.bindtags()
+                         if not str(tag).startswith(prefix))
+            widget.bindtags((bindtag,) + tags)
+            for child in widget.winfo_children():
+                attach(child)
+        except tk.TclError:
+            pass
+
+    attach(canvas)
+    canvas.after_idle(lambda: attach(container))
+    canvas.bind(
+        "<Destroy>",
+        lambda event: canvas.unbind_class(bindtag, "<MouseWheel>")
+        if event.widget is canvas else None,
+        add="+"
+    )
+    return bindtag
+
+
+def _ui_attach_more_menu(button, items):
+    menu = tk.Menu(button, tearoff=0)
+    for label, command in items:
+        if label == "---":
+            menu.add_separator()
+        else:
+            menu.add_command(label=label, command=command)
+    button.configure(command=lambda: menu.tk_popup(button.winfo_rootx(),
+                                                   button.winfo_rooty() + button.winfo_height()))
+    return menu
+
+
+def _integrity_report():
+    report = {
+        "recipes_json_ok": True,
+        "missing_images": [],
+        "orphan_images": [],
+        "duplicate_recipe_ids": [],
+        "legacy_imports_unknown_basis": [],
+    }
+    try:
+        recipes_path = os.path.join(DATA_DIR, "recipes.json")
+        recipes = []
+        if os.path.exists(recipes_path):
+            with open(recipes_path, "r", encoding="utf-8") as f:
+                recipes = json.load(f)
+        ids = {}
+        for r in recipes or []:
+            rid = r.get("id")
+            if rid:
+                ids[rid] = ids.get(rid, 0) + 1
+        report["duplicate_recipe_ids"] = [rid for rid, n in ids.items() if n > 1]
+        report["legacy_imports_unknown_basis"] = [
+            r.get("name", "?") for r in recipes or []
+            if isinstance(r, dict) and r.get("source_url") and not r.get("quantity_basis")
+        ]
+        missing, orphan = _count_orphan_images(recipes, IMAGES_DIR)
+        report["missing_images"] = missing
+        report["orphan_images"] = orphan
+    except Exception:
+        report["recipes_json_ok"] = False
+    return report
+
+
+
+def enable_windows_dpi_awareness():
+    """Enable per-monitor DPI awareness on Windows when supported.
+
+    The calls are deliberately best-effort so older Windows versions and
+    non-Windows systems keep working unchanged.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        # PER_MONITOR_AWARE_V2 (Windows 10 Creators Update+).
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+        return True
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # per-monitor aware
+            return True
+        except Exception:
+            try:
+                import ctypes
+                ctypes.windll.user32.SetProcessDPIAware()
+                return True
+            except Exception:
+                return False
+
+class MaintenanceWindow:
+    def __init__(self, parent):
+        self.parent = parent
+        self.win = tk.Toplevel(parent)
+        _ui_bind_escape(self.win)
+        self.win.title(t("maintenance_title"))
+        _ui_apply_window_defaults(self.win, "760x560", True)
+        outer = ttk.Frame(self.win, padding=18)
+        outer.pack(fill="both", expand=True)
+
+        ttk.Label(outer, text=t("maintenance_title"),
+                  font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(
+            outer,
+            text=t("maintenance_intro"),
+            wraplength=700
+        ).pack(anchor="w", pady=(4, 14))
+
+        self.report = tk.Text(outer, height=18, wrap="word")
+        self.report.pack(fill="both", expand=True)
+
+        btns = ttk.Frame(outer)
+        btns.pack(fill="x", pady=(12, 0))
+        ttk.Button(btns, text=t("maintenance_recheck"),
+                   command=self.refresh).pack(side="left")
+        ttk.Button(btns, text=t("maintenance_open_backups"),
+                   command=self.open_backups).pack(side="left", padx=(8, 0))
+        ttk.Button(btns, text=t("maintenance_close"),
+                   command=self.win.destroy).pack(side="right")
+        self.refresh()
+
+    def refresh(self):
+        rep = _integrity_report()
+        lines = []
+        lines.append(t("maintenance_recipes_ok", status=t("maintenance_status_ok") if rep["recipes_json_ok"] else t("maintenance_status_error")))
+        lines.append(t("maintenance_missing_images", count=len(rep["missing_images"])))
+        lines.append(t("maintenance_orphan_images", count=len(rep["orphan_images"])))
+        lines.append(t("maintenance_duplicate_ids", count=len(rep["duplicate_recipe_ids"])))
+        lines.append(t("maintenance_legacy_imports", count=len(rep.get("legacy_imports_unknown_basis", []))))
+        if rep.get("legacy_imports_unknown_basis"):
+            lines.append("\n" + t("maintenance_legacy_imports_heading"))
+            lines.extend("  - " + x for x in rep["legacy_imports_unknown_basis"][:50])
+        if rep["missing_images"]:
+            lines.append("\n" + t("maintenance_missing_images_heading"))
+            lines.extend("  - " + x for x in rep["missing_images"][:50])
+        if rep["orphan_images"]:
+            lines.append("\n" + t("maintenance_orphan_images_heading"))
+            lines.extend("  - " + x for x in rep["orphan_images"][:50])
+        if rep["duplicate_recipe_ids"]:
+            lines.append("\n" + t("maintenance_duplicate_ids_heading"))
+            lines.extend("  - " + x for x in rep["duplicate_recipe_ids"][:50])
+        self.report.config(state="normal")
+        self.report.delete("1.0", "end")
+        self.report.insert("1.0", "\n".join(lines))
+        self.report.config(state="disabled")
+
+    def open_backups(self):
+        folder = BACKUPS_DIR
+        os.makedirs(folder, exist_ok=True)
+        try:
+            os.startfile(folder)
+        except Exception:
+            _ui_show_toast(self.win, folder)
+
 class DisclaimerWindow(tk.Toplevel):
     """Clause de responsabilité affichée obligatoirement au tout premier
     lancement de l'application. Tant qu'elle n'est pas acceptée (case cochée
@@ -6978,9 +5551,9 @@ class DisclaimerWindow(tk.Toplevel):
         # (moins une petite marge), pour que le bouton « Continuer » reste
         # toujours visible même sur un écran de petite hauteur ou avec le
         # mode « Texte agrandi » déjà activé lors d'une session précédente.
-        window_height = min(gs(660), get_usable_screen_height(self) - 40)
-        self.geometry(f"{gs(640)}x{window_height}")
-        self.minsize(gs(480), min(gs(460), window_height))
+        # Plus grande au premier lancement pour faciliter la lecture.
+        fit_window_to_workarea(self, gs(1080), get_usable_screen_height(self), margin=18)
+        safe_minsize(self, gs(700), min(gs(520), get_usable_screen_height(self) - 48))
         self.resizable(True, True)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._quit_app)
@@ -7089,28 +5662,284 @@ class DisclaimerWindow(tk.Toplevel):
 SCROLL_BOTTOM_PADDING = 76
 
 
-def get_usable_screen_height(widget):
-    """Retourne la hauteur d'écran réellement utilisable (écran total moins
-    la barre des tâches Windows), pour qu'une fenêtre réglée à la hauteur de
-    l'écran ne se retrouve jamais partiellement masquée derrière elle. Sur
-    les systèmes où cette information n'est pas disponible (macOS, Linux, ou
-    en cas d'erreur), retombe simplement sur la hauteur d'écran totale."""
+def get_usable_screen_rect(widget):
+    """Retourne la zone de travail du moniteur qui contient la fenêtre.
+
+    Sous Windows, utilise MonitorFromWindow/GetMonitorInfo afin de respecter
+    la barre des tâches du bon écran dans une configuration multi-moniteurs.
+    """
     try:
         import ctypes
+        from ctypes import wintypes
 
         class RECT(ctypes.Structure):
             _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
                         ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", RECT),
+                        ("rcWork", RECT), ("dwFlags", wintypes.DWORD)]
+
+        user32 = ctypes.windll.user32
+        hwnd = int(widget.winfo_id())
+        monitor = user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
+        if monitor:
+            info = MONITORINFO()
+            info.cbSize = ctypes.sizeof(MONITORINFO)
+            if user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+                rect = info.rcWork
+                width = rect.right - rect.left
+                height = rect.bottom - rect.top
+                if width > 0 and height > 0:
+                    return rect.left, rect.top, width, height
+
+        # Repli vers la zone de travail principale pour d'anciennes versions
+        # de Windows / environnements atypiques.
         rect = RECT()
         SPI_GETWORKAREA = 0x0030
-        if ctypes.windll.user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0):
+        if user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0):
+            width = rect.right - rect.left
             height = rect.bottom - rect.top
-            if height > 0:
-                return height
-    except Exception:
-        pass
-    return widget.winfo_screenheight()
+            if width > 0 and height > 0:
+                return rect.left, rect.top, width, height
+    except Exception as exc:
+        log_internal_error("get_usable_screen_rect", exc)
+    return 0, 0, widget.winfo_screenwidth(), widget.winfo_screenheight()
+
+
+def get_usable_screen_height(widget):
+    return get_usable_screen_rect(widget)[3]
+
+
+# Réserve pour la décoration Windows (barre de titre + bordures).
+# Tkinter exprime la hauteur de geometry() en taille CLIENT, tandis que la
+# zone de travail Windows décrit la fenêtre ENTIÈRE. Sans cette réserve,
+# les derniers boutons peuvent se retrouver sous la barre des tâches.
+WINDOW_NONCLIENT_VERTICAL_RESERVE = 72
+WINDOW_NONCLIENT_HORIZONTAL_RESERVE = 20
+WINDOW_BOTTOM_SAFETY = 18
+
+
+def _safe_client_bounds(widget, margin=18):
+    """Renvoie les dimensions CLIENT maximales sûres pour une fenêtre Tk."""
+    x0, y0, work_w, work_h = get_usable_screen_rect(widget)
+
+    # Double garde-fou :
+    # 1) zone de travail Windows (hors barre des tâches) ;
+    # 2) hauteur Tk brute moins une marge de sécurité.
+    # Le second protège aussi les configurations DPI/écrans multiples où
+    # Windows et Tk peuvent arrondir les coordonnées différemment.
+    tk_screen_w = max(1, widget.winfo_screenwidth())
+    tk_screen_h = max(1, widget.winfo_screenheight())
+
+    safe_work_w = min(work_w, tk_screen_w)
+    safe_work_h = min(work_h, tk_screen_h - WINDOW_BOTTOM_SAFETY)
+
+    max_w = max(
+        420,
+        safe_work_w - margin * 2 - WINDOW_NONCLIENT_HORIZONTAL_RESERVE
+    )
+    max_h = max(
+        320,
+        safe_work_h - margin * 2 - WINDOW_NONCLIENT_VERTICAL_RESERVE
+    )
+    return x0, y0, safe_work_w, safe_work_h, max_w, max_h
+
+
+def safe_minsize(widget, min_width, min_height, margin=14):
+    """Applique une taille minimale sans pouvoir dépasser la zone de travail."""
+    try:
+        _, _, _, _, max_w, max_h = _safe_client_bounds(widget, margin)
+        widget.minsize(min(int(min_width), max_w), min(int(min_height), max_h))
+    except Exception as exc:
+        log_internal_error("safe_minsize", exc)
+        try:
+            widget.minsize(int(min_width), int(min_height))
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
+
+
+def fit_window_to_workarea(widget, desired_width, desired_height=None, margin=18,
+                           center=True):
+    """Dimensionne une fenêtre sans jamais masquer ses boutons sous la barre
+    des tâches.
+
+    Important : ``geometry()`` fixe la taille de la zone CLIENT, pas la taille
+    extérieure complète de la fenêtre Windows. On réserve donc explicitement
+    la hauteur de la barre de titre et des bordures.
+    """
+    x0, y0, work_w, work_h, max_w, max_h = _safe_client_bounds(widget, margin)
+
+    width = min(int(desired_width), max_w)
+    height = max_h if desired_height is None else min(int(desired_height), max_h)
+
+    if center:
+        x = x0 + max(margin, (work_w - width) // 2)
+        # Laisser plus d'espace sous la fenêtre qu'auparavant.
+        y = y0 + max(margin, (work_h - height - WINDOW_NONCLIENT_VERTICAL_RESERVE) // 2)
+    else:
+        x, y = x0 + margin, y0 + margin
+
+    # Mémorise la taille explicitement demandée. Le contrôle automatique
+    # exécuté après l'affichage ne doit jamais rétrécir une fenêtre simplement
+    # parce que son contenu demande moins de place (cas de l'accueil au premier
+    # lancement après la v15).
+    widget._desired_workarea_width = width
+    widget._desired_workarea_height = height
+    widget.geometry(f"{width}x{height}+{x}+{y}")
+    return width, height
+
+
+def ensure_window_visible_and_fitted(widget, margin=14):
+    """Ajuste une fenêtre après création de son contenu.
+
+    La taille demandée par les contrôles est respectée autant que possible,
+    mais une réserve supplémentaire est toujours conservée en bas de l'écran.
+    """
+    try:
+        widget.update_idletasks()
+
+        # Une fenêtre maximisée ou en plein écran doit rester entièrement sous
+        # le contrôle natif de Windows. La redimensionner ici recréerait les
+        # marges que l'utilisateur vient précisément de demander à supprimer.
+        try:
+            if str(widget.state()).lower() == "zoomed" or bool(widget.attributes("-fullscreen")):
+                return
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
+
+        x0, y0, work_w, work_h, max_w, max_h = _safe_client_bounds(widget, margin)
+
+        cur_w = max(1, widget.winfo_width())
+        cur_h = max(1, widget.winfo_height())
+        req_w = max(1, widget.winfo_reqwidth())
+        req_h = max(1, widget.winfo_reqheight())
+
+        desired_w = int(getattr(widget, "_desired_workarea_width", 0) or 0)
+        desired_h = int(getattr(widget, "_desired_workarea_height", 0) or 0)
+
+        # Respecte la taille choisie par chaque fenêtre. L'auto-fit peut
+        # l'agrandir si le contenu en a besoin ou la réduire si elle dépasse
+        # l'écran, mais il ne la réduit plus arbitrairement.
+        target_w = min(max_w, max(cur_w, req_w + 20, desired_w))
+        target_h = min(max_h, max(cur_h, req_h + 20, desired_h))
+
+        x = x0 + max(margin, (work_w - target_w) // 2)
+        y = y0 + max(
+            margin,
+            (work_h - target_h - WINDOW_NONCLIENT_VERTICAL_RESERVE) // 2
+        )
+        widget.geometry(f"{target_w}x{target_h}+{x}+{y}")
+
+        # Une deuxième passe après que Windows a réellement créé la barre de
+        # titre. Si l'extérieur de la fenêtre mord encore sur la zone sûre,
+        # on réduit légèrement la hauteur CLIENT.
+        def final_guard():
+            try:
+                widget.update_idletasks()
+                try:
+                    if str(widget.state()).lower() == "zoomed" or bool(widget.attributes("-fullscreen")):
+                        return
+                except Exception as exc:
+                    log_internal_error("suppressed_exception", exc)
+                _, wy0, _, wh, _, mh = _safe_client_bounds(widget, margin)
+
+                # winfo_rooty() correspond au début de la zone client.
+                # La différence avec winfo_y() donne une approximation de la
+                # décoration supérieure réellement ajoutée par Windows.
+                top_decoration = max(0, widget.winfo_rooty() - widget.winfo_y())
+                client_bottom = widget.winfo_rooty() + widget.winfo_height()
+                safe_bottom = wy0 + wh - margin - WINDOW_BOTTOM_SAFETY
+
+                overflow = client_bottom - safe_bottom
+                if overflow > 0:
+                    new_h = max(320, widget.winfo_height() - overflow - top_decoration - 8)
+                    new_h = min(new_h, mh)
+                    widget._desired_workarea_height = min(
+                        int(getattr(widget, "_desired_workarea_height", new_h) or new_h),
+                        new_h
+                    )
+                    widget.geometry(f"{widget.winfo_width()}x{new_h}")
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
+
+        widget.after(80, final_guard)
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
+
+
+def install_window_autofit(root):
+    """Applique le garde-fou à la fenêtre principale et à toutes les Toplevel."""
+    try:
+        def apply_once(w):
+            if getattr(w, "_workarea_autofit_done", False):
+                return
+            # Fenêtres sans décoration (autocomplete, tooltips, toasts,
+            # menus flottants...) ont déjà leur position calculée par rapport
+            # au widget d'origine. Les recentrer globalement les envoyait au
+            # milieu de l'écran.
+            try:
+                if bool(w.overrideredirect()):
+                    return
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
+            w._workarea_autofit_done = True
+            w.after_idle(lambda ww=w: ensure_window_visible_and_fitted(ww, 14))
+
+        # Fenêtre principale.
+        root.after_idle(lambda: apply_once(root))
+
+        # Toutes les fenêtres secondaires.
+        def on_map(event):
+            w = event.widget
+            if isinstance(w, tk.Toplevel):
+                apply_once(w)
+
+        root.bind_class("Toplevel", "<Map>", on_map, add="+")
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
+
+
+
+def position_popup_near_widget(popup, anchor_widget, width, height, gap=2):
+    """Place une liste flottante près de son champ sans sortir de l'écran."""
+    try:
+        anchor_widget.update_idletasks()
+        x0, y0, work_w, work_h = get_usable_screen_rect(anchor_widget)
+        right = x0 + work_w
+        bottom = y0 + work_h
+        width = max(120, min(int(width), work_w - 12))
+        height = max(40, min(int(height), work_h - 12))
+        x = anchor_widget.winfo_rootx()
+        below = anchor_widget.winfo_rooty() + anchor_widget.winfo_height() + gap
+        above = anchor_widget.winfo_rooty() - height - gap
+        y = below if below + height <= bottom - 4 else max(y0 + 4, above)
+        x = min(max(x, x0 + 4), max(x0 + 4, right - width - 4))
+        popup.wm_geometry(f"{width}x{height}+{int(x)}+{int(y)}")
+    except Exception as exc:
+        log_internal_error("position_popup_near_widget", exc)
+        try:
+            popup.wm_geometry(f"{width}x{height}")
+        except Exception as inner:
+            log_internal_error("position_popup_fallback", inner)
+
+
+def finalize_suggestion_popup(popup, anchor_widget, listbox, width):
+    """Ajuste une liste de suggestions à sa hauteur réelle.
+
+    Une seule proposition garde suffisamment de hauteur pour être entièrement
+    lisible, puis la fenêtre est replacée au-dessus ou au-dessous du champ
+    sans sortir de l'écran.
+    """
+    try:
+        popup.update_idletasks()
+        listbox.update_idletasks()
+        requested_height = max(listbox.winfo_reqheight() + 6, gs(34))
+        position_popup_near_widget(
+            popup, anchor_widget, width, requested_height
+        )
+    except Exception as exc:
+        log_internal_error("finalize_suggestion_popup", exc)
 
 
 def configure_app_style(root):
@@ -7134,6 +5963,10 @@ def configure_app_style(root):
 
     style.configure("TButton", background=COLOR_ACCENT, foreground="white",
                      font=base_font, padding=(12, 7), borderwidth=0, relief="flat")
+    # Keyboard/accessibility: keep a visible focus state and generous rows.
+    style.map("TButton", relief=[("focus", "solid")])
+    style.configure("Treeview", rowheight=max(gs(28), sf(28)))
+    style.configure("Treeview.Heading", font=("Segoe UI", sf(10), "bold"))
     style.map("TButton",
               background=[("active", COLOR_ACCENT_DARK), ("disabled", "#D8CBB8")],
               foreground=[("disabled", "#F4EEE3")])
@@ -7181,6 +6014,13 @@ def configure_app_style(root):
     # aient le même fond que la carte plutôt que le fond général de la page.
     style.configure("Card.TFrame", background=COLOR_CARD)
     style.configure("Card.TLabel", background=COLOR_CARD, foreground=COLOR_TEXT)
+    style.configure("Hero.TButton", font=("Segoe UI", sf(11), "bold"), padding=(16, 10))
+    style.configure("Danger.TButton", foreground=COLOR_ERROR, padding=(12, 7))
+    style.map("Danger.TButton", foreground=[("active", COLOR_ERROR)])
+    style.configure("Title.TLabel", font=("Segoe UI", sf(19), "bold"), foreground=COLOR_TEXT)
+    style.configure("Section.TLabel", font=("Segoe UI", sf(12), "bold"), foreground=COLOR_ACCENT_DARK)
+    style.configure("Muted.TLabel", foreground=COLOR_TEXT_MUTED)
+    style.configure("Toolbar.TFrame", background=COLOR_CARD)
 
     # ---- Widgets Tkinter bruts (non gérés par ttk) : Listbox, Text, Canvas,
     # Button (celles en tk.Button, ex. mode cuisine), via la base d'options.
@@ -7223,10 +6063,10 @@ def configure_app_style(root):
     return style
 
 
-class App(tk.Tk):
+class App(APP_TK_BASE):
     def __init__(self):
         super().__init__()
-        self.title(f"{t('home_window_title')} — v{APP_VERSION}")
+        install_tk_exception_logger(self)
         # Le mode « Texte agrandi » doit être chargé et appliqué AVANT tout
         # calcul de géométrie ci-dessous (via gs()), sans quoi la fenêtre
         # s'ouvrirait à sa taille normale au premier lancement même si ce
@@ -7235,6 +6075,7 @@ class App(tk.Tk):
         apply_font_scale(self.large_text)
         self.language = get_language_preference()
         apply_language(self.language)
+        self.title(f"{t('home_window_title')} — {PRODUCT_VERSION} (build {APP_BUILD})")
         # Icônes de drapeaux pour le bouton de langue, chargées une seule
         # fois ici (et non à chaque reconstruction de la page d'accueil)
         # pour éviter de relire le fichier à chaque bascule. Une référence
@@ -7255,9 +6096,18 @@ class App(tk.Tk):
         # vertical disponible dès le démarrage. La largeur est fixée pour
         # accueillir les boutons et les cartes "Aujourd'hui"/"Récemment
         # consultées" côte à côte.
-        screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(1000)}x{screen_height}+40+0")
-        self.minsize(gs(720), gs(500))
+        # Accueil : utiliser presque toute la largeur réellement disponible.
+        # C'est volontairement indépendant d'une largeur fixe afin d'être
+        # confortable aussi bien en 1366 px qu'en 1920/2560 px.
+        _wx, _wy, _work_w, _work_h = get_usable_screen_rect(self)
+        fit_window_to_workarea(
+            self,
+            max(gs(1100), int(_work_w * 0.97)),
+            get_usable_screen_height(self),
+            margin=14
+        )
+        safe_minsize(self, min(gs(1000), max(820, int(_work_w * 0.72))), gs(500))
+        install_window_autofit(self)
         self.resizable(True, True)
 
         self.dark_mode = get_dark_mode_preference()
@@ -7278,7 +6128,19 @@ class App(tk.Tk):
 
         self.recipes = load_recipes()
         self.ingredient_names = sync_ingredients_from_recipes()
-        self.shopping_selection = {}  # sélection en cours pour la liste de courses (nom -> personnes)
+        if not get_corrupted_data_files():
+            try:
+                migrate_data_schema(self.recipes)
+            except Exception as exc:
+                log_internal_error("migrate_data_schema", exc)
+        # Déclenche les migrations rétrocompatibles vers les identifiants stables.
+        if not get_corrupted_data_files():
+            try:
+                load_weekly_plan(); load_weekly_plan_history(); load_weekly_plan_templates(); load_menus(); _load_recent_view_refs()
+                get_daily_recipe(self.recipes) if self.recipes else None
+            except Exception as exc:
+                log_internal_error("recipe_reference_migration", exc)
+        self.shopping_selection = {}  # sélection en cours pour la liste de courses (id stable -> personnes)
         self.timers_window = None  # fenêtre unique des minuteurs, créée à la demande
 
         # Recherche rapide de recette (Ctrl+K), accessible depuis n'importe
@@ -7286,18 +6148,59 @@ class App(tk.Tk):
         # modale (bind_all s'applique quelle que soit la fenêtre au premier
         # plan).
         self.bind_all("<Control-k>", lambda e: self.open_quick_search())
+        self.bind_all("<Control-n>", lambda e: self.open_add_recipe())
+        self.bind_all("<Control-Shift-L>", lambda e: self.open_manage_recipes())
+        self.bind_all("<Control-Shift-M>", lambda e: MaintenanceWindow(self))
+        self.bind_all("<F1>", lambda e: DiagnosticWindow(self))
 
         # Sauvegarde automatique périodique (silencieuse, ne bloque jamais le démarrage)
-        try:
-            maybe_create_auto_backup()
-        except Exception:
-            pass
+        threading.Thread(target=maybe_create_auto_backup, daemon=True).start()
 
         self._build_home_ui()
+        try:
+            cleanup_stale_import_temp()
+        except Exception as exc:
+            log_internal_error("cleanup_stale_import_temp", exc)
+        if get_corrupted_data_files():
+            self.after(150, self._offer_corrupt_data_recovery)
+
+    def _offer_corrupt_data_recovery(self):
+        corrupted = get_corrupted_data_files()
+        if not corrupted:
+            return
+        names = ", ".join(sorted(os.path.basename(item["path"]) for item in corrupted))
+        backups = list_auto_backups()
+        if backups and messagebox.askyesno(
+                t("corruptdata_title"),
+                t("corruptdata_restore_prompt", files=names), parent=self):
+            try:
+                restore_from_zip(backups[0], merge=False)
+                self.recipes = load_recipes()
+                self.ingredient_names = sync_ingredients_from_recipes()
+                for child in self.winfo_children():
+                    if not isinstance(child, tk.Toplevel):
+                        child.destroy()
+                self._build_home_ui()
+                messagebox.showinfo(
+                    t("corruptdata_recovered_title"),
+                    t("corruptdata_recovered_message"), parent=self
+                )
+                return
+            except Exception as exc:
+                log_internal_error("corruptdata_restore_failed", exc)
+                messagebox.showerror(
+                    t("common_error"),
+                    t("corruptdata_restore_failed", error=exc), parent=self
+                )
+        copies = "\n".join(item.get("backup") or item["path"] for item in corrupted)
+        messagebox.showwarning(
+            t("corruptdata_title"),
+            t("corruptdata_blocked_message", files=names, copies=copies), parent=self
+        )
 
     def open_quick_search(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         QuickSearchWindow(self)
 
@@ -7309,17 +6212,15 @@ class App(tk.Tk):
         styles ttk (effet immédiat sur toutes les fenêtres déjà ouvertes),
         puis reconstruit entièrement la page d'accueil pour que ses widgets
         Tkinter bruts (bannière, cartes...) reflètent aussi les nouvelles
-        couleurs. Les fenêtres secondaires déjà ouvertes devront être
-        refermées puis rouvertes pour refléter pleinement le nouveau thème."""
+        couleurs. Les couleurs explicites des fenêtres secondaires sont
+        remplacées sans fermer ces fenêtres."""
+        old_palette = dict(DARK_PALETTE if self.dark_mode else LIGHT_PALETTE)
         self.dark_mode = not self.dark_mode
         set_dark_mode_preference(self.dark_mode)
         apply_palette(self.dark_mode)
+        new_palette = dict(DARK_PALETTE if self.dark_mode else LIGHT_PALETTE)
         configure_app_style(self)
         self.configure(background=COLOR_BG)
-        try:
-            self.unbind_all("<MouseWheel>")
-        except tk.TclError:
-            pass
         # Ne détruit que les widgets propres à la page d'accueil : les
         # fenêtres secondaires (Toplevel) déjà ouvertes — comme les
         # minuteurs en cours — ne doivent surtout pas être affectées.
@@ -7327,319 +6228,373 @@ class App(tk.Tk):
             if not isinstance(child, tk.Toplevel):
                 child.destroy()
         self._build_home_ui()
+        _ui_recolor_open_windows(self, old_palette, new_palette)
+        _ui_refresh_open_windows(self)
 
     def toggle_large_text(self):
-        """Bascule le mode « Texte agrandi » (accessibilité, malvoyants) :
-        met à jour l'échelle globale des polices et reconstruit la page
-        d'accueil pour l'appliquer immédiatement. Les fenêtres secondaires
-        déjà ouvertes gardent leur taille de police d'origine — fermez-les
-        et rouvrez-les pour qu'elles s'affichent avec le nouveau réglage,
-        y compris leur propre taille de fenêtre, recalculée en
-        conséquence pour ne rien couper ni masquer."""
+        """Bascule le mode Texte agrandi et rafraîchit l'interface ouverte."""
+        old_scale = FONT_SCALE
         self.large_text = not self.large_text
         set_large_text_preference(self.large_text)
         apply_font_scale(self.large_text)
         configure_app_style(self)
-        try:
-            self.unbind_all("<MouseWheel>")
-        except tk.TclError:
-            pass
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):
                 child.destroy()
         self._build_home_ui()
+        _ui_rescale_open_window_fonts(self, FONT_SCALE / old_scale)
+        _ui_refresh_open_windows(self)
 
     def set_language(self, lang):
-        """Change la langue de l'interface vers celle choisie directement
-        dans le menu déroulant (français, anglais ou espagnol — d'autres
-        langues pourront être ajoutées de la même façon). Les parties de
-        l'interface pas encore traduites dans la langue choisie restent
-        affichées en français (voir t())."""
+        """Change la langue de l'interface vers celle choisie dans le menu.
+        Les parties pas encore traduites restent affichées en français.
+        Les fenêtres secondaires sont notifiées pour rafraîchir les éléments
+        qu'elles savent reconstruire sans perdre une saisie en cours."""
         if lang == self.language:
             return
+        old_language = self.language
         self.language = lang
         set_language_preference(self.language)
         apply_language(self.language)
-        try:
-            self.unbind_all("<MouseWheel>")
-        except tk.TclError:
-            pass
+        self.title(f"{t('home_window_title')} — {PRODUCT_VERSION} (build {APP_BUILD})")
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):
                 child.destroy()
         self._build_home_ui()
+        _ui_translate_open_windows(self, old_language, self.language)
+        _ui_refresh_open_windows(self)
+
+    def show_toast(self, message, duration=2400):
+        """Petite notification non bloquante pour les réussites courantes."""
+        toast = tk.Toplevel(self)
+        toast.overrideredirect(True)
+        toast.attributes("-topmost", True)
+        frame = tk.Frame(toast, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
+        frame.pack(fill="both", expand=True)
+        tk.Label(frame, text=f"✓  {message}", background=COLOR_CARD, foreground=COLOR_TEXT,
+                 font=("Segoe UI", sf(10), "bold"), padx=16, pady=10).pack()
+        self.update_idletasks()
+        toast.update_idletasks()
+        x = self.winfo_rootx() + max(10, self.winfo_width() - toast.winfo_reqwidth() - 24)
+        y = self.winfo_rooty() + max(10, self.winfo_height() - toast.winfo_reqheight() - 70)
+        toast.geometry(f"+{x}+{y}")
+        toast.after(duration, toast.destroy)
+
+    def _open_home_search(self, event=None):
+        query = self.home_search_var.get().strip() if hasattr(self, "home_search_var") else ""
+        if query and query != t("home_search_placeholder"):
+            self.open_manage_recipes(initial_search=query)
+        else:
+            self.open_quick_search()
 
     def _build_home_ui(self):
-        # Efface l'éventuel contenu déjà construit, pour que cette méthode
-        # puisse être rappelée en toute sécurité (ex. après avoir modifié le
-        # garde-manger) sans dupliquer boutons et bannières.
         for child in self.winfo_children():
-            child.destroy()
+            if not isinstance(child, tk.Toplevel):
+                child.destroy()
 
-        # ---- Barre supérieure fixe (hors zone de défilement) : bouton de
-        # don en haut à gauche, bascule de thème en haut à droite — tous
-        # deux toujours visibles quel que soit le défilement. ----
-        top_bar = tk.Frame(self, background=COLOR_BG)
+        # Barre supérieure : le bouton de don reste volontairement très visible
+        # à chaque lancement, conformément au choix de l'éditeur.
+        top_bar = tk.Frame(self, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
         top_bar.pack(fill="x")
-        ttk.Button(top_bar, text=t("home_donate_button"), style="Secondary.TButton",
-                   command=self.open_donate_page).pack(side="left", padx=10, pady=8)
-        toggle_text = t("home_light_theme") if self.dark_mode else t("home_dark_theme")
-        ttk.Button(top_bar, text=toggle_text, style="Secondary.TButton",
-                   command=self.toggle_dark_mode).pack(side="right", padx=10, pady=8)
-        large_text_label = t("home_large_text_off") if self.large_text else t("home_large_text_on")
-        ttk.Button(top_bar, text=large_text_label, style="Secondary.TButton",
-                   command=self.toggle_large_text).pack(side="right", padx=(10, 0), pady=8)
-        # Menu déroulant de langue : affiche la langue actuellement
-        # sélectionnée (avec son propre drapeau), et propose un choix
-        # direct des 3 langues disponibles plutôt qu'un simple cycle —
-        # plus explicite, et on peut choisir n'importe laquelle en un
-        # seul clic sans repasser par les autres.
+        ttk.Button(top_bar, text=t("home_donate_button"), style="Hero.TButton",
+                   command=self.open_donate_page).pack(side="left", padx=14, pady=10)
+        ttk.Label(top_bar, text=t("home_window_title"), font=("Segoe UI", sf(15), "bold"),
+                  style="Card.TLabel").pack(side="left", padx=(4, 18))
+
+        # Recherche visible (Ctrl+K reste disponible partout).
+        search_wrap = ttk.Frame(top_bar, style="Card.TFrame")
+        search_wrap.pack(side="left", fill="x", expand=True, padx=8, pady=10)
+        self.home_search_var = tk.StringVar()
+        home_search = ttk.Entry(search_wrap, textvariable=self.home_search_var, font=("Segoe UI", sf(10)))
+        home_search.pack(side="left", fill="x", expand=True, ipady=4)
+        home_search.insert(0, t("home_search_placeholder"))
+        home_search.configure(foreground=COLOR_TEXT_MUTED)
+        def _search_focus_in(event):
+            if self.home_search_var.get() == t("home_search_placeholder"):
+                self.home_search_var.set("")
+                home_search.configure(foreground=COLOR_TEXT)
+        def _search_focus_out(event):
+            if not self.home_search_var.get().strip():
+                self.home_search_var.set(t("home_search_placeholder"))
+                home_search.configure(foreground=COLOR_TEXT_MUTED)
+        home_search.bind("<FocusIn>", _search_focus_in)
+        home_search.bind("<FocusOut>", _search_focus_out)
+        home_search.bind("<Return>", self._open_home_search)
+        ttk.Button(search_wrap, text="🔎", width=3, command=self._open_home_search).pack(side="left", padx=(6, 0))
+
         language_names = {"fr": "Français", "en": "English", "es": "Español", "de": "Deutsch"}
         current_flag = self.flag_photos.get(self.language)
-        menubutton_kwargs = {"text": language_names.get(self.language, "Français")}
+        language_kwargs = {"text": language_names.get(self.language, "Français")}
         if current_flag is not None:
-            menubutton_kwargs["image"] = current_flag
-            menubutton_kwargs["compound"] = "left"
-        else:
-            # Repli textuel si le fichier de drapeau est absent, plutôt
-            # que d'afficher un bouton sans aucune indication de langue.
-            menubutton_kwargs["text"] = "🌐 " + menubutton_kwargs["text"]
-        language_menubutton = ttk.Menubutton(top_bar, style="Secondary.TMenubutton", **menubutton_kwargs)
-        language_menu = tk.Menu(language_menubutton, tearoff=False)
-        for lang_code in ("fr", "en", "es", "de"):
-            item_kwargs = {
-                "label": language_names[lang_code],
-                "command": lambda lc=lang_code: self.set_language(lc),
-            }
-            lang_flag = self.flag_photos.get(lang_code)
-            if lang_flag is not None:
-                item_kwargs["image"] = lang_flag
-                item_kwargs["compound"] = "left"
-            language_menu.add_command(**item_kwargs)
-        language_menubutton["menu"] = language_menu
-        language_menubutton.pack(side="right", padx=(0, 0), pady=8)
+            language_kwargs.update(image=current_flag, compound="left")
+        lang_btn = ttk.Menubutton(top_bar, style="Secondary.TMenubutton", **language_kwargs)
+        lang_menu = tk.Menu(lang_btn, tearoff=False)
+        for code in ("fr", "en", "es", "de"):
+            item = {"label": language_names[code], "command": lambda c=code: self.set_language(c)}
+            flag = self.flag_photos.get(code)
+            if flag is not None:
+                item.update(image=flag, compound="left")
+            lang_menu.add_command(**item)
+        lang_btn["menu"] = lang_menu
+        lang_btn.pack(side="right", padx=(4, 12), pady=10)
 
-        # ---- Conteneur scrollable pour toute la page d'accueil : ainsi, quel
-        # que soit le nombre de boutons ou la taille de la fenêtre, rien ne
-        # peut jamais être coupé ou invisible. Le pied de page reste fixé en
-        # bas, en dehors de la zone qui défile. ----
+        settings_btn = ttk.Menubutton(top_bar, text=t("home_settings_button"), style="Secondary.TMenubutton")
+        settings_menu = tk.Menu(settings_btn, tearoff=False)
+        settings_menu.add_command(label=t("home_light_theme") if self.dark_mode else t("home_dark_theme"), command=self.toggle_dark_mode)
+        settings_menu.add_command(label=t("home_large_text_off") if self.large_text else t("home_large_text_on"), command=self.toggle_large_text)
+        settings_menu.add_separator()
+        settings_menu.add_command(label=t("home_btn_import_export"), command=self.open_import_export)
+        settings_menu.add_command(label=t("diagnostic_button"), command=lambda: DiagnosticWindow(self))
+        settings_menu.add_command(label=t("keyboard_shortcuts"), command=lambda: messagebox.showinfo(t("keyboard_shortcuts"), t("keyboard_shortcuts_text"), parent=self))
+        settings_btn["menu"] = settings_menu
+        settings_btn.pack(side="right", padx=4, pady=10)
+
         outer = ttk.Frame(self)
         outer.pack(fill="both", expand=True)
         canvas = tk.Canvas(outer, highlightthickness=0)
         scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         content = ttk.Frame(canvas)
+        window_id = canvas.create_window((0, 0), window=content, anchor="n")
         content.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=content, anchor="n")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window_id, width=max(e.width, gs(720))))
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        _ui_bind_local_mousewheel(
+            canvas, content,
+            lambda ev: canvas.yview_scroll(int(-ev.delta / 120), "units")
+        )
 
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        hero = tk.Frame(content, background=COLOR_ACCENT)
+        hero.pack(fill="x")
+        tk.Label(hero, text=t("home_banner_title"), font=("Segoe UI", sf(22), "bold"),
+                 background=COLOR_ACCENT, foreground="white").pack(pady=(20, 2))
+        tk.Label(hero, text=t("home_banner_subtitle"), font=("Segoe UI", sf(10)),
+                 background=COLOR_ACCENT, foreground="white").pack(pady=(0, 18))
 
-        def _bind_mousewheel(event):
-            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        main = ttk.Frame(content)
+        main.pack(fill="x", padx=max(24, gs(34)), pady=22)
 
-        def _unbind_mousewheel(event):
-            canvas.unbind_all("<MouseWheel>")
+        # Quatre entrées principales : toute la carte est cliquable.
+        primary = ttk.Frame(main)
+        primary.pack(fill="x")
+        low_stock = get_low_stock_pantry_items()
+        cards = [
+            (t("home_primary_recipes"), t("home_primary_recipes_sub", count=len(self.recipes)), self.open_manage_recipes),
+            (t("home_primary_shopping"), t("home_primary_shopping_sub"), self.open_all_recipes),
+            (t("home_primary_planning"), t("home_primary_planning_sub"), self.open_weekly_plan),
+            (t("home_primary_pantry"), t("home_primary_pantry_sub", count=len(low_stock)), self.open_pantry),
+        ]
+        for col, (title, subtitle, command) in enumerate(cards):
+            primary.columnconfigure(col, weight=1, uniform="primary")
+            card = tk.Frame(primary, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
+            card.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0 if col == 3 else 6), pady=2)
+            title_lbl = tk.Label(card, text=title, background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
+                                 font=("Segoe UI", sf(12), "bold"), cursor="hand2")
+            title_lbl.pack(padx=14, pady=(16, 4))
+            sub_lbl = tk.Label(card, text=subtitle, background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
+                               font=("Segoe UI", sf(9)), cursor="hand2")
+            sub_lbl.pack(padx=14, pady=(0, 16))
+            for w in (card, title_lbl, sub_lbl):
+                w.bind("<Button-1>", lambda e, c=command: c())
 
-        canvas.bind("<Enter>", _bind_mousewheel)
-        canvas.bind("<Leave>", _unbind_mousewheel)
+        # Filtres rapides, compacts.
+        filters = ttk.Frame(main)
+        filters.pack(fill="x", pady=(14, 0))
+        for text, qf in [
+            (t("home_quick_filter_favorites"), "favoris"),
+            (t("home_quick_filter_quick"), "rapide"),
+            (t("home_quick_filter_vegetarian"), "vegetarien"),
+            (t("home_quick_filter_wishlist"), "envie"),
+        ]:
+            ttk.Button(filters, text=text, style="Secondary.TButton",
+                       command=lambda f=qf: self.open_manage_recipes(quick_filter=f)).pack(side="left", padx=(0, 8))
 
-        banner = tk.Frame(content, background=COLOR_ACCENT)
-        banner.pack(fill="x")
-        tk.Label(banner, text=t("home_banner_title"), font=("Segoe UI", sf(21), "bold"),
-                 background=COLOR_ACCENT, foreground="white").pack(pady=(18, 2))
-        tk.Label(banner, text=t("home_banner_subtitle"),
-                 font=("Segoe UI", sf(10)), background=COLOR_ACCENT,
-                 foreground=COLOR_ACCENT_LIGHT).pack(pady=(0, 16))
-
-        # ---- Recette du jour : tirée au sort une fois par jour (mémorisée
-        # dans settings.json), pas à chaque ouverture de l'application. ----
+        # Recette du jour : carte large et visuelle.
         daily_recipe = get_daily_recipe(self.recipes)
         if daily_recipe is not None:
-            daily_card = tk.Frame(content, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
-                                   highlightthickness=1, cursor="hand2")
-            daily_card.pack(padx=20, pady=(15, 0), fill="x")
-            daily_inner = ttk.Frame(daily_card, style="Card.TFrame")
-            daily_inner.pack(fill="x", padx=15, pady=10)
+            ttk.Label(main, text=t("home_daily_recipe_title"), style="Section.TLabel").pack(anchor="w", pady=(20, 8))
+            daily = tk.Frame(main, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
+            daily.pack(fill="x")
+            left = ttk.Frame(daily, style="Card.TFrame")
+            left.pack(side="left", fill="both", expand=True, padx=16, pady=14)
             star = "⭐ " if daily_recipe.get("favorite") else ""
-            cat = translate_category_name(daily_recipe.get("category", "Autre"))
-            ttk.Label(daily_inner, text=t("home_daily_recipe_title"), font=("Segoe UI", sf(11), "bold"),
-                      style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(side="left")
-            ttk.Label(daily_inner, text=f"{star}[{cat}] {daily_recipe['name']}",
-                      style="Card.TLabel", font=("Segoe UI", sf(11))).pack(side="left", padx=(15, 0))
-            ttk.Button(daily_inner, text=t("home_open_button"),
-                       command=lambda r=daily_recipe: self._open_daily_recipe(r)).pack(side="right")
+            ttk.Label(left, text=f"{star}{daily_recipe['name']}", font=("Segoe UI", sf(14), "bold"), style="Card.TLabel").pack(anchor="w")
+            meta = []
+            if daily_recipe.get("category"):
+                meta.append(translate_category_name(daily_recipe.get("category")))
+            try:
+                total = float(daily_recipe.get("prep_time") or 0) + float(daily_recipe.get("cook_time") or 0)
+                if total: meta.append(f"⏱ {int(total) if total == int(total) else total} min")
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
+            if daily_recipe.get("difficulty"):
+                meta.append(translate_difficulty_name(daily_recipe.get("difficulty")))
+            ttk.Label(left, text="  •  ".join(meta), style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(5, 0))
+            ttk.Button(daily, text=t("home_open_button"), command=lambda r=daily_recipe: self._open_daily_recipe(r)).pack(side="right", padx=16)
 
-        # ---- Filtres rapides : accès direct à une liste déjà filtrée ----
-        quick_filters_frame = ttk.Frame(content)
-        quick_filters_frame.pack(padx=20, pady=(15, 0), fill="x")
-        ttk.Button(quick_filters_frame, text=t("home_quick_filter_favorites"), style="Secondary.TButton",
-                   command=lambda: self.open_manage_recipes(quick_filter="favoris")).pack(
-            side="left", expand=True, fill="x", padx=(0, 4))
-        ttk.Button(quick_filters_frame, text=t("home_quick_filter_quick"), style="Secondary.TButton",
-                   command=lambda: self.open_manage_recipes(quick_filter="rapide")).pack(
-            side="left", expand=True, fill="x", padx=4)
-        ttk.Button(quick_filters_frame, text=t("home_quick_filter_vegetarian"), style="Secondary.TButton",
-                   command=lambda: self.open_manage_recipes(quick_filter="vegetarien")).pack(
-            side="left", expand=True, fill="x", padx=4)
-        ttk.Button(quick_filters_frame, text=t("home_quick_filter_wishlist"), style="Secondary.TButton",
-                   command=lambda: self.open_manage_recipes(quick_filter="envie")).pack(
-            side="left", expand=True, fill="x", padx=(4, 0))
+        two_col = ttk.Frame(main)
+        two_col.pack(fill="x", pady=(20, 0))
+        two_col.columnconfigure(0, weight=1, uniform="homecol")
+        two_col.columnconfigure(1, weight=1, uniform="homecol")
 
-        # ---- Rappel : recettes en liste d'envies depuis longtemps ----
-        WISHLIST_REMINDER_DAYS = 90
-        stale_wishlist = []
+        today_card = tk.Frame(two_col, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
+        today_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        ttk.Label(today_card, text=t("home_today_title"), style="Card.TLabel", font=("Segoe UI", sf(12), "bold")).pack(anchor="w", padx=14, pady=(12, 6))
+        self.today_frame = ttk.Frame(today_card, style="Card.TFrame")
+        self.today_frame.pack(fill="x", padx=14, pady=(0, 14))
+        self._refresh_today_meals()
+
+        recent_card = tk.Frame(two_col, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
+        recent_card.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        ttk.Label(recent_card, text=t("home_recent_title"), style="Card.TLabel", font=("Segoe UI", sf(12), "bold")).pack(anchor="w", padx=14, pady=(12, 6))
+        self.recent_frame = ttk.Frame(recent_card, style="Card.TFrame")
+        self.recent_frame.pack(fill="x", padx=14, pady=(0, 14))
+        self._refresh_recent_views()
+
+        # Alertes utiles regroupées, au lieu de plusieurs bandeaux concurrents.
+        ttk.Label(main, text=t("home_alerts_title"), style="Section.TLabel").pack(anchor="w", pady=(20, 8))
+        alerts = tk.Frame(main, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
+        alerts.pack(fill="x")
+        any_alert = False
+        if low_stock:
+            any_alert = True
+            names = ", ".join(sorted(e["name"] for e in low_stock))
+            row = tk.Label(alerts, text=t("home_low_stock_reminder", count=len(low_stock), names=names),
+                           background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
+                           font=("Segoe UI", sf(9)), wraplength=850)
+            row.pack(fill="x", padx=14, pady=8)
+            row.bind("<Button-1>", lambda e, items=low_stock: self._open_low_stock_to_cart(items))
+        expiring = get_expiring_pantry_items(days=5)
+        if expiring:
+            any_alert = True
+            row = tk.Label(alerts, text=t("home_expiring_reminder", count=len(expiring)),
+                           background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
+                           font=("Segoe UI", sf(9)), wraplength=850)
+            row.pack(fill="x", padx=14, pady=8)
+            row.bind("<Button-1>", lambda e, items=expiring: UseSoonRecipesWindow(self, items))
+        stale = []
         for r in self.recipes:
             if r.get("wishlist") and r.get("wishlist_since"):
                 try:
-                    since = datetime.fromisoformat(r["wishlist_since"])
-                    if (datetime.now() - since).days >= WISHLIST_REMINDER_DAYS:
-                        stale_wishlist.append(r)
+                    if (datetime.now() - datetime.fromisoformat(r["wishlist_since"])).days >= 90:
+                        stale.append(r)
                 except (ValueError, TypeError):
                     pass
-        if stale_wishlist:
-            reminder_frame = tk.Frame(content, background=COLOR_ACCENT_LIGHT,
-                                       highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
-            reminder_frame.pack(padx=20, pady=(10, 0), fill="x")
-            reminder_label = tk.Label(
-                reminder_frame,
-                text=t("home_wishlist_reminder", count=len(stale_wishlist), days=WISHLIST_REMINDER_DAYS),
-                background=COLOR_ACCENT_LIGHT, foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(9), "bold"),
-                wraplength=560, justify="center", cursor="hand2"
-            )
-            reminder_label.pack(padx=10, pady=8)
-            reminder_frame.bind("<Button-1>", lambda e: self.open_manage_recipes(quick_filter="envie"))
-            reminder_label.bind("<Button-1>", lambda e: self.open_manage_recipes(quick_filter="envie"))
+        if stale:
+            any_alert = True
+            row = tk.Label(alerts, text=t("home_wishlist_reminder", count=len(stale), days=90),
+                           background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
+                           font=("Segoe UI", sf(9)), wraplength=850)
+            row.pack(fill="x", padx=14, pady=8)
+            row.bind("<Button-1>", lambda e: self.open_manage_recipes(quick_filter="envie"))
+        if not any_alert:
+            ttk.Label(alerts, text=t("home_no_alerts"), style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(anchor="w", padx=14, pady=12)
 
-        # ---- Rappel : articles du garde-manger sous leur seuil d'alerte ----
-        low_stock = get_low_stock_pantry_items()
-        if low_stock:
-            stock_frame = tk.Frame(content, background=COLOR_ACCENT_LIGHT,
-                                    highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
-            stock_frame.pack(padx=20, pady=(10, 0), fill="x")
-            stock_names = ", ".join(sorted(e["name"] for e in low_stock))
-            stock_label = tk.Label(
-                stock_frame,
-                text=t("home_low_stock_reminder", count=len(low_stock), names=stock_names),
-                background=COLOR_ACCENT_LIGHT, foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(9), "bold"),
-                wraplength=560, justify="center", cursor="hand2"
-            )
-            stock_label.pack(padx=10, pady=8)
-            stock_frame.bind("<Button-1>", lambda e=None, items=low_stock: self._open_low_stock_to_cart(items))
-            stock_label.bind("<Button-1>", lambda e=None, items=low_stock: self._open_low_stock_to_cart(items))
+        # Outils secondaires : regroupés par usage pour éviter une grande
+        # grille compacte difficile à parcourir visuellement.
+        ttk.Label(main, text=t("home_more_tools"), style="Section.TLabel").pack(
+            anchor="w", pady=(22, 8)
+        )
 
-        # ---- Deux colonnes côte à côte : les boutons à gauche, les cartes
-        # "Aujourd'hui" et "Récemment consultées" à droite. ----
-        columns_frame = ttk.Frame(content)
-        columns_frame.pack(padx=15, pady=(15, 0), fill="x")
+        tools_grid = ttk.Frame(main)
+        tools_grid.pack(fill="x", pady=(0, 8))
+        tools_grid.columnconfigure(0, weight=1, uniform="toolgroups")
+        tools_grid.columnconfigure(1, weight=1, uniform="toolgroups")
 
-        left_col = ttk.Frame(columns_frame)
-        left_col.pack(side="left", fill="y", padx=(0, 15), anchor="n")
-
-        right_col = ttk.Frame(columns_frame)
-        right_col.pack(side="left", fill="both", expand=True, anchor="n")
-
-        grid_frame = ttk.Frame(left_col)
-        grid_frame.pack(fill="x")
-        grid_frame.columnconfigure(0, weight=1)
-
-        buttons = [
-            (t("home_btn_add_recipe"), self.open_add_recipe),
-            (t("home_btn_import_url"), self.open_import_from_url),
-            (t("home_btn_import_photo"), self.open_import_from_photo),
-            (t("home_btn_view_all_recipes"), self.open_all_recipes),
-            (t("home_btn_view_one_recipe"), self.open_one_recipe),
-            (t("home_btn_manage_recipes"), self.open_manage_recipes),
-            (t("home_btn_compare_recipes"), self.open_compare_recipes),
-            (t("home_btn_manage_ingredients"), self.open_manage_ingredients),
-            (t("home_btn_ingredient_search"), self.open_ingredient_search),
-            (t("home_btn_what_can_i_cook"), self.open_what_can_i_cook),
-            (t("home_btn_pantry"), self.open_pantry),
-            (t("home_btn_unit_converter"), self.open_unit_converter),
-            (t("home_btn_weekly_plan"), self.open_weekly_plan),
-            (t("home_btn_menus"), self.open_menus),
-            (t("home_btn_statistics"), self.open_statistics),
-            (t("home_btn_export_cookbook"), self.open_cookbook_export),
-            (t("home_btn_import_export"), self.open_import_export),
-            (t("home_btn_trash"), self.open_trash),
+        tool_groups = [
+            (
+                t("home_tools_create_import"),
+                [
+                    (t("home_btn_add_recipe"), self.open_add_recipe),
+                    (t("home_btn_import_url"), self.open_import_from_url),
+                    (t("home_btn_import_photo"), self.open_import_from_photo),
+                    (t("home_btn_import_qr"), self.open_import_from_qr),
+                ],
+            ),
+            (
+                t("home_tools_recipes_ingredients"),
+                [
+                    (t("home_btn_view_one_recipe"), self.open_one_recipe),
+                    (t("home_btn_compare_recipes"), self.open_compare_recipes),
+                    (t("home_btn_manage_ingredients"), self.open_manage_ingredients),
+                    (t("home_btn_ingredient_search"), self.open_ingredient_search),
+                    (t("home_btn_what_can_i_cook"), self.open_what_can_i_cook),
+                    (t("home_btn_unit_converter"), self.open_unit_converter),
+                ],
+            ),
+            (
+                t("home_tools_organization"),
+                [
+                    (t("home_btn_weekly_history"), self.open_weekly_plan_history),
+                    (t("home_btn_menus"), self.open_menus),
+                ],
+            ),
+            (
+                t("home_tools_data"),
+                [
+                    (t("home_btn_statistics"), self.open_statistics),
+                    (t("home_btn_export_cookbook"), self.open_cookbook_export),
+                    (t("home_btn_trash"), self.open_trash),
+                ],
+            ),
         ]
-        for i, (text, command) in enumerate(buttons):
-            ttk.Button(grid_frame, text=text, command=command).grid(
-                row=i, column=0, padx=4, pady=4, sticky="ew"
+
+        for group_index, (group_title, items) in enumerate(tool_groups):
+            row = group_index // 2
+            col = group_index % 2
+            group = ttk.LabelFrame(tools_grid, text=group_title, padding=14)
+            group.grid(
+                row=row, column=col, sticky="nsew",
+                padx=(0, 9) if col == 0 else (9, 0),
+                pady=(0, 14)
             )
-
-        # ---- Repas du jour ----
-        today_card = tk.Frame(right_col, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
-                               highlightthickness=1)
-        today_card.pack(fill="x")
-        ttk.Label(today_card, text=t("home_today_title"), font=("Segoe UI", sf(12), "bold"),
-                  style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(anchor="w", padx=12, pady=(10, 4))
-        self.today_frame = ttk.Frame(today_card, style="Card.TFrame")
-        self.today_frame.pack(padx=12, pady=(0, 12), fill="x")
-        self._refresh_today_meals()
-
-        # ---- Récemment consultées ----
-        recent_card = tk.Frame(right_col, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
-                                highlightthickness=1)
-        recent_card.pack(fill="x", pady=(15, 0))
-        ttk.Label(recent_card, text=t("home_recent_title"), font=("Segoe UI", sf(12), "bold"),
-                  style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(anchor="w", padx=12, pady=(10, 4))
-        recent_frame = ttk.Frame(recent_card, style="Card.TFrame")
-        recent_frame.pack(padx=12, pady=(0, 12), fill="x")
-        self.recent_listbox = tk.Listbox(recent_frame, height=5, font=("Segoe UI", sf(9)))
-        self.recent_listbox.pack(side="left", fill="x", expand=True)
-        self.recent_listbox.bind("<Double-Button-1>", lambda e: self.open_recent_selected())
-        ttk.Button(recent_frame, text=t("home_open_button"), command=self.open_recent_selected).pack(
-            side="left", padx=(8, 0))
-        self._refresh_recent_views()
-
-        # ---- Recettes à essayer (liste d'envies), tirage au sort ----
-        wishlist_card = tk.Frame(right_col, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
-                                  highlightthickness=1)
-        wishlist_card.pack(fill="x", pady=(15, 0))
-        ttk.Label(wishlist_card, text=t("home_wishlist_title"), font=("Segoe UI", sf(12), "bold"),
-                  style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(anchor="w", padx=12, pady=(10, 4))
-        wishlist_frame = ttk.Frame(wishlist_card, style="Card.TFrame")
-        wishlist_frame.pack(padx=12, pady=(0, 12), fill="x")
-        self.wishlist_listbox = tk.Listbox(wishlist_frame, height=8, font=("Segoe UI", sf(9)))
-        self.wishlist_listbox.pack(side="left", fill="x", expand=True)
-        self.wishlist_listbox.bind("<Double-Button-1>", lambda e: self.open_wishlist_selected())
-        wishlist_btn_col = ttk.Frame(wishlist_frame, style="Card.TFrame")
-        wishlist_btn_col.pack(side="left", padx=(8, 0))
-        ttk.Button(wishlist_btn_col, text=t("home_open_button"), command=self.open_wishlist_selected).pack(fill="x")
-        ttk.Button(wishlist_btn_col, text=t("home_new_draw_button"),
-                   command=self._refresh_wishlist_sample).pack(fill="x", pady=(4, 0))
-        self.wishlist_sample = []
-        self._refresh_wishlist_sample()
+            group.columnconfigure(0, weight=1)
+            # Boutons verticaux : beaucoup plus faciles à lire que l'ancienne
+            # matrice de 3 colonnes.
+            for i, (label, command) in enumerate(items):
+                ttk.Button(
+                    group, text=label, style="Secondary.TButton",
+                    command=command
+                ).grid(
+                    row=i, column=0, sticky="ew",
+                    padx=2, pady=4, ipady=2
+                )
 
         warnings = []
-        if not PIL_AVAILABLE:
-            warnings.append(t("warning_pillow"))
-        if not REPORTLAB_AVAILABLE:
-            warnings.append(t("warning_reportlab"))
-        if not OPENPYXL_AVAILABLE:
-            warnings.append(t("warning_openpyxl"))
-        if not QRCODE_AVAILABLE:
-            warnings.append(t("warning_qrcode"))
-        if not PYTESSERACT_AVAILABLE:
-            warnings.append(t("warning_pytesseract"))
+        if not PIL_AVAILABLE: warnings.append(t("warning_pillow"))
+        if not REPORTLAB_AVAILABLE: warnings.append(t("warning_reportlab"))
+        if not OPENPYXL_AVAILABLE: warnings.append(t("warning_openpyxl"))
+        if not QRCODE_AVAILABLE: warnings.append(t("warning_qrcode"))
+        if not PYTESSERACT_AVAILABLE: warnings.append(t("warning_pytesseract"))
         if warnings:
-            ttk.Label(content, text="\n".join(warnings), foreground=COLOR_ERROR, font=("Segoe UI", sf(8)),
-                      justify="center").pack(pady=(10, 10))
-        else:
-            ttk.Label(content, text="", font=("Segoe UI", sf(4))).pack(pady=(5, 5))
+            ttk.Label(main, text="\n".join(warnings), foreground=COLOR_ERROR, justify="center").pack(pady=10)
 
-        tk.Frame(content, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
-
-        self.footer = ttk.Label(self, text=t("home_footer_recipe_count", count=len(self.recipes)),
-                                 font=("Segoe UI", sf(9)))
-        self.footer.pack(side="bottom", pady=15)
+        self.footer = ttk.Label(self, text=t("home_footer_recipe_count", count=len(self.recipes)), font=("Segoe UI", sf(9)))
+        self.footer.pack(side="bottom", pady=10)
 
     def refresh_recipes(self):
         self.recipes = load_recipes()
         self.footer.config(text=t("home_footer_recipe_count", count=len(self.recipes)))
+        # Synchronise les fiches ouvertes avec la recette fraîchement
+        # rechargée (notamment après une cuisson enregistrée depuis le mode
+        # cuisine), afin d'éviter une fiche restée en mémoire.
+        for child in list(self.winfo_children()):
+            if not isinstance(child, OneRecipeWindow) or not child.winfo_exists():
+                continue
+            current = getattr(child, "current_recipe", None)
+            if current is None:
+                continue
+            refreshed = find_recipe_by_id(self.recipes, current.get("id")) or find_recipe_by_name(
+                self.recipes, current.get("name", "")
+            )
+            if refreshed is None:
+                continue
+            child.current_recipe = refreshed
+            try:
+                child._display_recipe(refreshed)
+            except tk.TclError as exc:
+                log_internal_error("refresh_open_recipe", exc)
 
     def _refresh_today_meals(self):
         for child in self.today_frame.winfo_children():
@@ -7684,17 +6639,34 @@ class App(tk.Tk):
         self._refresh_recent_views()
 
     def _refresh_recent_views(self):
-        self.recent_listbox.delete(0, tk.END)
+        if not hasattr(self, "recent_frame"):
+            return
+        for child in self.recent_frame.winfo_children():
+            child.destroy()
         names = load_recent_view_names()
         self._recent_recipes = []
-        for name in names:
+        for name in names[:5]:
             recipe = find_recipe_by_name(self.recipes, name)
-            if recipe is None:
-                continue  # la recette a été supprimée depuis
-            self._recent_recipes.append(recipe)
-            self.recent_listbox.insert(tk.END, format_recipe_list_label(recipe))
+            if recipe is not None:
+                self._recent_recipes.append(recipe)
         if not self._recent_recipes:
-            self.recent_listbox.insert(tk.END, t("home_no_recent_recipe"))
+            ttk.Label(self.recent_frame, text=t("home_recent_empty_title"), style="Card.TLabel",
+                      font=("Segoe UI", sf(10), "bold")).pack(anchor="w")
+            ttk.Label(self.recent_frame, text=t("home_recent_empty_sub"), style="Card.TLabel",
+                      foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(2, 0))
+            return
+        for recipe in self._recent_recipes:
+            row = tk.Frame(self.recent_frame, background=COLOR_CARD, cursor="hand2")
+            row.pack(fill="x", pady=2)
+            name_lbl = tk.Label(row, text=recipe.get("name", ""), background=COLOR_CARD, foreground=COLOR_TEXT,
+                                font=("Segoe UI", sf(9), "bold"), anchor="w", cursor="hand2")
+            name_lbl.pack(side="left", fill="x", expand=True)
+            meta = translate_category_name(recipe.get("category", "Autre"))
+            meta_lbl = tk.Label(row, text=meta, background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
+                                font=("Segoe UI", sf(8)), cursor="hand2")
+            meta_lbl.pack(side="right")
+            for w in (row, name_lbl, meta_lbl):
+                w.bind("<Button-1>", lambda e, r=recipe: self._open_daily_recipe(r))
 
     def _open_daily_recipe(self, recipe):
         OneRecipeWindow(self, initial_recipe_name=recipe["name"])
@@ -7706,14 +6678,6 @@ class App(tk.Tk):
         to_add = [{"name": e["name"], "quantity": e["threshold"], "unit": e["unit"]} for e in items]
         win.add_manual_items(to_add)
 
-    def open_recent_selected(self):
-        sel = self.recent_listbox.curselection()
-        if not sel or not getattr(self, "_recent_recipes", None):
-            return
-        recipe = self._recent_recipes[sel[0]]
-        win = OneRecipeWindow(self, initial_recipe_name=recipe["name"])
-        self.wait_window(win)
-        self._refresh_recent_views()
 
     def _refresh_wishlist_sample(self):
         """Tire au sort jusqu'à 10 recettes parmi celles de la liste d'envies
@@ -7731,14 +6695,6 @@ class App(tk.Tk):
             cat = translate_category_name(r.get("category", "Autre"))
             self.wishlist_listbox.insert(tk.END, f"[{cat}] {r['name']}")
 
-    def open_wishlist_selected(self):
-        sel = self.wishlist_listbox.curselection()
-        if not sel or not self.wishlist_sample:
-            return
-        recipe = self.wishlist_sample[sel[0]]
-        win = OneRecipeWindow(self, initial_recipe_name=recipe["name"])
-        self.wait_window(win)
-        self._refresh_wishlist_sample()
 
     def refresh_ingredients(self):
         self.ingredient_names = load_ingredients()
@@ -7750,25 +6706,25 @@ class App(tk.Tk):
     # ---------- Voir toutes les recettes ----------
     def open_all_recipes(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         AllRecipesWindow(self)
 
     # ---------- Voir une recette précise ----------
     def open_one_recipe(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         win = OneRecipeWindow(self)
         self.wait_window(win)
         self._refresh_recent_views()
 
     # ---------- Modifier / Supprimer une recette ----------
-    def open_manage_recipes(self, quick_filter=None):
+    def open_manage_recipes(self, quick_filter=None, initial_search=""):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
-        win = ManageRecipesWindow(self, quick_filter=quick_filter)
+        win = ManageRecipesWindow(self, quick_filter=quick_filter, initial_search=initial_search)
         self.wait_window(win)
         self._refresh_recent_views()
 
@@ -7786,10 +6742,10 @@ class App(tk.Tk):
     def open_ingredient_search(self):
         IngredientSearchWindow(self)
 
-    # ---------- Comparer deux recettes ----------
+    # ---------- Comparer deux ou trois recettes ----------
     def open_compare_recipes(self):
         if len(self.recipes) < 2:
-            messagebox.showinfo("Info", "Il faut au moins 2 recettes enregistrées pour pouvoir comparer.")
+            messagebox.showinfo(t("common_info"), t("compare_need_two_recipes"))
             return
         CompareRecipesWindow(self)
 
@@ -7801,6 +6757,40 @@ class App(tk.Tk):
     def open_import_from_photo(self):
         ImportFromPhotoWindow(self)
 
+    # ---------- Importer une recette depuis un QR code mobile ----------
+    def open_import_from_qr(self):
+        if not QRCODE_READER_AVAILABLE:
+            messagebox.showerror(t("common_module_missing"), t("qrimport_reader_missing"))
+            return
+        paths = filedialog.askopenfilenames(
+            title=t("qrimport_choose_title"),
+            filetypes=[(t("qrimport_filetypes"), "*.png *.jpg *.jpeg *.bmp *.webp"), ("Tous les fichiers", "*.*")]
+        )
+        if not paths:
+            return
+        try:
+            prefill = import_recipe_prefill_from_qr_images(paths)
+        except QrImportIncompleteError as e:
+            messagebox.showwarning(
+                t("qrimport_title"),
+                t("qrimport_incomplete", received=e.received, total=e.total)
+            )
+            return
+        except QrImportMixedBatchesError:
+            messagebox.showwarning(t("qrimport_title"), t("qrimport_mixed_batches"))
+            return
+        except QrImportChecksumError:
+            messagebox.showerror(t("common_error"), t("qrimport_checksum_error"))
+            return
+        except Exception as e:
+            messagebox.showerror(t("common_error"), t("qrimport_decode_error", error=e))
+            return
+        if not prefill:
+            messagebox.showwarning(t("qrimport_title"), t("qrimport_no_code"))
+            return
+        self.show_toast(t("qrimport_success_prefill"))
+        RecipeFormWindow(self, recipe_index=None, prefill=prefill)
+
     # ---------- Importer / Exporter les données ----------
     def open_import_export(self):
         ImportExportWindow(self)
@@ -7808,7 +6798,7 @@ class App(tk.Tk):
     # ---------- Que puis-je cuisiner ? ----------
     def open_what_can_i_cook(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         WhatCanICookWindow(self)
 
@@ -7821,10 +6811,13 @@ class App(tk.Tk):
     def open_unit_converter(self):
         UnitConverterWindow(self)
 
+    def open_weekly_plan_history(self):
+        WeeklyPlanHistoryWindow(self)
+
     # ---------- Planning de la semaine ----------
     def open_weekly_plan(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         win = WeeklyPlanWindow(self)
         self.wait_window(win)
@@ -7833,23 +6826,247 @@ class App(tk.Tk):
     # ---------- Mes menus ----------
     def open_menus(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         MenuManagerWindow(self)
 
     # ---------- Statistiques ----------
     def open_statistics(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         StatisticsWindow(self)
 
     # ---------- Exporter le livre de recettes ----------
     def open_cookbook_export(self):
         if not self.recipes:
-            messagebox.showinfo("Info", "Aucune recette enregistrée pour le moment.")
+            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
             return
         CookbookExportWindow(self)
+
+
+class UnknownIngredientsDialog(tk.Toplevel):
+    """Résout en une fois les ingrédients inconnus avant l'enregistrement."""
+
+    def __init__(self, parent, unknown_names, existing_names):
+        super().__init__(parent)
+        self.result = None
+        self.title(t("unknowningredients_title"))
+        fit_window_to_workarea(
+            self,
+            gs(820),
+            min(gs(760), get_usable_screen_height(self)),
+            margin=24,
+        )
+        safe_minsize(self, gs(650), gs(420))
+        self.transient(parent)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+
+        ttk.Label(self, text=t("unknowningredients_heading"), style="Title.TLabel").pack(
+            anchor="w", padx=18, pady=(16, 4)
+        )
+        ttk.Label(
+            self, text=t("unknowningredients_intro"), wraplength=760,
+            justify="left", foreground=COLOR_TEXT_MUTED
+        ).pack(fill="x", padx=18, pady=(0, 12))
+        ttk.Label(
+            self, text=t("common_filter_hint"),
+            foreground=COLOR_TEXT_MUTED,
+        ).pack(anchor="w", padx=18, pady=(0, 8))
+
+        outer = ttk.Frame(self)
+        outer.pack(fill="both", expand=True, padx=18)
+        canvas = tk.Canvas(outer, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        content = ttk.Frame(canvas)
+        window_id = canvas.create_window((0, 0), window=content, anchor="nw")
+        content.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window_id, width=e.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.rows = []
+        seen = set()
+        for raw_name in unknown_names:
+            key = ingredient_sort_key(raw_name)
+            if key in seen:
+                continue
+            seen.add(key)
+            ranked = rank_close_ingredients(raw_name, existing_names)
+            ordered = [name for _score, name in ranked]
+            top_score = ranked[0][0] if ranked else 0
+            box = ttk.LabelFrame(content, text=f"  {raw_name}  ", padding=10)
+            box.pack(fill="x", pady=5)
+            action = tk.StringVar(value="replace" if top_score >= 0.75 else "create")
+            ttk.Radiobutton(
+                box, text=t("unknowningredients_create", name=raw_name),
+                variable=action, value="create"
+            ).pack(anchor="w")
+            replace_line = ttk.Frame(box)
+            replace_line.pack(fill="x", pady=(5, 0))
+            ttk.Radiobutton(
+                replace_line, text=t("unknowningredients_replace"),
+                variable=action, value="replace"
+            ).pack(side="left")
+            display_to_canonical = {}
+            for canonical in existing_names:
+                display_to_canonical.setdefault(translate_ingredient_name(canonical), canonical)
+            display_values = filter_sorted_ingredient_values(display_to_canonical.keys())
+            # Même champ à suggestions que le choix d'ingrédient du formulaire
+            # de recette : la liste apparaît et se filtre pendant la frappe.
+            choice = ttk.Entry(replace_line, width=38)
+            choice.full_values = display_values
+            choice._suggestion_popup = None
+            choice._suggestion_listbox = None
+            choice._skip_focus_popup = False
+            closest = translate_ingredient_name(ordered[0]) if ordered else ""
+            if closest:
+                choice.insert(0, closest)
+            choice.pack(side="left", padx=(8, 0), fill="x", expand=True)
+            choice.bind(
+                "<KeyRelease>",
+                lambda event, entry=choice, selected_action=action:
+                    self._on_replacement_keyrelease(event, entry, selected_action),
+            )
+            choice.bind(
+                "<FocusIn>",
+                lambda event, entry=choice, selected_action=action:
+                    self._on_replacement_focus_in(event, entry, selected_action),
+            )
+            choice.bind(
+                "<FocusOut>",
+                lambda event, entry=choice: self._on_replacement_focus_out(event, entry),
+            )
+            self.rows.append((raw_name, action, choice, display_to_canonical))
+
+        buttons = ttk.Frame(self)
+        buttons.pack(fill="x", padx=18, pady=16)
+        ttk.Button(buttons, text=t("common_cancel"), command=self._cancel).pack(side="right")
+        ttk.Button(
+            buttons, text=t("unknowningredients_continue"), style="Primary.TButton",
+            command=self._accept
+        ).pack(side="right", padx=(0, 8))
+
+    def _hide_replacement_suggestions(self, entry):
+        popup = getattr(entry, "_suggestion_popup", None)
+        if popup is not None:
+            try:
+                popup.destroy()
+            except tk.TclError:
+                pass
+            entry._suggestion_popup = None
+            entry._suggestion_listbox = None
+
+    def _show_replacement_suggestions(self, entry, filtered, action):
+        self._hide_replacement_suggestions(entry)
+        if not filtered:
+            return
+        popup = tk.Toplevel(entry)
+        popup.wm_overrideredirect(True)
+        try:
+            popup.wm_attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        width = max(entry.winfo_width(), gs(180))
+        listbox = tk.Listbox(
+            popup,
+            height=min(6, len(filtered)),
+            exportselection=False,
+            font=("Segoe UI", sf(9)),
+        )
+        listbox.pack(fill="both", expand=True)
+        for value in filtered:
+            listbox.insert(tk.END, value)
+        finalize_suggestion_popup(popup, entry, listbox, width)
+
+        def choose(_event=None):
+            selection = listbox.curselection()
+            if selection:
+                entry.delete(0, tk.END)
+                entry.insert(0, listbox.get(selection[0]))
+                action.set("replace")
+            self._hide_replacement_suggestions(entry)
+            entry._skip_focus_popup = True
+            entry.focus_set()
+            entry.icursor(tk.END)
+
+        listbox.bind("<ButtonRelease-1>", choose)
+        listbox.bind("<Return>", choose)
+        entry._suggestion_popup = popup
+        entry._suggestion_listbox = listbox
+
+    def _on_replacement_keyrelease(self, event, entry, action):
+        if event.keysym == "Down":
+            listbox = getattr(entry, "_suggestion_listbox", None)
+            if listbox is not None:
+                listbox.focus_set()
+                listbox.selection_set(0)
+            return
+        if event.keysym == "Escape":
+            self._hide_replacement_suggestions(entry)
+            return
+        if event.keysym in (
+            "Return", "Tab", "Shift_L", "Shift_R", "Control_L", "Control_R",
+            "Caps_Lock", "Alt_L", "Alt_R", "Left", "Right", "Up",
+        ):
+            return
+        action.set("replace")
+        filtered = filter_sorted_ingredient_values(entry.full_values, entry.get())
+        if filtered:
+            self._show_replacement_suggestions(entry, filtered, action)
+        else:
+            self._hide_replacement_suggestions(entry)
+
+    def _on_replacement_focus_in(self, _event, entry, action):
+        if getattr(entry, "_skip_focus_popup", False):
+            entry._skip_focus_popup = False
+            return
+        # La proposition présélectionnée est remplacée dès la première lettre,
+        # sans que l'utilisateur ait à l'effacer manuellement.
+        entry.after_idle(lambda: entry.select_range(0, tk.END))
+        filtered = filter_sorted_ingredient_values(entry.full_values, entry.get())
+        if filtered:
+            self._show_replacement_suggestions(entry, filtered, action)
+
+    def _on_replacement_focus_out(self, _event, entry):
+        def hide_if_focus_left_suggestions():
+            try:
+                focused = self.focus_get()
+                if focused in (entry, getattr(entry, "_suggestion_listbox", None)):
+                    return
+            except tk.TclError:
+                pass
+            self._hide_replacement_suggestions(entry)
+
+        entry.after(200, hide_if_focus_left_suggestions)
+
+    def _accept(self):
+        result = {}
+        for raw_name, action, choice, display_to_canonical in self.rows:
+            if action.get() == "replace":
+                selected = display_to_canonical.get(choice.get())
+                if not selected:
+                    selected = resolve_ingredient_input(
+                        choice.get(), list(display_to_canonical.values())
+                    )
+                if not selected:
+                    messagebox.showerror(
+                        t("common_error"),
+                        t("unknowningredients_replacement_required", name=raw_name),
+                        parent=self,
+                    )
+                    return
+                result[ingredient_sort_key(raw_name)] = ("replace", selected)
+            else:
+                result[ingredient_sort_key(raw_name)] = ("create", normalize_oe(raw_name.strip()))
+        self.result = result
+        self.destroy()
+
+    def _cancel(self):
+        self.result = None
+        self.destroy()
 
 
 class RecipeFormWindow(tk.Toplevel):
@@ -7860,7 +7077,7 @@ class RecipeFormWindow(tk.Toplevel):
 
     CATEGORY_OPTIONS = ["Petit-déjeuner", "Entrée", "Plat", "Dessert", "Apéro", "Boisson", "Sauce", "Autre"]
     DIFFICULTY_OPTIONS = ["Facile", "Moyen", "Difficile"]
-    MAX_DESC_LEN = 2056
+    MAX_DESC_LEN = 12000
     MAX_NOTES_LEN = 500
 
     def __init__(self, app, recipe_index=None, prefill=None):
@@ -7879,15 +7096,15 @@ class RecipeFormWindow(tk.Toplevel):
         if self.editing:
             self.gallery_items = [("existing", fname) for fname in get_recipe_images(self.existing_recipe)]
         elif self.prefill:
-            # La photo a déjà été téléchargée et enregistrée dans images/ par
-            # fetch_recipe_from_url ; on la référence donc comme "existing".
             self.gallery_items = [("existing", fname) for fname in self.prefill.get("images", [])]
+            self.gallery_items += [("new", path) for path in self.prefill.get("image_sources", []) if os.path.isfile(path)]
+        self._temporary_import_sources = set(self.prefill.get("temporary_image_sources", []) if self.prefill else [])
         self._gallery_thumb_refs = []  # garder une référence pour éviter le garbage collector
 
         self.title(t("recipeform_title_edit") if self.editing else t("recipeform_title_add"))
-        screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(1220)}x{screen_height}+40+0")
-        self.minsize(gs(760), gs(500))
+        # Le bas de la fenêtre reste toujours au-dessus de la barre des tâches.
+        fit_window_to_workarea(self, gs(1400), get_usable_screen_height(self), margin=18)
+        safe_minsize(self, gs(760), min(gs(520), get_usable_screen_height(self) - 36))
         self.grab_set()
 
         # ---- Conteneur scrollable pour tout le formulaire ----
@@ -7903,18 +7120,35 @@ class RecipeFormWindow(tk.Toplevel):
         self.content_frame.bind(
             "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
-        self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self.canvas_window, width=e.width))
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # ---- Rangée 1 : infos générales à gauche, allergènes à droite ----
-        row1 = ttk.Frame(self.content_frame)
-        row1.pack(fill="both", expand=True)
-        row1_left = ttk.Frame(row1)
-        row1_left.pack(side="left", fill="both", expand=True, padx=(0, 10))
-        row1_right = ttk.Frame(row1)
-        row1_right.pack(side="left", fill="both", expand=True, padx=(10, 0), anchor="n")
+        ttk.Label(self.content_frame, text=t("recipeform_title_edit") if self.editing else t("recipeform_title_add"),
+                  style="Title.TLabel").pack(anchor="w", padx=20, pady=(16, 2))
+        self.draft_status_label = ttk.Label(self.content_frame, text=t("recipeform_draft_hint"), style="Muted.TLabel")
+        self.draft_status_label.pack(anchor="w", padx=20, pady=(0, 10))
+        self.form_notebook = ttk.Notebook(self.content_frame)
+        self.form_notebook.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+        self.tab_info = ttk.Frame(self.form_notebook, padding=16)
+        self.tab_ingredients = ttk.Frame(self.form_notebook, padding=16)
+        self.tab_preparation = ttk.Frame(self.form_notebook, padding=16)
+        self.tab_photos = ttk.Frame(self.form_notebook, padding=16)
+        self.form_notebook.add(self.tab_info, text=t("recipeform_tab_info"))
+        self.form_notebook.add(self.tab_ingredients, text=t("recipeform_tab_ingredients"))
+        self.form_notebook.add(self.tab_preparation, text=t("recipeform_tab_preparation"))
+        self.form_notebook.add(self.tab_photos, text=t("recipeform_tab_photos"))
+        if self.editing:
+            self.tab_cook_log = ttk.Frame(self.form_notebook, padding=16)
+            self.form_notebook.add(self.tab_cook_log, text=t("recipeform_tab_cook_log"))
+            self._build_cook_log_tab()
+
+        # Les allergènes sont importants et doivent être visibles dès l'onglet
+        # Informations, au même endroit que les caractéristiques principales.
+        row1_left = self.tab_info
+        row1_right = self.tab_info
 
         ttk.Label(row1_left, text=t("recipeform_name_label"),
                   font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
@@ -7980,9 +7214,13 @@ class RecipeFormWindow(tk.Toplevel):
         ttk.Label(difficulty_frame, text=t("recipeform_difficulty_label")).pack(side="left", padx=3)
         self.difficulty_combo = ttk.Combobox(difficulty_frame, values=[translate_difficulty_name(d) for d in self.DIFFICULTY_OPTIONS],
                                               state="readonly", width=15)
-        self.difficulty_combo.set(
-            translate_difficulty_name(self.existing_recipe.get("difficulty", "Facile") if self.editing else "Facile")
-        )
+        if self.editing:
+            difficulty_value = self.existing_recipe.get("difficulty", "Facile")
+        elif self.prefill:
+            difficulty_value = self.prefill.get("difficulty", "Facile") or "Facile"
+        else:
+            difficulty_value = "Facile"
+        self.difficulty_combo.set(translate_difficulty_name(difficulty_value))
         self.difficulty_combo.pack(side="left", padx=3)
         ttk.Label(difficulty_frame, text=t("recipeform_default_persons_label")).pack(side="left", padx=(10, 3))
         self.default_persons_entry = ttk.Entry(difficulty_frame, width=5)
@@ -8021,9 +7259,12 @@ class RecipeFormWindow(tk.Toplevel):
         allergens_frame.pack()
         if self.editing:
             existing_allergens = set(self.existing_recipe.get("allergens", []))
-        elif self.prefill and self.prefill.get("ingredients"):
-            # Recette importée depuis un lien : détection automatique dès l'ouverture
-            existing_allergens = set(compute_recipe_allergens(self.prefill["ingredients"]))
+        elif self.prefill:
+            # Import URL ou QR : conserve les allergènes explicitement transmis
+            # et complète avec la détection locale à partir des ingrédients.
+            existing_allergens = set(self.prefill.get("allergens", []))
+            if self.prefill.get("ingredients"):
+                existing_allergens.update(compute_recipe_allergens(self.prefill["ingredients"]))
         else:
             existing_allergens = set()
         self.allergen_vars = {}
@@ -8051,11 +7292,13 @@ class RecipeFormWindow(tk.Toplevel):
         ).pack(pady=(0, 5))
 
         # ---- Photos (galerie) ----
-        ttk.Label(self.content_frame, text=t("recipeform_photos_label"),
+        ttk.Label(self.tab_photos, text=t("recipeform_photos_label"),
                   font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
-        gallery_outer = ttk.Frame(self.content_frame)
-        gallery_outer.pack(fill="x", padx=10)
-        self.gallery_canvas = tk.Canvas(gallery_outer, height=130, highlightthickness=0)
+        gallery_outer = ttk.Frame(self.tab_photos)
+        gallery_outer.pack(fill="both", expand=True, padx=10, pady=(0, 6))
+        # Grande galerie : la hauteur est ajustée en fonction de la taille des
+        # aperçus et la largeur disponible est exploitée au maximum.
+        self.gallery_canvas = tk.Canvas(gallery_outer, height=380, highlightthickness=0)
         gallery_scrollbar = ttk.Scrollbar(gallery_outer, orient="horizontal",
                                            command=self.gallery_canvas.xview)
         self.gallery_frame = ttk.Frame(self.gallery_canvas)
@@ -8064,57 +7307,122 @@ class RecipeFormWindow(tk.Toplevel):
         )
         self.gallery_canvas.create_window((0, 0), window=self.gallery_frame, anchor="nw")
         self.gallery_canvas.configure(xscrollcommand=gallery_scrollbar.set)
-        self.gallery_canvas.pack(fill="x")
+        self.gallery_canvas.pack(fill="both", expand=True)
         gallery_scrollbar.pack(fill="x")
-        ttk.Button(self.content_frame, text=t("recipeform_add_photo_button"),
+        ttk.Button(self.tab_photos, text=t("recipeform_add_photo_button"),
                    command=self.choose_images).pack(pady=5)
         self._refresh_gallery()
+        self.drop_status_label = ttk.Label(
+            self.tab_photos,
+            text=t("recipeform_drop_photos_hint"),
+            style="Muted.TLabel"
+        )
+        self.drop_status_label.pack(pady=(2, 1))
+        ttk.Label(
+            self.tab_photos,
+            text=t("recipeform_paste_photo_hint"),
+            style="Muted.TLabel"
+        ).pack(pady=(0, 8))
+        self._enable_photo_drop()
+        self.bind("<Control-v>", self._paste_photo_from_clipboard, add="+")
 
-        # ---- Rangée 2 : ingrédients à gauche, description/notes à droite ----
-        row2 = ttk.Frame(self.content_frame)
-        row2.pack(fill="both", expand=True)
-        row2_left = ttk.Frame(row2)
-        row2_left.pack(side="left", fill="both", expand=True, padx=(0, 10))
-        row2_right = ttk.Frame(row2)
-        row2_right.pack(side="left", fill="both", expand=True, padx=(10, 0), anchor="n")
+        # Sections séparées pour alléger le formulaire : ingrédients et préparation
+        # ne se concurrencent plus visuellement sur la même page.
+        row2_left = self.tab_ingredients
+        row2_right = self.tab_preparation
 
         # ---- Description ----
+        # La zone de préparation occupe désormais réellement la largeur de
+        # l'application et offre beaucoup plus de hauteur pour les recettes
+        # détaillées.
         ttk.Label(row2_right, text=t("recipeform_description_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(15, 5))
         desc_frame = ttk.Frame(row2_right)
-        desc_frame.pack(padx=10)
-        self.description_text = tk.Text(desc_frame, height=10, width=58, wrap="word", font=("Segoe UI", sf(10)))
-        self.description_text.pack()
+        desc_frame.pack(fill="both", expand=True, padx=10)
+        desc_scroll = ttk.Scrollbar(desc_frame, orient="vertical")
+        self.description_text = tk.Text(
+            desc_frame, height=18, wrap="word", font=("Segoe UI", sf(10)),
+            yscrollcommand=desc_scroll.set
+        )
+        desc_scroll.config(command=self.description_text.yview)
+        self.description_text.pack(side="left", fill="both", expand=True)
+        desc_scroll.pack(side="right", fill="y")
         if self.editing and self.existing_recipe.get("description"):
             self.description_text.insert("1.0", self.existing_recipe["description"])
         elif self.prefill and self.prefill.get("description"):
             self.description_text.insert("1.0", self.prefill["description"])
         self.desc_counter_label = ttk.Label(row2_right, text="", font=("Segoe UI", sf(8)),
                                              foreground=COLOR_TEXT_MUTED)
-        self.desc_counter_label.pack(pady=(2, 0))
+        self.desc_counter_label.pack(anchor="e", padx=10, pady=(2, 8))
         self.description_text.bind("<<Modified>>", self._on_description_modified)
         self._on_description_modified()
 
         # ---- Notes personnelles ----
+        # Les notes concernent directement la préparation et sont donc placées
+        # juste sous la description au lieu d'être isolées dans Compléments.
         ttk.Label(row2_right, text=t("recipeform_notes_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(8, 5))
         notes_frame = ttk.Frame(row2_right)
-        notes_frame.pack(padx=10)
-        self.notes_text = tk.Text(notes_frame, height=5, width=58, wrap="word", font=("Segoe UI", sf(10)))
-        self.notes_text.pack()
+        notes_frame.pack(fill="x", padx=10)
+        notes_scroll = ttk.Scrollbar(notes_frame, orient="vertical")
+        self.notes_text = tk.Text(
+            notes_frame, height=7, wrap="word", font=("Segoe UI", sf(10)),
+            yscrollcommand=notes_scroll.set
+        )
+        notes_scroll.config(command=self.notes_text.yview)
+        self.notes_text.pack(side="left", fill="x", expand=True)
+        notes_scroll.pack(side="right", fill="y")
         if self.editing and self.existing_recipe.get("personal_notes"):
             self.notes_text.insert("1.0", self.existing_recipe["personal_notes"])
+        elif self.prefill and self.prefill.get("personal_notes"):
+            self.notes_text.insert("1.0", self.prefill["personal_notes"])
         self.notes_counter_label = ttk.Label(row2_right, text="", font=("Segoe UI", sf(8)),
                                               foreground=COLOR_TEXT_MUTED)
-        self.notes_counter_label.pack(pady=(2, 0))
+        self.notes_counter_label.pack(anchor="e", padx=10, pady=(2, 10))
         self.notes_text.bind("<<Modified>>", self._on_notes_modified)
         self._on_notes_modified()
+
+        # ---- Retour après cuisson (aligné sur l'application mobile) ----
+        ttk.Label(row2_right, text=t("recipeform_family_opinion_label"),
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(8, 5))
+        self.family_opinion_text = tk.Text(row2_right, height=4, wrap="word", font=("Segoe UI", sf(10)))
+        self.family_opinion_text.pack(fill="x", padx=10)
+        if self.editing and self.existing_recipe.get("family_opinion"):
+            self.family_opinion_text.insert("1.0", self.existing_recipe.get("family_opinion", ""))
+        elif self.prefill and self.prefill.get("family_opinion"):
+            self.family_opinion_text.insert("1.0", self.prefill.get("family_opinion", ""))
+
+        ttk.Label(row2_right, text=t("recipeform_improvement_notes_label"),
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(8, 5))
+        self.improvement_notes_text = tk.Text(row2_right, height=4, wrap="word", font=("Segoe UI", sf(10)))
+        self.improvement_notes_text.pack(fill="x", padx=10)
+        if self.editing and self.existing_recipe.get("improvement_notes"):
+            self.improvement_notes_text.insert("1.0", self.existing_recipe.get("improvement_notes", ""))
+        elif self.prefill and self.prefill.get("improvement_notes"):
+            self.improvement_notes_text.insert("1.0", self.prefill.get("improvement_notes", ""))
+
+        actual_diff_frame = ttk.Frame(row2_right)
+        actual_diff_frame.pack(fill="x", padx=10, pady=(8, 12))
+        ttk.Label(actual_diff_frame, text=t("recipeform_actual_difficulty_label"),
+                  font=("Segoe UI", sf(10), "bold")).pack(side="left")
+        self.actual_difficulty_combo = ttk.Combobox(
+            actual_diff_frame, values=[""] + [translate_difficulty_name(d) for d in self.DIFFICULTY_OPTIONS],
+            state="readonly", width=18
+        )
+        actual_value = ""
+        if self.editing:
+            actual_value = self.existing_recipe.get("actual_difficulty", "") or ""
+        elif self.prefill:
+            actual_value = self.prefill.get("actual_difficulty", "") or ""
+        self.actual_difficulty_combo.set(translate_difficulty_name(actual_value) if actual_value else "")
+        self.actual_difficulty_combo.pack(side="left", padx=(10, 0))
 
         # ---- Ingrédients ----
         ing_header_frame = ttk.Frame(row2_left)
         ing_header_frame.pack(fill="x", padx=10, pady=(15, 5))
         ttk.Label(ing_header_frame, text=t("recipeform_ingredients_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(side="left")
+                  font=("Segoe UI", sf(11), "bold"), wraplength=900,
+                  justify="left").pack(side="left")
         ttk.Button(ing_header_frame, text=t("recipeform_new_ingredient_button"),
                    command=self.add_new_ingredient_global).pack(side="right")
 
@@ -8123,6 +7431,11 @@ class RecipeFormWindow(tk.Toplevel):
                       text=t("recipeform_no_ingredients_registered"),
                       font=("Segoe UI", sf(8)), foreground=COLOR_ERROR, justify="center").pack()
 
+        if self.prefill and self.prefill.get("ocr_warnings"):
+            ttk.Label(row2_left, text=t("importphoto_uncertain_quantities",
+                      names=", ".join(self.prefill["ocr_warnings"])),
+                      wraplength=850, justify="left", foreground=COLOR_ERROR).pack(
+                          fill="x", padx=10, pady=6)
         self.rows_frame = ttk.Frame(row2_left)
         self.rows_frame.pack(fill="x", padx=10)
 
@@ -8154,15 +7467,197 @@ class RecipeFormWindow(tk.Toplevel):
         )
         self.add_ingredient_button.pack(pady=10)
 
-        self.bottom_actions_frame = ttk.Frame(self.rows_frame)
-        self.bottom_actions_frame.pack(pady=(0, 20))
-        ttk.Button(self.bottom_actions_frame, text=t("recipeform_save_button"),
-                   command=self.save_recipe).grid(row=0, column=0, padx=5)
+        self.bottom_actions_frame = ttk.Frame(self, padding=(16, 10))
+        self.bottom_actions_frame.pack(fill="x", side="bottom")
         if self.editing:
-            ttk.Button(self.bottom_actions_frame, text=t("recipeform_delete_button"),
-                       command=self.delete_recipe).grid(row=0, column=1, padx=5)
+            ttk.Button(self.bottom_actions_frame, text=t("recipeform_delete_button"), style="Danger.TButton",
+                       command=self.delete_recipe).pack(side="left")
+        ttk.Button(self.bottom_actions_frame, text=t("recipeform_save_button"), style="Hero.TButton",
+                   command=self.save_recipe).pack(side="right")
+        ttk.Button(self.bottom_actions_frame, text=t("recipeform_cancel_button"), style="Secondary.TButton",
+                   command=self._close_without_draft).pack(side="right", padx=(0, 8))
 
-        tk.Frame(self.content_frame, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
+        self.bind("<Control-s>", lambda e: (self.save_recipe(), "break"))
+        self.protocol("WM_DELETE_WINDOW", self._close_without_draft)
+        self._draft_after_id = None
+        # Référence de comparaison : un formulaire ouvert puis fermé sans
+        # aucune modification ne doit pas devenir un faux brouillon.
+        self._draft_baseline_signature = self._draft_signature(
+            self._collect_draft_snapshot()
+        )
+        self._maybe_restore_draft()
+        self._schedule_draft_autosave()
+
+    def _draft_file_path(self):
+        recipe_id = None
+        if self.editing and self.existing_recipe:
+            recipe_id = self.existing_recipe.get("id")
+        if not recipe_id and self.prefill:
+            recipe_id = self.prefill.get("id")
+        key = recipe_id or "new_recipe"
+        return os.path.join(DRAFTS_DIR, f"recipe_{key}.json")
+
+    @staticmethod
+    def _entry_set(widget, value):
+        widget.delete(0, tk.END)
+        widget.insert(0, "" if value is None else str(value))
+
+    @staticmethod
+    def _draft_signature(data):
+        """Signature stable des champs éditables, sans l'horodatage."""
+        comparable = dict(data)
+        comparable.pop("saved_at", None)
+        return json.dumps(comparable, ensure_ascii=False, sort_keys=True, default=str)
+
+    def _collect_draft_snapshot(self):
+        ingredients = []
+        for name_e, qty_e, unit_e, custom_e in self.ingredient_rows:
+            ingredients.append({
+                "name": name_e.get(), "quantity": qty_e.get(),
+                "unit_choice": unit_e.get(), "custom_unit": custom_e.get(),
+            })
+        return {
+            "saved_at": datetime.now().isoformat(timespec="seconds"),
+            "name": self.name_entry.get(), "favorite": self.favorite_var.get(),
+            "wishlist": self.wishlist_var.get(), "rating": self.rating_value,
+            "category": self.category_combo.get(), "prep_time": self.prep_time_entry.get(),
+            "cook_time": self.cook_time_entry.get(), "difficulty": self.difficulty_combo.get(),
+            "default_persons": self.default_persons_entry.get(), "tags": self.tags_entry.get(),
+            "allergens": [a for a, var in self.allergen_vars.items() if var.get()],
+            "description": self.description_text.get("1.0", "end-1c"),
+            "personal_notes": self.notes_text.get("1.0", "end-1c"),
+            "family_opinion": self.family_opinion_text.get("1.0", "end-1c"),
+            "improvement_notes": self.improvement_notes_text.get("1.0", "end-1c"),
+            "actual_difficulty": self.actual_difficulty_combo.get(),
+            "ingredients": ingredients, "gallery_items": self.gallery_items,
+        }
+
+    def _draft_has_content(self, data):
+        # Une recette existante constitue toujours un brouillon récupérable,
+        # même si tous ses champs sont encore vides. Cela permet de proposer
+        # la récupération à chaque nouvelle ouverture de « Modifier ».
+        if self.editing and self.existing_recipe:
+            return True
+        return bool(
+            str(data.get("name", "")).strip() or str(data.get("description", "")).strip()
+            or str(data.get("personal_notes", "")).strip()
+            or str(data.get("family_opinion", "")).strip()
+            or str(data.get("improvement_notes", "")).strip()
+            or any(str(i.get("name", "")).strip() for i in data.get("ingredients", []))
+            or data.get("gallery_items")
+        )
+
+    def _save_draft_snapshot(self):
+        try:
+            data = self._collect_draft_snapshot()
+            path = self._draft_file_path()
+            unchanged = (
+                self.editing
+                and self._draft_signature(data) == getattr(
+                    self, "_draft_baseline_signature", None
+                )
+            )
+            if not self._draft_has_content(data) or unchanged:
+                if os.path.exists(path):
+                    os.remove(path)
+                return
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, path)
+            if self.winfo_exists():
+                self.draft_status_label.config(text=t("recipeform_draft_saved", time=datetime.now().strftime("%H:%M")))
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
+
+    def _schedule_draft_autosave(self):
+        if not self.winfo_exists():
+            return
+        self._save_draft_snapshot()
+        self._draft_after_id = self.after(4000, self._schedule_draft_autosave)
+
+    def _delete_draft(self):
+        try:
+            path = self._draft_file_path()
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError:
+            pass
+
+    def _maybe_restore_draft(self):
+        path = self._draft_file_path()
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            stamp = data.get("saved_at", "?").replace("T", " ")
+        except Exception:
+            return
+        # Nettoie aussi les brouillons identiques laissés par les versions
+        # précédentes, qui les créaient même après une annulation sans changement.
+        if self.editing and self._draft_signature(data) == getattr(
+            self, "_draft_baseline_signature", None
+        ):
+            self._delete_draft()
+            return
+        if messagebox.askyesno(
+            t("recipeform_draft_restore_title"),
+            t("recipeform_draft_restore_message", date=stamp), parent=self
+        ):
+            self._apply_draft_snapshot(data)
+        else:
+            self._delete_draft()
+
+    def _apply_draft_snapshot(self, data):
+        self._entry_set(self.name_entry, data.get("name", ""))
+        self.favorite_var.set(bool(data.get("favorite")))
+        self.wishlist_var.set(bool(data.get("wishlist")))
+        self.rating_value = int(data.get("rating") or 0)
+        self._refresh_rating_stars()
+        if data.get("category"): self.category_combo.set(data.get("category"))
+        self._entry_set(self.prep_time_entry, data.get("prep_time", ""))
+        self._entry_set(self.cook_time_entry, data.get("cook_time", ""))
+        if data.get("difficulty"): self.difficulty_combo.set(data.get("difficulty"))
+        self._entry_set(self.default_persons_entry, data.get("default_persons", 4))
+        self._entry_set(self.tags_entry, data.get("tags", ""))
+        selected = set(data.get("allergens", []))
+        for allergen, var in self.allergen_vars.items(): var.set(allergen in selected)
+        for widget, key in [
+            (self.description_text, "description"), (self.notes_text, "personal_notes"),
+            (self.family_opinion_text, "family_opinion"), (self.improvement_notes_text, "improvement_notes")
+        ]:
+            widget.delete("1.0", tk.END); widget.insert("1.0", data.get(key, ""))
+        self.actual_difficulty_combo.set(data.get("actual_difficulty", "") or "")
+        for name_e, qty_e, unit_e, custom_e in self.ingredient_rows:
+            self._entry_set(name_e, ""); self._entry_set(qty_e, "")
+            unit_e.set("Gr"); self._entry_set(custom_e, "")
+        for idx, ing in enumerate(data.get("ingredients", [])):
+            if idx >= len(self.ingredient_rows): self.add_ingredient_row()
+            name_e, qty_e, unit_e, custom_e = self.ingredient_rows[idx]
+            self._entry_set(name_e, ing.get("name", "")); self._entry_set(qty_e, ing.get("quantity", ""))
+            unit_e.set(ing.get("unit_choice", "Gr") or "Gr"); self._entry_set(custom_e, ing.get("custom_unit", ""))
+        restored_gallery = []
+        for item in data.get("gallery_items", []):
+            if not isinstance(item, (list, tuple)) or len(item) != 2: continue
+            kind, ref = item
+            if kind == "existing" and os.path.isfile(os.path.join(IMAGES_DIR, ref)):
+                restored_gallery.append((kind, ref))
+            elif kind == "new" and os.path.isfile(ref):
+                restored_gallery.append((kind, ref))
+        self.gallery_items = restored_gallery
+        self._refresh_gallery()
+
+    def _close_without_draft(self):
+        """Ferme proprement le formulaire et supprime le brouillon."""
+        if self._draft_after_id is not None:
+            try:
+                self.after_cancel(self._draft_after_id)
+            except tk.TclError:
+                pass
+            self._draft_after_id = None
+        self._delete_draft()
+        self.destroy()
 
     def _on_description_modified(self, event=None):
         self.description_text.edit_modified(False)
@@ -8231,6 +7726,206 @@ class RecipeFormWindow(tk.Toplevel):
         if paths:
             self._refresh_gallery()
 
+    def _paste_photo_from_clipboard(self, event=None):
+        if not PIL_AVAILABLE:
+            return
+
+        # Ne détourne pas le collage normal dans les champs de saisie.
+        try:
+            widget = self.focus_get()
+            if isinstance(widget, (tk.Entry, ttk.Entry, tk.Text, ttk.Combobox)):
+                return
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
+
+        try:
+            grabbed = ImageGrab.grabclipboard()
+        except Exception as exc:
+            log_internal_error("clipboard_grab", exc)
+            grabbed = None
+
+        # Cas 1 : une vraie image est dans le presse-papiers
+        # (outil Capture d'écran, certaines applications graphiques, etc.).
+        if isinstance(grabbed, Image.Image):
+            try:
+                tmp_dir = os.path.join(DATA_DIR, "clipboard_temp")
+                os.makedirs(tmp_dir, exist_ok=True)
+                path = os.path.join(tmp_dir, f"clipboard_{uuid.uuid4().hex}.png")
+
+                image = grabbed
+                if image.mode not in ("RGB", "RGBA"):
+                    image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+                image.save(path, "PNG")
+
+                self.gallery_items.append(("new", path))
+                self._refresh_gallery()
+                self.app.show_toast(t("recipeform_paste_photo_success"))
+                return "break"
+            except Exception as exc:
+                log_internal_error("clipboard_image_save", exc)
+
+        # Cas 2 : sous Windows, Ctrl+C sur un fichier image dans l'Explorateur
+        # renvoie souvent une LISTE de chemins, pas un objet Image Pillow.
+        if isinstance(grabbed, (list, tuple)):
+            accepted = self._normalise_dropped_photo_paths(grabbed)
+            if accepted:
+                existing = {os.path.normcase(os.path.abspath(ref))
+                            for kind, ref in self.gallery_items if kind == "new"}
+                added = 0
+                for path in accepted:
+                    key = os.path.normcase(os.path.abspath(path))
+                    if key not in existing:
+                        self.gallery_items.append(("new", path))
+                        existing.add(key)
+                        added += 1
+                if added:
+                    self._refresh_gallery()
+                    self.app.show_toast(t("recipeform_paste_files_success", count=added))
+                    return "break"
+
+        messagebox.showinfo(
+            t("common_info"),
+            t("recipeform_paste_photo_failed_detailed"),
+            parent=self
+        )
+        return "break"
+
+    def _normalise_dropped_photo_paths(self, files):
+        """Transforme les chemins fournis par TkDnD2/ImageGrab en chemins valides."""
+        accepted = []
+        allowed = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+
+        for raw in files or []:
+            path = None
+            if isinstance(raw, os.PathLike):
+                path = os.fspath(raw)
+            elif isinstance(raw, str):
+                path = raw
+            elif isinstance(raw, (bytes, bytearray)):
+                raw_bytes = bytes(raw)
+
+                # Les différentes sources de chemins peuvent fournir des bytes ou du texte ;
+                # Python/Windows. On tente d'abord l'encodage du système puis
+                # quelques replis sans jamais planter sur un nom accentué.
+                encodings = []
+                fsenc = sys.getfilesystemencoding()
+                if fsenc:
+                    encodings.append(fsenc)
+                if os.name == "nt":
+                    encodings.extend(["mbcs", "utf-8", "cp1252"])
+                else:
+                    encodings.extend(["utf-8", "cp1252"])
+
+                for enc in encodings:
+                    try:
+                        path = raw_bytes.decode(enc)
+                        if os.path.exists(path.strip().strip('"')):
+                            break
+                    except (LookupError, UnicodeDecodeError):
+                        continue
+
+                if path is None:
+                    path = raw_bytes.decode("utf-8", errors="replace")
+            else:
+                path = str(raw)
+
+            path = str(path or "").strip().strip('"')
+            if (path and os.path.isfile(path)
+                    and os.path.splitext(path)[1].lower() in allowed):
+                accepted.append(os.path.abspath(path))
+
+        # Supprime les doublons tout en gardant l'ordre.
+        unique = []
+        seen = set()
+        for path in accepted:
+            key = os.path.normcase(path)
+            if key not in seen:
+                seen.add(key)
+                unique.append(path)
+        return unique
+
+    def _enable_photo_drop(self):
+        self._photo_drop_enabled = False
+
+        if not TKDND_AVAILABLE:
+            try:
+                self.drop_status_label.config(
+                    text=t("recipeform_drop_unavailable")
+                )
+            except Exception:
+                pass
+            return
+
+        # TkDnD2 : un seul drop-target, uniquement sur l'onglet Photos.
+        # Contrairement à windnd, aucun WindowProc n'est remplacé manuellement.
+        try:
+            self.tab_photos.drop_target_register(DND_FILES)
+            self.tab_photos.dnd_bind("<<Drop>>", self._on_photo_drop_event)
+            self._photo_drop_enabled = True
+        except Exception as exc:
+            log_internal_error("tkinterdnd2_hook", exc)
+            self._photo_drop_enabled = False
+
+        try:
+            self.drop_status_label.config(
+                text=t("recipeform_drop_photos_hint")
+                if self._photo_drop_enabled
+                else t("recipeform_drop_unavailable")
+            )
+        except Exception:
+            pass
+
+    def _on_photo_drop_event(self, event):
+        """Callback TkDnD2 : event.data est une liste Tcl de chemins.
+
+        tk.splitlist est indispensable pour les noms contenant espaces,
+        accents ou accolades.
+        """
+        try:
+            raw_files = list(self.tk.splitlist(event.data))
+        except Exception as exc:
+            log_internal_error("tkinterdnd2_splitlist", exc)
+            raw_files = []
+
+        def apply_files():
+            try:
+                if not self.winfo_exists():
+                    return
+            except tk.TclError:
+                return
+
+            accepted = self._normalise_dropped_photo_paths(raw_files)
+            if not accepted:
+                self.app.show_toast(t("recipeform_drop_no_valid_image"))
+                return
+
+            existing = {
+                os.path.normcase(os.path.abspath(ref))
+                for kind, ref in self.gallery_items
+                if kind == "new"
+            }
+            added = 0
+            for path in accepted:
+                key = os.path.normcase(os.path.abspath(path))
+                if key not in existing:
+                    self.gallery_items.append(("new", path))
+                    existing.add(key)
+                    added += 1
+
+            if added:
+                self._refresh_gallery()
+                self.app.show_toast(
+                    t("recipeform_drop_success", count=added)
+                )
+
+        try:
+            self.after_idle(apply_files)
+        except tk.TclError:
+            pass
+
+        # TkDnD2 attend qu'un événement Drop retourne une action.
+        return COPY
+
     def _remove_gallery_item(self, index):
         if 0 <= index < len(self.gallery_items):
             self.gallery_items.pop(index)
@@ -8242,21 +7937,38 @@ class RecipeFormWindow(tk.Toplevel):
         self._gallery_thumb_refs = []
 
         if not self.gallery_items:
-            ttk.Label(self.gallery_frame, text=t("recipeform_no_photo")).pack(side="left", padx=10, pady=10)
+            ttk.Label(self.gallery_frame, text=t("recipeform_no_photo")).pack(side="left", padx=20, pady=30)
+            self.gallery_canvas.configure(height=300)
             return
+
+        # Taille calculée à partir de la largeur réelle disponible. Une photo
+        # seule devient une grande prévisualisation ; avec plusieurs photos,
+        # deux grandes vignettes tiennent généralement côte à côte et la
+        # galerie reste défilable horizontalement si nécessaire.
+        self.update_idletasks()
+        available = self.gallery_canvas.winfo_width()
+        if available <= 10:
+            available = max(gs(760), self.winfo_width() - gs(100))
+        count = len(self.gallery_items)
+        if count == 1:
+            thumb_w = max(gs(420), min(gs(820), available - gs(50)))
+        else:
+            thumb_w = max(gs(280), min(gs(430), (available - gs(60)) // 2))
+        thumb_h = max(gs(210), min(gs(520), int(thumb_w * 0.68)))
+        self.gallery_canvas.configure(height=thumb_h + gs(70))
 
         for idx, (kind, ref) in enumerate(self.gallery_items):
             cell = ttk.Frame(self.gallery_frame)
-            cell.pack(side="left", padx=5, pady=5)
+            cell.pack(side="left", padx=8, pady=8)
 
             thumb = None
             if PIL_AVAILABLE:
                 try:
                     if kind == "existing":
-                        thumb = load_thumbnail(ref, size=(110, 90))
+                        thumb = load_thumbnail(ref, size=(thumb_w, thumb_h))
                     else:
                         img = Image.open(ref)
-                        img.thumbnail((110, 90))
+                        img.thumbnail((thumb_w, thumb_h))
                         thumb = ImageTk.PhotoImage(img)
                 except Exception:
                     thumb = None
@@ -8265,12 +7977,114 @@ class RecipeFormWindow(tk.Toplevel):
                 self._gallery_thumb_refs.append(thumb)
                 ttk.Label(cell, image=thumb).pack()
             else:
-                ttk.Label(cell, text=t("recipeform_preview_unavailable"), justify="center").pack()
+                ttk.Label(
+                    cell, text=t("recipeform_preview_unavailable"), justify="center",
+                    width=max(24, thumb_w // 12)
+                ).pack(ipady=max(4, thumb_h // 20))
 
-            ttk.Button(cell, text=t("recipeform_remove_photo_button"), width=10,
-                       command=lambda i=idx: self._remove_gallery_item(i)).pack(pady=(3, 0))
+            ttk.Button(
+                cell, text=t("recipeform_remove_photo_button"), style="Secondary.TButton",
+                command=lambda i=idx: self._remove_gallery_item(i)
+            ).pack(fill="x", pady=(6, 0))
 
-    UNIT_OPTIONS = ["Gr", "Kilo", "cl", "Litre", "pièce", "cuillère à soupe", "cuillère à café", "autre"]
+    def _build_cook_log_tab(self):
+        """Affiche les cuissons enregistrées et leurs photos dans l'édition."""
+        ttk.Label(self.tab_cook_log, text=t("recipeform_cook_log_heading"),
+                  font=("Segoe UI", sf(12), "bold")).pack(anchor="w", pady=(0, 4))
+        entries = [entry for entry in (self.existing_recipe.get("cook_log", []) or [])
+                   if isinstance(entry, dict)]
+        ttk.Label(self.tab_cook_log, text=t("recipeform_cook_log_count", count=len(entries)),
+                  foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(0, 10))
+        outer = ttk.Frame(self.tab_cook_log)
+        outer.pack(fill="both", expand=True)
+        canvas = tk.Canvas(outer, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        content = ttk.Frame(canvas)
+        content.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        content_window = canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        self._cook_log_thumb_refs = []
+        self._cook_log_wrap_labels = []
+
+        def update_wraplength(_event=None):
+            # Le cadre intérieur doit toujours prendre toute la largeur du
+            # canvas. Sinon Tkinter lui donne seulement la largeur de son
+            # enfant le plus large (souvent la photo), ce qui laisse un grand
+            # espace vide et force les textes à être inutilement étroits.
+            # Selon le moment où Tkinter termine la géométrie, le canvas peut
+            # encore annoncer sa largeur demandée (ancienne largeur de la
+            # photo). Le cadre intérieur connaît, lui, la largeur réellement
+            # attribuée à la zone visible : on privilégie donc sa mesure.
+            window_width = max(gs(760), self.winfo_width() - gs(60))
+            canvas_width = max(1, canvas.winfo_width(), min(content.winfo_width(), window_width))
+            canvas.itemconfigure(content_window, width=canvas_width)
+            width = max(gs(320), canvas_width - gs(45))
+            for label in self._cook_log_wrap_labels:
+                try:
+                    label.configure(wraplength=width)
+                except tk.TclError:
+                    pass
+
+        canvas.bind("<Configure>", update_wraplength)
+        content.bind("<Configure>", update_wraplength, add="+")
+        entries.sort(key=lambda entry: entry.get("date", ""), reverse=True)
+        if not entries:
+            ttk.Label(content, text=t("recipeform_cook_log_empty"),
+                      foreground=COLOR_TEXT_MUTED).pack(pady=30)
+            return
+        for entry in entries:
+            card = tk.Frame(content, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
+                            highlightthickness=1)
+            card.pack(fill="x", pady=6, padx=2)
+            date_value = entry.get("date", "?")
+            try:
+                date_value = datetime.fromisoformat(date_value).strftime("%d/%m/%Y à %H:%M")
+            except (TypeError, ValueError):
+                date_value = str(date_value or "?")
+            ttk.Label(card, text=date_value, style="Card.TLabel",
+                      font=("Segoe UI", sf(10), "bold"), foreground=COLOR_ACCENT_DARK).pack(
+                          anchor="w", padx=10, pady=(8, 2))
+            persons = entry.get("persons")
+            if persons not in (None, ""):
+                ttk.Label(card, text=t("cooklog_entry_persons", persons=persons),
+                          style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(
+                              anchor="w", padx=10, pady=(0, 3))
+            rating = int(entry.get("rating", 0) or 0)
+            if rating:
+                ttk.Label(card, text=t("cooklog_entry_rating", stars="★" * rating + "☆" * (5 - rating)),
+                          style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(
+                              anchor="w", padx=10, pady=(2, 3))
+            photo = entry.get("photo")
+            if photo:
+                available = self.winfo_width()
+                if available <= 100:
+                    available = gs(900)
+                photo_w = max(gs(420), min(gs(820), available - gs(120)))
+                thumb = load_thumbnail(photo, size=(photo_w, int(photo_w * 0.68)))
+                if thumb is not None:
+                    self._cook_log_thumb_refs.append(thumb)
+                    ttk.Label(card, image=thumb).pack(anchor="w", padx=10, pady=4)
+            note = str(entry.get("note") or "").strip()
+            comment = str(entry.get("comment") or "").strip()
+            if note:
+                note_label = ttk.Label(card, text=t("cooklog_note_heading") + " " + note,
+                                       style="Card.TLabel", justify="left")
+                note_label.pack(anchor="w", padx=10, pady=(3, 3))
+                self._cook_log_wrap_labels.append(note_label)
+            if comment:
+                comment_label = ttk.Label(card, text=t("cooklog_comment_heading") + " " + comment,
+                                          style="Card.TLabel", justify="left")
+                comment_label.pack(anchor="w", padx=10, pady=(3, 8))
+                self._cook_log_wrap_labels.append(comment_label)
+            if not note and not comment:
+                ttk.Label(card, text=t("cooklog_no_note"), style="Card.TLabel",
+                          foreground=COLOR_TEXT_MUTED).pack(anchor="w", padx=10, pady=(3, 8))
+        self.after_idle(update_wraplength)
+        self.after(150, update_wraplength)
+
+    UNIT_OPTIONS = ["Gr", "Kilo", "ml", "cl", "Litre", "pièce", "cuillère à soupe", "cuillère à café", "autre"]
 
     @staticmethod
     def _map_unit_for_edit(unit):
@@ -8280,8 +8094,14 @@ class RecipeFormWindow(tk.Toplevel):
         u_lower = u.lower()
         if u_lower in ("gr", "g", "gramme", "grammes"):
             return "Gr", ""
-        if u_lower == "cl":
+        if u_lower in ("kilo", "kg", "kilogramme", "kilogrammes"):
+            return "Kilo", ""
+        if u_lower in ("ml", "millilitre", "millilitres"):
+            return "ml", ""
+        if u_lower in ("cl", "centilitre", "centilitres"):
             return "cl", ""
+        if u_lower in ("litre", "litres", "l"):
+            return "Litre", ""
         if u_lower in ("pièce", "piece", "pieces", "pièces"):
             return "pièce", ""
         if u_lower in ("cuillère à soupe", "cuillere a soupe", "c. à soupe", "cas"):
@@ -8324,16 +8144,13 @@ class RecipeFormWindow(tk.Toplevel):
             popup.wm_attributes("-topmost", True)
         except tk.TclError:
             pass
-        x = entry.winfo_rootx()
-        y = entry.winfo_rooty() + entry.winfo_height()
-        width = max(entry.winfo_width(), 160)
-        height = min(6, len(filtered)) * 20
-        popup.wm_geometry(f"{width}x{height}+{x}+{y}")
+        width = max(entry.winfo_width(), gs(180))
 
         listbox = tk.Listbox(popup, height=min(6, len(filtered)), exportselection=False, font=("Segoe UI", sf(9)))
         listbox.pack(fill="both", expand=True)
         for v in filtered:
             listbox.insert(tk.END, v)
+        finalize_suggestion_popup(popup, entry, listbox, width)
 
         def choose(event=None):
             sel = listbox.curselection()
@@ -8424,7 +8241,6 @@ class RecipeFormWindow(tk.Toplevel):
         has_controls = hasattr(self, "add_ingredient_button")
         if has_controls:
             self.add_ingredient_button.pack_forget()
-            self.bottom_actions_frame.pack_forget()
 
         row = ttk.Frame(self.rows_frame)
         row.pack(fill="x", pady=2)
@@ -8442,7 +8258,7 @@ class RecipeFormWindow(tk.Toplevel):
         name_e.bind("<FocusIn>", lambda e, ent=name_e: self._on_ingredient_focus_in(e, ent))
         name_e.bind("<FocusOut>", lambda e, ent=name_e: self._on_ingredient_focus_out(e, ent))
         qty_e = ttk.Entry(row, width=9)
-        qty_e.insert(0, "" if qty == "" else str(qty))
+        qty_e.insert(0, "" if qty in ("", None) else str(qty))
         qty_e.grid(row=0, column=1, padx=2)
 
         combo_value, custom_text = self._map_unit_for_edit(unit)
@@ -8458,7 +8274,7 @@ class RecipeFormWindow(tk.Toplevel):
             custom_e.grid_remove()
 
         def on_unit_change(event, u=unit_e, c=custom_e):
-            if u.get() == "autre":
+            if resolve_unit_input(u.get(), self.UNIT_OPTIONS) == "autre":
                 c.grid()
             else:
                 c.delete(0, tk.END)
@@ -8469,7 +8285,6 @@ class RecipeFormWindow(tk.Toplevel):
 
         if has_controls:
             self.add_ingredient_button.pack(pady=10)
-            self.bottom_actions_frame.pack(pady=(0, 20))
             # Fait défiler la fenêtre pour amener la nouvelle ligne en vue
             self.update_idletasks()
             self.canvas.yview_moveto(1.0)
@@ -8513,20 +8328,76 @@ class RecipeFormWindow(tk.Toplevel):
         if not raw_value:
             return "", True
         try:
-            value = float(raw_value.replace(",", "."))
+            value = parse_finite_number(raw_value)
             if value < 0:
                 raise ValueError
-        except ValueError:
+        except (ValueError, TypeError):
             return None, False
         if value == int(value):
             return str(int(value)), True
         return str(value), True
+
+    def _resolve_unknown_ingredients_before_save(self):
+        unknown = []
+        for name_e, _qty_e, _unit_e, _custom_e in self.ingredient_rows:
+            raw_name = name_e.get().strip()
+            if raw_name and resolve_ingredient_input(raw_name, self.ingredient_names) is None:
+                unknown.append(raw_name)
+        if not unknown:
+            return True
+
+        dialog = UnknownIngredientsDialog(self, unknown, self.ingredient_names)
+        self.wait_window(dialog)
+        if dialog.result is None:
+            return False
+
+        created = []
+        for name_e, _qty_e, _unit_e, _custom_e in self.ingredient_rows:
+            raw_name = name_e.get().strip()
+            decision = dialog.result.get(ingredient_sort_key(raw_name))
+            if not decision:
+                continue
+            action, canonical = decision
+            if action == "create" and resolve_ingredient_input(canonical, self.ingredient_names) is None:
+                self.ingredient_names.append(canonical)
+                created.append(canonical)
+            name_e.delete(0, tk.END)
+            name_e.insert(0, translate_ingredient_name(canonical))
+
+        if created:
+            self.ingredient_names = save_ingredients(self.ingredient_names)
+            self.app.refresh_ingredients()
+        display_values = get_display_ingredient_values(self.ingredient_names)
+        for name_e, _qty_e, _unit_e, _custom_e in self.ingredient_rows:
+            name_e.full_values = display_values
+        return True
 
     def save_recipe(self):
         name = self.name_entry.get().strip()
         if not name:
             messagebox.showerror(t("common_error"), t("recipeform_error_name_required"))
             return
+
+        # Les identifiants sont stables, mais un nom en double reste très ambigu
+        # dans les listes et les échanges. On avertit sans interdire le cas volontaire.
+        duplicate_name = next(
+            (r for r in load_recipes()
+             if r.get("name", "").strip().casefold() == name.casefold()
+             and (not self.editing or r.get("id") != self.existing_recipe.get("id"))),
+            None
+        )
+        if duplicate_name and not messagebox.askyesno(
+                t("recipeform_duplicate_name_title"),
+                t("recipeform_duplicate_name_message", name=name), parent=self):
+            return
+
+        try:
+            default_persons = parse_positive_number(self.default_persons_entry.get())
+        except (ValueError, TypeError):
+            messagebox.showerror(t("common_error"), t("recipeform_error_default_persons"), parent=self)
+            return
+        if default_persons == int(default_persons):
+            default_persons = int(default_persons)
 
         prep_time, ok_prep = self._validate_time_field(self.prep_time_entry.get(), "préparation")
         if not ok_prep:
@@ -8535,6 +8406,9 @@ class RecipeFormWindow(tk.Toplevel):
         cook_time, ok_cook = self._validate_time_field(self.cook_time_entry.get(), "cuisson")
         if not ok_cook:
             messagebox.showerror(t("common_error"), t("recipeform_error_cook_time"))
+            return
+
+        if not self._resolve_unknown_ingredients_before_save():
             return
 
         ingredients = []
@@ -8553,7 +8427,7 @@ class RecipeFormWindow(tk.Toplevel):
                 return
             ing_name = canonical
             try:
-                qty = float(qty_str) if qty_str else 0
+                qty = parse_optional_positive_number(qty_str, allow_zero=True)
             except ValueError:
                 messagebox.showerror(t("common_error"), t("recipeform_error_invalid_quantity", name=ing_name))
                 return
@@ -8599,26 +8473,28 @@ class RecipeFormWindow(tk.Toplevel):
         # n'ont pas été retirées, plus celles nouvellement choisies (copiées
         # sur le disque à ce moment-là).
         final_images = []
+        newly_copied_images = []
         for kind, ref in self.gallery_items:
             if kind == "existing":
-                final_images.append(ref)
+                safe = safe_image_filename(ref)
+                if safe:
+                    final_images.append(safe)
             else:
-                final_images.append(copy_image_to_store(ref))
-
-        if self.editing:
-            old_images = get_recipe_images(self.existing_recipe)
-            for fname in old_images:
-                if fname not in final_images:
-                    delete_image_file(fname)
-
-        try:
-            default_persons = float(self.default_persons_entry.get().strip().replace(",", "."))
-            if default_persons <= 0:
-                raise ValueError
-        except ValueError:
-            default_persons = 4
-        if default_persons == int(default_persons):
-            default_persons = int(default_persons)
+                try:
+                    copied = copy_image_to_store(ref)
+                except Exception as exc:
+                    log_internal_error("copy_recipe_image", exc)
+                    copied = None
+                if copied:
+                    final_images.append(copied)
+                    newly_copied_images.append(copied)
+                else:
+                    for fname in newly_copied_images:
+                        delete_image_file(fname)
+                    messagebox.showerror(
+                        t("common_error"), t("recipeform_photo_copy_failed"), parent=self
+                    )
+                    return
 
         raw_tags = [t.strip() for t in self.tags_entry.get().split(",") if t.strip()]
         # Déduplique les étiquettes identiques à la casse près (ex. « rapide »
@@ -8661,12 +8537,30 @@ class RecipeFormWindow(tk.Toplevel):
             "allergens": [a for a, var in self.allergen_vars.items() if var.get()],
             "description": self.description_text.get("1.0", "end-1c").strip()[: self.MAX_DESC_LEN],
             "personal_notes": self.notes_text.get("1.0", "end-1c").strip()[: self.MAX_NOTES_LEN],
+            "family_opinion": self.family_opinion_text.get("1.0", "end-1c").strip()[: self.MAX_NOTES_LEN],
+            "improvement_notes": self.improvement_notes_text.get("1.0", "end-1c").strip()[: self.MAX_NOTES_LEN],
+            "actual_difficulty": resolve_difficulty_input(self.actual_difficulty_combo.get(), self.DIFFICULTY_OPTIONS) if self.actual_difficulty_combo.get() else "",
             "ingredients": ingredients,
             "images": final_images,
             "created_at": self.existing_recipe.get("created_at") if self.editing else datetime.now().isoformat(),
             "times_cooked": self.existing_recipe.get("times_cooked", 0) if self.editing else 0,
             "cooked_dates": self.existing_recipe.get("cooked_dates", []) if self.editing else [],
         }
+        # Préserve les champs provenant de l'autre application (et les futurs
+        # champs encore inconnus de cette interface) lorsqu'une recette importée
+        # est simplement modifiée sous Windows.
+        if self.editing and self.existing_recipe:
+            for _key, _value in self.existing_recipe.items():
+                if _key not in recipe_data:
+                    recipe_data[_key] = copy.deepcopy(_value)
+        elif self.prefill:
+            # Conserve notamment source_url et quantity_basis fournis par
+            # l'import URL, ainsi que les futurs champs compatibles.
+            for _key, _value in self.prefill.items():
+                if _key not in recipe_data and _key not in {
+                    "image_sources", "temporary_image_sources"
+                }:
+                    recipe_data[_key] = copy.deepcopy(_value)
         if not recipe_data["created_at"]:
             recipe_data["created_at"] = datetime.now().isoformat()
 
@@ -8675,9 +8569,34 @@ class RecipeFormWindow(tk.Toplevel):
         else:
             recipes.append(recipe_data)
 
-        save_recipes(recipes)
+        try:
+            save_recipes(recipes)
+        except Exception:
+            # La recette n'a pas été modifiée : retirer seulement les nouvelles
+            # copies afin de ne laisser aucune photo orpheline.
+            for fname in newly_copied_images:
+                delete_image_file(fname)
+            raise
+
+        # Les anciennes photos ne sont retirées qu'après la réussite du JSON.
+        if self.editing:
+            for fname in get_recipe_images(self.existing_recipe):
+                if fname not in final_images:
+                    delete_recipe_images(
+                        {"images": [fname]}, protected_recipes=recipes,
+                        protected_trash=load_trash()
+                    )
+        # Une fermeture normale ne doit pas laisser de brouillon ; celui-ci
+        # est réservé aux arrêts brutaux ou aux plantages.
+        self._delete_draft()
+        for _tmp_source in list(getattr(self, "_temporary_import_sources", set())):
+            try:
+                if os.path.isfile(_tmp_source): os.remove(_tmp_source)
+            except OSError as exc:
+                log_internal_error("cleanup_saved_import_temp", exc)
+        self._temporary_import_sources.clear()
         self.app.refresh_recipes()
-        messagebox.showinfo(t("common_success"), t("recipeform_saved_message", name=name))
+        self.app.show_toast(t("recipeform_saved_message", name=name))
         self.destroy()
 
     def delete_recipe(self):
@@ -8686,10 +8605,8 @@ class RecipeFormWindow(tk.Toplevel):
             t("recipeform_delete_confirm_message", name=self.existing_recipe['name'])
         ):
             return
-        recipes = load_recipes()
-        removed = recipes.pop(self.recipe_index)
-        save_recipes(recipes)
-        move_recipe_to_trash(removed)
+        delete_recipe_to_trash(recipe_id=self.existing_recipe.get("id"), recipe_index=self.recipe_index)
+        self._delete_draft()
         self.app.refresh_recipes()
         messagebox.showinfo(t("recipeform_deleted_title"), t("recipeform_deleted_message"))
         self.destroy()
@@ -8697,181 +8614,584 @@ class RecipeFormWindow(tk.Toplevel):
 
 
 class ManageRecipesWindow(tk.Toplevel):
-    """Fenêtre listant les recettes pour choisir laquelle modifier, dupliquer
-    ou supprimer."""
+    """Bibliothèque moderne : grille/liste, recherche, filtres combinables,
+    tris enrichis, tags cliquables et menu contextuel complet."""
 
-    def __init__(self, app, quick_filter=None):
+    PAGE_SIZE = 60
+
+    def __init__(self, app, quick_filter=None, initial_search=""):
         super().__init__(app)
         self.app = app
-        self.title(t("managerecipes_title"))
-        self.geometry(f"{gs(560)}x{gs(580)}")
-        self.grab_set()
-        self.filtered_indices = []  # correspondance ligne affichée -> index réel dans app.recipes
         self.quick_filter = quick_filter
+        self.filtered_indices = []
+        self.display_limit = self.PAGE_SIZE
+        self._grid_refs = []
+        self._grid_items = []
+        self._resize_after = None
+        self._context_index = None
+        settings = load_settings()
+        self.view_mode = settings.get("recipe_library_view", "grid")
+        if self.view_mode not in ("grid", "list"):
+            self.view_mode = "grid"
 
-        ttk.Label(self, text=t("managerecipes_select_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
+        self.title(t("managerecipes_library_title"))
+        screen_h = get_usable_screen_height(self)
+        fit_window_to_workarea(self, gs(1180), screen_h, margin=18)
+        safe_minsize(self, gs(820), gs(540))
+        self.grab_set()
 
-        quick_filter_label_keys = {
-            "favoris": "managerecipes_filter_favorites",
-            "rapide": "managerecipes_filter_quick",
-            "vegetarien": "managerecipes_filter_vegetarian",
-            "envie": "managerecipes_filter_wishlist",
-        }
-        if quick_filter in quick_filter_label_keys:
-            filter_bar = ttk.Frame(self)
-            filter_bar.pack(fill="x", padx=15, pady=(0, 5))
-            ttk.Label(filter_bar, text=t(quick_filter_label_keys[quick_filter]),
-                      foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(9), "bold")).pack(side="left")
-            ttk.Button(filter_bar, text=t("managerecipes_remove_filter_button"),
-                       command=self._clear_quick_filter).pack(side="right")
+        header = ttk.Frame(self, padding=(20, 16, 20, 8))
+        header.pack(fill="x")
+        ttk.Label(header, text=t("managerecipes_library_title"), style="Title.TLabel").pack(side="left")
+        ttk.Button(header, text=t("managerecipes_new_button"), style="Hero.TButton",
+                   command=self._new_recipe).pack(side="right")
 
-        top_frame = ttk.Frame(self)
-        top_frame.pack(pady=(0, 5), fill="x", padx=15)
-        ttk.Label(top_frame, text=t("managerecipes_search_label")).pack(side="left")
-        self.search_entry = ttk.Entry(top_frame, width=18)
-        self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
-        self.search_entry.bind("<KeyRelease>", lambda e: self._populate())
+        searchbar = ttk.Frame(self, padding=(20, 4, 20, 6))
+        searchbar.pack(fill="x")
+        ttk.Label(searchbar, text=t("managerecipes_search_label")).pack(side="left")
+        self.search_entry = ttk.Entry(searchbar, font=("Segoe UI", sf(10)))
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=(8, 10), ipady=4)
+        if initial_search:
+            self.search_entry.insert(0, initial_search)
+        self.search_entry.bind("<KeyRelease>", lambda e: self._filters_changed())
 
-        sort_frame = ttk.Frame(self)
-        sort_frame.pack(pady=(0, 5), fill="x", padx=15)
-        ttk.Label(sort_frame, text=t("managerecipes_sort_label")).pack(side="left")
-        self.sort_combo = ttk.Combobox(sort_frame, values=[translate_sort_option(o) for o in RECIPE_SORT_OPTIONS], state="readonly", width=22)
+        self.sort_combo = ttk.Combobox(searchbar, values=[translate_sort_option(o) for o in RECIPE_SORT_OPTIONS],
+                                       state="readonly", width=20)
         self.sort_combo.set(translate_sort_option(RECIPE_SORT_OPTIONS[0]))
-        self.sort_combo.pack(side="left", padx=5)
-        self.sort_combo.bind("<<ComboboxSelected>>", lambda e: self._populate())
-        ttk.Label(sort_frame, text=t("managerecipes_category_label")).pack(side="left", padx=(10, 0))
-        self.category_filter_combo = ttk.Combobox(
-            sort_frame, values=[t("common_all_categories")] + [translate_category_name(c) for c in RecipeFormWindow.CATEGORY_OPTIONS],
-            state="readonly", width=16
-        )
-        self.category_filter_combo.set(t("common_all_categories"))
-        self.category_filter_combo.pack(side="left", padx=5)
-        self.category_filter_combo.bind("<<ComboboxSelected>>", lambda e: self._populate())
+        self.sort_combo.pack(side="left", padx=(0, 8))
+        self.sort_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
 
-        list_frame = ttk.Frame(self)
-        list_frame.pack(pady=5, padx=15, fill="both", expand=True)
-        self.listbox = tk.Listbox(list_frame, width=56, height=15, font=("Segoe UI", sf(9)))
-        list_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
-        self.listbox.configure(yscrollcommand=list_scrollbar.set)
-        self.listbox.pack(side="left", fill="both", expand=True)
-        list_scrollbar.pack(side="right", fill="y")
+        self.view_button = ttk.Button(searchbar, style="Secondary.TButton", command=self._toggle_view)
+        self.view_button.pack(side="right")
+        self._update_view_button()
+
+        # Filtres rapides historiques.
+        chips = ttk.Frame(self, padding=(20, 0, 20, 6))
+        chips.pack(fill="x")
+        for text, qf in [(t("home_quick_filter_favorites"), "favoris"),
+                         (t("home_quick_filter_quick"), "rapide"),
+                         (t("home_quick_filter_vegetarian"), "vegetarien"),
+                         (t("home_quick_filter_wishlist"), "envie")]:
+            ttk.Button(chips, text=text, style="Secondary.TButton",
+                       command=lambda f=qf: self._set_quick_filter(f)).pack(side="left", padx=(0, 6))
+
+        # Filtres combinables : catégorie, temps, difficulté, favoris,
+        # jamais cuisinées, disponibilité garde-manger et étiquette.
+        filters = ttk.LabelFrame(self, text=t("managerecipes_more_filters"), padding=(12, 8))
+        filters.pack(fill="x", padx=20, pady=(0, 8))
+        ttk.Label(filters, text=t("managerecipes_category_label")).grid(row=0, column=0, padx=(0, 4), pady=3, sticky="w")
+        self.category_filter_combo = ttk.Combobox(
+            filters, values=[t("common_all_categories")] + [translate_category_name(c) for c in RecipeFormWindow.CATEGORY_OPTIONS],
+            state="readonly", width=17)
+        self.category_filter_combo.set(t("common_all_categories"))
+        self.category_filter_combo.grid(row=0, column=1, padx=(0, 12), pady=3, sticky="w")
+        self.category_filter_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
+
+        ttk.Label(filters, text=t("managerecipes_max_time")).grid(row=0, column=2, padx=(0, 4), pady=3, sticky="w")
+        self.time_combo = ttk.Combobox(filters, values=[t("managerecipes_all_times"), "≤ 30 min", "≤ 60 min", "≤ 90 min", "≤ 120 min"],
+                                       state="readonly", width=14)
+        self.time_combo.set(t("managerecipes_all_times"))
+        self.time_combo.grid(row=0, column=3, padx=(0, 12), pady=3, sticky="w")
+        self.time_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
+
+        self.difficulty_combo = ttk.Combobox(filters,
+            values=[t("managerecipes_all_difficulties")] + [translate_difficulty_name(x) for x in RecipeFormWindow.DIFFICULTY_OPTIONS],
+            state="readonly", width=18)
+        self.difficulty_combo.set(t("managerecipes_all_difficulties"))
+        self.difficulty_combo.grid(row=0, column=4, padx=(0, 12), pady=3, sticky="w")
+        self.difficulty_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
+
+        ttk.Label(filters, text=t("managerecipes_tags")).grid(row=0, column=5, padx=(0, 4), pady=3, sticky="w")
+        self.tag_entry = ttk.Entry(filters, width=18)
+        self.tag_entry.grid(row=0, column=6, padx=(0, 8), pady=3, sticky="ew")
+        self.tag_entry.bind("<KeyRelease>", lambda e: self._filters_changed())
+        filters.columnconfigure(6, weight=1)
+
+        self.favorite_var = tk.BooleanVar(value=False)
+        self.never_cooked_var = tk.BooleanVar(value=False)
+        self.pantry_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(filters, text=t("managerecipes_only_favorites"), variable=self.favorite_var,
+                        command=self._filters_changed).grid(row=1, column=0, columnspan=2, sticky="w", pady=(5, 2))
+        ttk.Checkbutton(filters, text=t("managerecipes_never_cooked"), variable=self.never_cooked_var,
+                        command=self._filters_changed).grid(row=1, column=2, columnspan=2, sticky="w", pady=(5, 2))
+        ttk.Checkbutton(filters, text=t("managerecipes_pantry_80"), variable=self.pantry_var,
+                        command=self._filters_changed).grid(row=1, column=4, columnspan=2, sticky="w", pady=(5, 2))
+        ttk.Button(filters, text=t("managerecipes_clear_filters"), style="Secondary.TButton",
+                   command=self._clear_all_filters).grid(row=1, column=6, sticky="e", pady=(5, 2))
+
+        # Zone de contenu commune aux deux modes.
+        self.content_outer = ttk.Frame(self, padding=(20, 2, 20, 2))
+        self.content_outer.pack(fill="both", expand=True)
+
+        footer = ttk.Frame(self, padding=(20, 8, 20, 14))
+        footer.pack(fill="x")
+        self.count_label = ttk.Label(footer, text="", style="Muted.TLabel")
+        self.count_label.pack(side="left")
+        self.load_more_button = ttk.Button(footer, text=t("managerecipes_load_more"), style="Secondary.TButton",
+                                           command=self._load_more)
+        self.load_more_button.pack(side="right")
+
+        self.context_menu = tk.Menu(self, tearoff=0)
+        self.context_menu.add_command(label=t("managerecipes_open"), command=self.open_selected)
+        self.context_menu.add_command(label=t("managerecipes_cooking_mode"), command=self._context_cooking_mode)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label=t("managerecipes_edit_button"), command=self.edit_selected)
+        self.context_menu.add_command(label=t("managerecipes_duplicate_button"), command=self.duplicate_selected)
+        self.context_menu.add_command(label=t("managerecipes_add_shopping"), command=self._context_add_shopping)
+        self.context_menu.add_command(label=t("managerecipes_open_planning"), command=self._context_open_planning)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label=t("managerecipes_show_qr"), command=self._context_qr)
+        self.context_menu.add_command(label=t("managerecipes_export_pdf"), command=self._context_export_pdf)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label=t("managerecipes_delete_button"), command=self.delete_selected)
+
+        self.bind("<Configure>", self._on_resize)
+        self._populate()
+        self.bind("<Return>", self._keyboard_open_selected, add="+")
+        self.search_entry.focus_set()
+
+    def _keyboard_open_selected(self, event=None):
+        # Do not steal Enter from text-entry/combobox controls.
+        focused = self.focus_get()
+        if isinstance(focused, (tk.Entry, ttk.Entry, ttk.Combobox, tk.Text)):
+            return None
+        try:
+            self.open_selected()
+            return "break"
+        except Exception:
+            return None
+
+    def _new_recipe(self):
+        self.destroy()
+        RecipeFormWindow(self.app, recipe_index=None)
+
+    def _save_view_preference(self):
+        settings = load_settings()
+        settings["recipe_library_view"] = self.view_mode
+        save_settings(settings)
+
+    def _update_view_button(self):
+        # Le bouton indique l'autre vue disponible.
+        self.view_button.config(text=t("managerecipes_view_list") if self.view_mode == "grid" else t("managerecipes_view_grid"))
+
+    def _toggle_view(self):
+        self.view_mode = "list" if self.view_mode == "grid" else "grid"
+        self._save_view_preference()
+        self._update_view_button()
+        self._render_results()
+
+    def _filters_changed(self):
+        self.display_limit = self.PAGE_SIZE
         self._populate()
 
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=15)
-        ttk.Button(btn_frame, text=t("managerecipes_edit_button"), command=self.edit_selected).grid(
-            row=0, column=0, padx=5)
-        ttk.Button(btn_frame, text=t("managerecipes_duplicate_button"), command=self.duplicate_selected).grid(
-            row=0, column=1, padx=5)
-        ttk.Button(btn_frame, text=t("managerecipes_delete_button"), command=self.delete_selected).grid(
-            row=0, column=2, padx=5)
+    def _set_quick_filter(self, value):
+        self.quick_filter = None if self.quick_filter == value else value
+        self._filters_changed()
 
-    def _clear_quick_filter(self):
+    def _clear_all_filters(self):
         self.quick_filter = None
-        self.destroy()
-        ManageRecipesWindow(self.app)
+        self.search_entry.delete(0, tk.END)
+        self.category_filter_combo.set(t("common_all_categories"))
+        self.time_combo.set(t("managerecipes_all_times"))
+        self.difficulty_combo.set(t("managerecipes_all_difficulties"))
+        self.tag_entry.delete(0, tk.END)
+        self.favorite_var.set(False)
+        self.never_cooked_var.set(False)
+        self.pantry_var.set(False)
+        self._filters_changed()
+
+    @staticmethod
+    def _total_minutes(recipe):
+        try:
+            return float(recipe.get("prep_time") or 0) + float(recipe.get("cook_time") or 0)
+        except (TypeError, ValueError):
+            return 0.0
 
     def _matches_quick_filter(self, recipe):
         if self.quick_filter == "favoris":
             return bool(recipe.get("favorite"))
         if self.quick_filter == "rapide":
-            try:
-                total = float(recipe.get("prep_time") or 0) + float(recipe.get("cook_time") or 0)
-            except (TypeError, ValueError):
-                return False
+            total = self._total_minutes(recipe)
             return 0 < total <= 30
         if self.quick_filter == "vegetarien":
-            # Les étiquettes sont du texte libre saisi par l'utilisateur,
-            # jamais traduites automatiquement (contrairement aux
-            # catégories, allergènes...). Mais ce filtre rapide est une
-            # fonctionnalité intégrée à l'application, pas une étiquette
-            # quelconque : il reconnaît donc le mot "végétarien" dans les
-            # 4 langues disponibles, pour fonctionner même si vous avez
-            # tagué vos recettes dans une langue autre que le français.
-            tag_keys = {ingredient_sort_key(t) for t in recipe.get("tags", [])}
-            vegetarian_keywords = {
-                "vegetarien", "vegetarienne",  # français
-                "vegetarian",  # anglais
-                "vegetariano", "vegetariana",  # espagnol
-                "vegetarisch",  # allemand
-            }
-            return bool(tag_keys & vegetarian_keywords)
+            tag_keys = {ingredient_sort_key(x) for x in recipe.get("tags", [])}
+            return bool(tag_keys & {"vegetarien", "vegetarienne", "vegetarian", "vegetariano", "vegetariana", "vegetarisch"})
         if self.quick_filter == "envie":
             return bool(recipe.get("wishlist"))
         return True
 
+    def _pantry_ratio(self, recipe):
+        ingredients = [ingredient_sort_key(i.get("name", "")) for i in recipe.get("ingredients", []) if i.get("name")]
+        if not ingredients:
+            return 0.0
+        pantry = load_pantry()
+        have = {ingredient_sort_key(v.get("name", "")) for v in pantry.values() if v.get("name")}
+        # Les produits de base comptent également comme disponibles, comme
+        # dans « Que puis-je cuisiner ? ».
+        have |= {ingredient_sort_key(x) for x in PANTRY_STAPLES}
+        return sum(1 for x in ingredients if x in have) / len(ingredients)
+
+    def _recipe_matches_advanced(self, recipe):
+        cat = resolve_category_input(self.category_filter_combo.get(), RecipeFormWindow.CATEGORY_OPTIONS)
+        if cat and cat != t("common_all_categories") and recipe.get("category", "Autre") != cat:
+            return False
+
+        time_text = self.time_combo.get()
+        if time_text != t("managerecipes_all_times"):
+            m = re.search(r"(\d+)", time_text)
+            if m and (self._total_minutes(recipe) <= 0 or self._total_minutes(recipe) > int(m.group(1))):
+                return False
+
+        diff_text = self.difficulty_combo.get()
+        if diff_text != t("managerecipes_all_difficulties"):
+            diff = resolve_difficulty_input(diff_text, RecipeFormWindow.DIFFICULTY_OPTIONS)
+            if recipe.get("difficulty") != diff:
+                return False
+
+        if self.favorite_var.get() and not recipe.get("favorite"):
+            return False
+        if self.never_cooked_var.get() and int(recipe.get("times_cooked", 0) or 0) > 0:
+            return False
+        if self.pantry_var.get() and self._pantry_ratio(recipe) < 0.8:
+            return False
+
+        tag = ingredient_sort_key(self.tag_entry.get().strip())
+        if tag:
+            recipe_tags = [ingredient_sort_key(x) for x in recipe.get("tags", [])]
+            if not any(tag in x for x in recipe_tags):
+                return False
+        return True
+
     def _populate(self):
-        self.listbox.delete(0, tk.END)
-        self.filtered_indices = []
         search = self.search_entry.get().strip() if hasattr(self, "search_entry") else ""
         search_key = ingredient_sort_key(search) if search else ""
         option = resolve_sort_option_input(self.sort_combo.get(), RECIPE_SORT_OPTIONS)
-        all_categories_label = t("common_all_categories")
-        category_filter = (
-            self.category_filter_combo.get() if hasattr(self, "category_filter_combo") else all_categories_label
-        )
-        category_filter = resolve_category_input(category_filter, RecipeFormWindow.CATEGORY_OPTIONS)
-        indexed = list(enumerate(self.app.recipes))
-        indexed = [pair for pair in indexed if recipe_matches_search(pair[1], search_key)]
-        indexed = [pair for pair in indexed if self._matches_quick_filter(pair[1])]
-        if category_filter and category_filter != all_categories_label:
-            indexed = [pair for pair in indexed if pair[1].get("category", "Autre") == category_filter]
+        indexed = [(i, r) for i, r in enumerate(self.app.recipes)
+                   if recipe_matches_search(r, search_key)
+                   and self._matches_quick_filter(r)
+                   and self._recipe_matches_advanced(r)]
         reverse = option in ("Ajoutées récemment",)
         indexed.sort(key=lambda pair: recipe_sort_key(pair[1], option), reverse=reverse)
-        for idx, recipe in indexed:
-            self.listbox.insert(tk.END, format_recipe_list_label(recipe))
-            self.filtered_indices.append(idx)
+        self._all_filtered = indexed
+        self.filtered_indices = [i for i, r in indexed[:self.display_limit]]
+        self._render_results()
 
-    def _selected_index(self):
-        sel = self.listbox.curselection()
-        if not sel:
+    def _clear_content(self):
+        for child in self.content_outer.winfo_children():
+            child.destroy()
+        self._grid_refs = []
+        self._grid_items = []
+        self.tree = None
+
+    def _render_results(self):
+        self._clear_content()
+        shown = self._all_filtered[:self.display_limit] if hasattr(self, "_all_filtered") else []
+        self.filtered_indices = [idx for idx, _ in shown]
+        total = len(getattr(self, "_all_filtered", []))
+        self.count_label.config(text=t("managerecipes_results_count", shown=len(shown), total=total))
+        if total > len(shown):
+            self.load_more_button.pack(side="right")
+        else:
+            self.load_more_button.pack_forget()
+
+        if not shown:
+            empty = tk.Frame(self.content_outer, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
+            empty.pack(fill="both", expand=True, padx=2, pady=8)
+            tk.Label(empty, text="📖", font=("Segoe UI Emoji", sf(34)), background=COLOR_CARD).pack(pady=(70, 8))
+            tk.Label(empty, text=t("managerecipes_empty_title"), font=("Segoe UI", sf(14), "bold"),
+                     background=COLOR_CARD, foreground=COLOR_TEXT).pack()
+            tk.Label(empty, text=t("managerecipes_empty_hint"), font=("Segoe UI", sf(10)),
+                     background=COLOR_CARD, foreground=COLOR_TEXT_MUTED).pack(pady=6)
+            ttk.Button(empty, text=t("managerecipes_new_button"), style="Hero.TButton", command=self._new_recipe).pack(pady=12)
+            return
+
+        if self.view_mode == "list":
+            self._render_list(shown)
+        else:
+            self._render_grid(shown)
+
+    def _render_list(self, shown):
+        wrap = ttk.Frame(self.content_outer)
+        wrap.pack(fill="both", expand=True)
+        cols = ("name", "category", "time", "difficulty", "rating", "cooked")
+        self.tree = ttk.Treeview(wrap, columns=cols, show="headings", selectmode="browse")
+        headings = {
+            "name": t("managerecipes_col_name"), "category": t("managerecipes_col_category"),
+            "time": t("managerecipes_col_time"), "difficulty": t("managerecipes_col_difficulty"),
+            "rating": t("managerecipes_col_rating"), "cooked": "Cuisinée",
+        }
+        widths = {"name": 320, "category": 130, "time": 90, "difficulty": 110, "rating": 100, "cooked": 80}
+        for col in cols:
+            self.tree.heading(col, text=headings[col])
+            self.tree.column(col, width=widths[col], anchor="w" if col in ("name", "category") else "center")
+        vs = ttk.Scrollbar(wrap, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=vs.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        vs.pack(side="right", fill="y")
+        for idx, r in shown:
+            total = self._total_minutes(r)
+            total_text = f"{int(total) if total == int(total) else total} min" if total else "—"
+            rating = max(0, min(5, int(r.get("rating") or 0)))
+            stars = "★" * rating + "☆" * (5 - rating)
+            name = ("⭐ " if r.get("favorite") else "") + ("💭 " if r.get("wishlist") else "") + r.get("name", "")
+            self.tree.insert("", "end", iid=str(idx), values=(name, translate_category_name(r.get("category", "Autre")), total_text,
+                            translate_difficulty_name(r.get("difficulty", "Facile")), stars, int(r.get("times_cooked", 0) or 0)))
+        self.tree.bind("<Double-Button-1>", lambda e: self.open_selected())
+        self.tree.bind("<Return>", lambda e: self.open_selected())
+        self.tree.bind("<Button-3>", self._show_tree_context)
+
+    def _render_grid(self, shown):
+        wrap = ttk.Frame(self.content_outer)
+        wrap.pack(fill="both", expand=True)
+        self.grid_canvas = tk.Canvas(wrap, highlightthickness=0)
+        vs = ttk.Scrollbar(wrap, orient="vertical", command=self.grid_canvas.yview)
+        self.grid_frame = tk.Frame(self.grid_canvas, background=COLOR_BG)
+        window_id = self.grid_canvas.create_window((0, 0), window=self.grid_frame, anchor="nw")
+        self.grid_frame.bind("<Configure>", lambda e: self.grid_canvas.configure(scrollregion=self.grid_canvas.bbox("all")))
+        self.grid_canvas.bind("<Configure>", lambda e: self.grid_canvas.itemconfigure(window_id, width=e.width))
+        self.grid_canvas.configure(yscrollcommand=vs.set)
+        self.grid_canvas.pack(side="left", fill="both", expand=True)
+        vs.pack(side="right", fill="y")
+        _ui_bind_local_mousewheel(self.grid_canvas, self.grid_frame, self._grid_mousewheel)
+        self._render_grid_cards(shown)
+
+    def _grid_mousewheel(self, event):
+        try:
+            self.grid_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except tk.TclError:
+            pass
+
+    def _render_grid_cards(self, shown):
+        for child in self.grid_frame.winfo_children():
+            child.destroy()
+        self._grid_refs = []
+        self._grid_items = []
+        available = max(gs(760), self.winfo_width() - gs(70))
+        card_target = gs(285)
+        columns = max(2, min(4, available // card_target))
+        for c in range(columns):
+            self.grid_frame.grid_columnconfigure(c, weight=1, uniform="recipe_cards")
+
+        for pos, (idx, recipe) in enumerate(shown):
+            row, col = divmod(pos, columns)
+            card = tk.Frame(self.grid_frame, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
+                            highlightthickness=1, cursor="hand2")
+            card.grid(row=row, column=col, padx=7, pady=7, sticky="nsew")
+            self._grid_items.append((idx, card))
+
+            photo_box = tk.Frame(card, background=COLOR_ACCENT_LIGHT, height=gs(155))
+            photo_box.pack(fill="x")
+            photo_box.pack_propagate(False)
+            images = get_recipe_images(recipe)
+            thumb = load_thumbnail(images[0], size=(gs(280), gs(155))) if images else None
+            if thumb is not None:
+                self._grid_refs.append(thumb)
+                photo = tk.Label(photo_box, image=thumb, background=COLOR_ACCENT_LIGHT, cursor="hand2")
+            else:
+                photo = tk.Label(photo_box, text=t("managerecipes_no_photo"), background=COLOR_ACCENT_LIGHT,
+                                 foreground=COLOR_TEXT_MUTED, font=("Segoe UI", sf(10)), justify="center", cursor="hand2")
+            photo.pack(fill="both", expand=True)
+
+            body = tk.Frame(card, background=COLOR_CARD, padx=12, pady=9)
+            body.pack(fill="both", expand=True)
+            title = ("⭐ " if recipe.get("favorite") else "") + recipe.get("name", "")
+            title_label = tk.Label(body, text=title, background=COLOR_CARD, foreground=COLOR_TEXT,
+                                   font=("Segoe UI", sf(11), "bold"), anchor="w", justify="left",
+                                   wraplength=gs(245), cursor="hand2")
+            title_label.pack(fill="x")
+            total = self._total_minutes(recipe)
+            meta=[]
+            cat=translate_category_name(recipe.get("category", "Autre"))
+            if cat: meta.append(cat)
+            if total: meta.append(f"{int(total) if total == int(total) else total} min")
+            if recipe.get("difficulty"): meta.append(translate_difficulty_name(recipe.get("difficulty")))
+            tk.Label(body, text=" · ".join(meta), background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
+                     font=("Segoe UI", sf(9)), anchor="w", cursor="hand2").pack(fill="x", pady=(3, 2))
+            rating = int(recipe.get("rating", 0) or 0)
+            stat = f"{rating_stars(rating) if rating else '☆☆☆☆☆'}    🍳 {int(recipe.get('times_cooked', 0) or 0)}"
+            tk.Label(body, text=stat, background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
+                     font=("Segoe UI", sf(9)), anchor="w", cursor="hand2").pack(fill="x")
+
+            tags = [str(x).strip() for x in recipe.get("tags", []) if str(x).strip()][:3]
+            if tags:
+                tags_frame = tk.Frame(body, background=COLOR_CARD)
+                tags_frame.pack(fill="x", pady=(6, 0))
+                for tag in tags:
+                    lab=tk.Label(tags_frame, text=f"  {tag}  ", background=COLOR_ACCENT_LIGHT,
+                                 foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(8)), cursor="hand2")
+                    lab.pack(side="left", padx=(0,4))
+                    lab.bind("<Button-1>", lambda e, value=tag: self._filter_by_tag(value))
+
+            for widget in (card, photo_box, photo, body, title_label):
+                widget.bind("<Button-1>", lambda e, i=idx: self._select_grid_index(i))
+                widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
+                widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
+            # Bind all non-tag labels inside body to opening/context as well.
+            for widget in body.winfo_children():
+                if isinstance(widget, tk.Label) and widget.master is body:
+                    widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
+                    widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
+
+    def _on_resize(self, event):
+        if event.widget is not self or self.view_mode != "grid":
+            return
+        if self._resize_after is not None:
+            try: self.after_cancel(self._resize_after)
+            except Exception: pass
+        self._resize_after = self.after(180, self._rerender_grid_after_resize)
+
+    def _rerender_grid_after_resize(self):
+        self._resize_after = None
+        if self.view_mode == "grid" and hasattr(self, "_all_filtered"):
+            self._render_results()
+
+    def _filter_by_tag(self, tag):
+        self.tag_entry.delete(0, tk.END)
+        self.tag_entry.insert(0, tag)
+        self._filters_changed()
+
+    def _select_grid_index(self, idx):
+        self._context_index = idx
+        # Bordure d'accent sur la carte sélectionnée.
+        for i, card in self._grid_items:
+            card.configure(highlightbackground=COLOR_ACCENT if i == idx else COLOR_BORDER,
+                           highlightthickness=2 if i == idx else 1)
+
+    def _show_tree_context(self, event):
+        row = self.tree.identify_row(event.y)
+        if row:
+            self.tree.selection_set(row)
+            self.tree.focus(row)
+            self._context_index = int(row)
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+
+    def _show_context(self, event, idx):
+        self._select_grid_index(idx)
+        self._context_index = idx
+        self.context_menu.tk_popup(event.x_root, event.y_root)
+
+    def _selected_index(self, silent=False):
+        if self.view_mode == "list" and self.tree is not None:
+            sel = self.tree.selection()
+            if sel:
+                return int(sel[0])
+        elif self._context_index is not None:
+            return self._context_index
+        if not silent:
             messagebox.showinfo(t("common_info"), t("managerecipes_select_recipe_first"))
-            return None
-        return self.filtered_indices[sel[0]]
+        return None
+
+    def _open_index(self, idx):
+        if idx is None or idx >= len(self.app.recipes):
+            return
+        name=self.app.recipes[idx].get("name", "")
+        try: self.grab_release()
+        except tk.TclError: pass
+        win=OneRecipeWindow(self.app, initial_recipe_name=name)
+        self.wait_window(win)
+        # La bibliothèque peut avoir été fermée pendant que la fiche était
+        # ouverte (par exemple depuis la barre des tâches). Dans ce cas son
+        # champ de recherche n'existe plus : ne pas tenter de la repeupler.
+        if not self.winfo_exists():
+            return
+        try: self.grab_set()
+        except tk.TclError: pass
+        self.app.refresh_recipes()
+        self._populate()
+
+    def open_selected(self):
+        self._open_index(self._selected_index())
 
     def edit_selected(self):
         idx = self._selected_index()
-        if idx is None:
-            return
+        if idx is None: return
         self.destroy()
         RecipeFormWindow(self.app, recipe_index=idx)
 
     def duplicate_selected(self):
         idx = self._selected_index()
-        if idx is None:
-            return
-        recipes = load_recipes()
-        original = recipes[idx]
-        new_recipe = copy.deepcopy(original)
+        if idx is None: return
+        recipes = load_recipes(); original = recipes[idx]; new_recipe = copy.deepcopy(original)
+        new_recipe["id"] = uuid.uuid4().hex
         new_recipe["name"] = f"{original['name']} {t('managerecipes_duplicate_suffix')}"
-        new_recipe["images"] = duplicate_recipe_images(original)
-        new_recipe.pop("image", None)
+        image_mapping = duplicate_recipe_images(original)
+        apply_duplicated_image_mapping(new_recipe, image_mapping)
         recipes.append(new_recipe)
-        save_recipes(recipes)
-        self.app.refresh_recipes()
-        self._populate()
-        messagebox.showinfo(
-            t("managerecipes_duplicated_title"),
-            t("managerecipes_duplicated_message", original=original['name'], new=new_recipe['name'])
-        )
+        try:
+            save_recipes(recipes)
+        except Exception:
+            for duplicated_name in image_mapping.values():
+                delete_image_file(duplicated_name)
+            raise
+        self.app.refresh_recipes(); self._populate()
+        self.app.show_toast(t("managerecipes_duplicated_message", original=original['name'], new=new_recipe['name']))
 
     def delete_selected(self):
         idx = self._selected_index()
-        if idx is None:
-            return
+        if idx is None: return
         recipe = self.app.recipes[idx]
-        if not messagebox.askyesno(
-            t("common_confirm"),
-            t("managerecipes_delete_confirm_message", name=recipe['name'])
-        ):
+        if not messagebox.askyesno(t("common_confirm"), t("managerecipes_delete_confirm_message", name=recipe['name'])): return
+        delete_recipe_to_trash(recipe_id=recipe.get("id"), recipe_index=idx)
+        self._context_index=None
+        self.app.refresh_recipes(); self._populate(); self.app.show_toast(t("managerecipes_deleted_message"))
+
+    def _context_add_shopping(self):
+        idx=self._selected_index()
+        if idx is None: return
+        recipe=self.app.recipes[idx]
+        persons=recipe.get("default_persons", 1) or 1
+        self.app.shopping_selection[recipe_ref_key(recipe)] = persons
+        self.app.show_toast(t("managerecipes_added_shopping", name=recipe["name"], persons=persons))
+
+    def _context_open_planning(self):
+        idx=self._selected_index()
+        if idx is None: return
+        name=self.app.recipes[idx]["name"]
+        try: self.grab_release()
+        except tk.TclError: pass
+        win=WeeklyPlanWindow(self.app)
+        self.app.show_toast(t("managerecipes_planning_hint", name=name))
+        self.wait_window(win)
+        try: self.grab_set()
+        except tk.TclError: pass
+
+    def _context_cooking_mode(self):
+        idx=self._selected_index()
+        if idx is None: return
+        recipe=self.app.recipes[idx]
+        persons=float(recipe.get("default_persons", 1) or 1)
+        try: self.grab_release()
+        except tk.TclError: pass
+        CookingModeWindow(self.app, recipe, persons)
+
+    def _context_qr(self):
+        idx=self._selected_index()
+        if idx is None: return
+        if not QRCODE_AVAILABLE or not PIL_AVAILABLE:
+            messagebox.showerror(t("common_module_missing"), t("onerecipe_qr_module_missing"))
             return
-        recipes = load_recipes()
-        removed = recipes.pop(idx)
-        save_recipes(recipes)
-        move_recipe_to_trash(removed)
-        self.app.refresh_recipes()
-        self._populate()
-        messagebox.showinfo(t("managerecipes_deleted_title"), t("managerecipes_deleted_message"))
+        recipe=self.app.recipes[idx]
+        QRCodeWindow(self.app, recipe, float(recipe.get("default_persons", 1) or 1))
+
+    def _context_export_pdf(self):
+        idx=self._selected_index()
+        if idx is None: return
+        if not REPORTLAB_AVAILABLE:
+            messagebox.showerror(t("common_module_missing"), t("onerecipe_pdf_module_missing"))
+            return
+        recipe=self.app.recipes[idx]
+        path=filedialog.asksaveasfilename(title=t("managerecipes_export_pdf_title"), defaultextension=".pdf",
+                                          filetypes=[("Fichier PDF", "*.pdf")], initialfile=f"{sanitize_windows_filename(recipe.get('name'), 'recette')}.pdf")
+        if not path: return
+        try:
+            OneRecipeWindow._build_recipe_pdf(path, recipe, float(recipe.get("default_persons", 1) or 1))
+        except Exception as e:
+            messagebox.showerror(t("common_error"), str(e)); return
+        self.app.show_toast(t("managerecipes_export_pdf_done", path=path))
+
+    def _load_more(self):
+        self.display_limit += self.PAGE_SIZE
+        self._render_results()
 
 
 class TrashWindow(tk.Toplevel):
@@ -8882,7 +9202,7 @@ class TrashWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("trash_title"))
-        self.geometry(f"{gs(560)}x{gs(520)}")
+        fit_window_to_workarea(self, gs(560), gs(520), margin=14)
         self.grab_set()
 
         ttk.Label(self, text=t("trash_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
@@ -8937,19 +9257,7 @@ class TrashWindow(tk.Toplevel):
         idx = self._selected_index()
         if idx is None:
             return
-        entry = self.trash[idx]
-        recipe = entry["recipe"]
-
-        recipes = load_recipes()
-        existing_names_lower = {r["name"].strip().lower() for r in recipes}
-        if recipe.get("name", "").strip().lower() in existing_names_lower:
-            recipe["name"] = t("trash_restored_suffix", name=recipe['name'])
-        recipes.append(recipe)
-        save_recipes(recipes)
-
-        trash = load_trash()
-        trash.pop(idx)
-        save_trash(trash)
+        recipe = restore_recipe_from_trash(idx)
 
         self.app.refresh_recipes()
         self._populate()
@@ -8966,10 +9274,7 @@ class TrashWindow(tk.Toplevel):
             t("trash_delete_forever_confirm", name=recipe['name'])
         ):
             return
-        delete_recipe_images(recipe)
-        trash = load_trash()
-        trash.pop(idx)
-        save_trash(trash)
+        permanently_delete_trash_entries([idx])
         self._populate()
         messagebox.showinfo(t("trash_deleted_title"), t("trash_deleted_message"))
 
@@ -8983,9 +9288,7 @@ class TrashWindow(tk.Toplevel):
             t("trash_empty_confirm", count=len(trash))
         ):
             return
-        for entry in trash:
-            delete_recipe_images(entry["recipe"])
-        save_trash([])
+        permanently_delete_trash_entries()
         self._populate()
         messagebox.showinfo(t("trash_emptied_title"), t("trash_emptied_message"))
 
@@ -8998,7 +9301,7 @@ class ManageIngredientsWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("manageing_title"))
-        self.geometry(f"{gs(420)}x{gs(680)}")
+        fit_window_to_workarea(self, gs(420), gs(680), margin=18)
         self.grab_set()
 
         ttk.Label(self, text=t("manageing_list_label"),
@@ -9028,19 +9331,30 @@ class ManageIngredientsWindow(tk.Toplevel):
         ttk.Button(add_frame, text=t("manageing_add_button"), command=self.add_ingredient).grid(row=0, column=1)
         self.new_entry.bind("<Return>", lambda e: self.add_ingredient())
 
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
-        ttk.Button(btn_frame, text=t("manageing_edit_button"), command=self.edit_selected).grid(row=0, column=0, padx=5)
-        ttk.Button(btn_frame, text=t("manageing_delete_button"), command=self.delete_selected).grid(row=0, column=1, padx=5)
+        # Sur les écrans bas ou en mode Texte agrandi, les deux boutons
+        # d'édition du bas faisaient dépasser la fenêtre. Ils restent visibles
+        # sur un écran confortable et passent dans « Plus d'outils » sur les
+        # petits écrans afin de ne jamais être cachés.
+        compact_actions = (get_usable_screen_height(self) < gs(700) or FONT_SCALE > 1.0)
+        if not compact_actions:
+            btn_frame = ttk.Frame(self)
+            btn_frame.pack(pady=8)
+            ttk.Button(btn_frame, text=t("manageing_edit_button"), command=self.edit_selected).grid(row=0, column=0, padx=5)
+            ttk.Button(btn_frame, text=t("manageing_delete_button"), command=self.delete_selected).grid(row=0, column=1, padx=5)
 
-        ttk.Button(self, text=t("manageing_load_defaults_button"),
-                   command=self.load_defaults).pack(pady=(5, 5))
-        ttk.Button(self, text=t("manageing_spell_check_button"),
-                   command=self.open_spell_check).pack(pady=(0, 5))
-        ttk.Button(self, text=t("manageing_prices_button"),
-                   command=self.open_prices).pack(pady=(0, 5))
-        ttk.Button(self, text=t("manageing_substitutions_button"),
-                   command=self.open_substitutions).pack(pady=(0, 10))
+        tools_button = ttk.Button(self, text=t("manageing_more_tools_button"))
+        tools_button.pack(pady=(4, 8), padx=15, fill="x")
+        tools_menu = tk.Menu(tools_button, tearoff=0)
+        if compact_actions:
+            tools_menu.add_command(label=t("manageing_edit_button"), command=self.edit_selected)
+            tools_menu.add_command(label=t("manageing_delete_button"), command=self.delete_selected)
+            tools_menu.add_separator()
+        tools_menu.add_command(label=t("manageing_load_defaults_button"), command=self.load_defaults)
+        tools_menu.add_command(label=t("manageing_spell_check_button"), command=self.open_spell_check)
+        tools_menu.add_command(label=t("manageing_prices_button"), command=self.open_prices)
+        tools_menu.add_command(label=t("manageing_substitutions_button"), command=self.open_substitutions)
+        tools_button.configure(command=lambda: tools_menu.tk_popup(
+            tools_button.winfo_rootx(), tools_button.winfo_rooty() + tools_button.winfo_height()))
 
         ttk.Label(self, text=t("manageing_edit_hint"),
                   font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center").pack(pady=(0, 10))
@@ -9130,8 +9444,8 @@ class SubstitutionEditWindow(tk.Toplevel):
         self.app = app
         self.ingredient_name = ingredient_name
         self.title(t("subedit_title", name=ingredient_name))
-        self.geometry(f"{gs(480)}x{gs(650)}")
-        self.minsize(gs(420), gs(550))
+        fit_window_to_workarea(self, gs(480), gs(650), margin=18)
+        safe_minsize(self, gs(420), gs(550))
         self.resizable(True, True)
         self.grab_set()
 
@@ -9247,16 +9561,13 @@ class SubstitutionEditWindow(tk.Toplevel):
             popup.wm_attributes("-topmost", True)
         except tk.TclError:
             pass
-        x = entry.winfo_rootx()
-        y = entry.winfo_rooty() + entry.winfo_height()
-        width = max(entry.winfo_width(), 160)
-        height = min(6, len(filtered)) * 20
-        popup.wm_geometry(f"{width}x{height}+{x}+{y}")
+        width = max(entry.winfo_width(), gs(180))
 
         listbox = tk.Listbox(popup, height=min(6, len(filtered)), exportselection=False, font=("Segoe UI", sf(9)))
         listbox.pack(fill="both", expand=True)
         for v in filtered:
             listbox.insert(tk.END, v)
+        finalize_suggestion_popup(popup, entry, listbox, width)
 
         def choose(event=None):
             sel = listbox.curselection()
@@ -9323,8 +9634,8 @@ class ManageSubstitutionsWindow(tk.Toplevel):
         self.app = app
         self.title(t("managesub_title"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(480)}x{min(screen_height, gs(700))}+40+20")
-        self.minsize(gs(420), gs(460))
+        fit_window_to_workarea(self, gs(480), gs(700), margin=18)
+        safe_minsize(self, gs(420), gs(460))
         self.resizable(True, True)
         self.grab_set()
 
@@ -9445,16 +9756,13 @@ class ManageSubstitutionsWindow(tk.Toplevel):
             popup.wm_attributes("-topmost", True)
         except tk.TclError:
             pass
-        x = entry.winfo_rootx()
-        y = entry.winfo_rooty() + entry.winfo_height()
-        width = max(entry.winfo_width(), 160)
-        height = min(6, len(filtered)) * 20
-        popup.wm_geometry(f"{width}x{height}+{x}+{y}")
+        width = max(entry.winfo_width(), gs(180))
 
         listbox = tk.Listbox(popup, height=min(6, len(filtered)), exportselection=False, font=("Segoe UI", sf(9)))
         listbox.pack(fill="both", expand=True)
         for v in filtered:
             listbox.insert(tk.END, v)
+        finalize_suggestion_popup(popup, entry, listbox, width)
 
         def choose(event=None):
             sel = listbox.curselection()
@@ -9521,7 +9829,7 @@ class IngredientPricesWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("ingprices_title"))
-        self.geometry(f"{gs(480)}x{gs(620)}")
+        fit_window_to_workarea(self, gs(480), gs(620), margin=18)
         self.grab_set()
 
         ttk.Label(self, text=t("ingprices_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
@@ -9639,31 +9947,34 @@ class IngredientEditWindow(tk.Toplevel):
     ingrédient existant : nom, allergènes, valeurs nutritionnelles et prix."""
 
     def __init__(self, app, manage_window=None, existing_name=None, prefill_name="", parent_window=None):
-        # `parent_window` permet de préciser la vraie fenêtre parente Tkinter
-        # (ex. la fenêtre qui a ouvert cet éditeur), différente de `app` qui
-        # sert uniquement de référence aux données. Sans cela, fermer cette
-        # fenêtre pourrait faire remonter la page d'accueil au premier plan
-        # au lieu de la fenêtre depuis laquelle elle a été ouverte.
         super().__init__(parent_window or app)
         self.app = app
         self.manage_window = manage_window
         self.existing_name = existing_name
         self.editing = existing_name is not None
         self.title(t("ingedit_title_edit") if self.editing else t("ingedit_title_new"))
-        self.geometry(f"{gs(480)}x{gs(680)}")
+        fit_window_to_workarea(self, gs(560), gs(620), margin=18)
+        safe_minsize(self, gs(460), gs(440))
         self.grab_set()
 
         ttk.Label(self, text=t("ingedit_heading_edit") if self.editing else t("ingedit_heading_new"),
-                  font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 10))
+                  font=("Segoe UI", sf(13), "bold")).pack(pady=(12, 8))
 
-        ttk.Label(self, text=t("ingedit_name_label"), font=("Segoe UI", sf(10), "bold")).pack()
-        self.name_entry = ttk.Entry(self, width=40)
-        self.name_entry.pack(pady=(2, 10))
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True, padx=14, pady=(0, 8))
+        general_tab = ttk.Frame(notebook, padding=14)
+        nutrition_tab = ttk.Frame(notebook, padding=14)
+        notebook.add(general_tab, text=t("ingedit_tab_general"))
+        notebook.add(nutrition_tab, text=t("ingedit_tab_nutrition_price"))
+
+        ttk.Label(general_tab, text=t("ingedit_name_label"), font=("Segoe UI", sf(10), "bold")).pack()
+        self.name_entry = ttk.Entry(general_tab, width=40)
+        self.name_entry.pack(pady=(2, 12), fill="x")
         self.name_entry.insert(0, existing_name if self.editing else prefill_name)
 
-        ttk.Label(self, text=t("ingedit_allergens_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(5, 5))
-        allergens_frame = ttk.Frame(self)
-        allergens_frame.pack()
+        ttk.Label(general_tab, text=t("ingedit_allergens_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(5, 5))
+        allergens_frame = ttk.Frame(general_tab)
+        allergens_frame.pack(fill="x")
         existing_allergens = set(get_ingredient_allergens(existing_name)) if self.editing else set()
         self.allergen_vars = {}
         for i, allergen in enumerate(ALLERGENS):
@@ -9673,30 +9984,41 @@ class IngredientEditWindow(tk.Toplevel):
                 row=i // 3, column=i % 3, sticky="w", padx=8, pady=2
             )
 
-        ttk.Label(self, text=t("ingedit_nutrition_label"),
-                  font=("Segoe UI", sf(10), "bold")).pack(pady=(15, 5))
-        nutri_frame = ttk.Frame(self)
+        ttk.Label(nutrition_tab, text=t("ingedit_nutrition_label"),
+                  font=("Segoe UI", sf(10), "bold")).pack(pady=(2, 5))
+        nutri_frame = ttk.Frame(nutrition_tab)
         nutri_frame.pack()
         existing_nutri = (get_ingredient_nutrition(existing_name) or {}) if self.editing else {}
         nutri_labels = [("kcal", t("ingedit_nutri_kcal")), ("protein_g", t("ingedit_nutri_protein")),
                          ("carbs_g", t("ingedit_nutri_carbs")), ("fat_g", t("ingedit_nutri_fat"))]
         self.nutri_entries = {}
         for i, (key, label) in enumerate(nutri_labels):
-            ttk.Label(nutri_frame, text=f"{label} :").grid(row=i, column=0, sticky="e", padx=5, pady=3)
-            entry = ttk.Entry(nutri_frame, width=10)
+            ttk.Label(nutri_frame, text=f"{label} :").grid(row=i, column=0, sticky="e", padx=5, pady=4)
+            entry = ttk.Entry(nutri_frame, width=12)
             if key in existing_nutri:
                 entry.insert(0, str(existing_nutri[key]))
-            entry.grid(row=i, column=1, sticky="w", padx=5, pady=3)
+            entry.grid(row=i, column=1, sticky="w", padx=5, pady=4)
             self.nutri_entries[key] = entry
-        ttk.Label(self, text=t("ingedit_nutrition_hint"),
-                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).pack()
+        ttk.Label(nutrition_tab, text=t("ingedit_nutrition_hint"), wraplength=460,
+                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).pack(pady=(4, 10))
+        source = existing_nutri.get("_ciqual", {})
+        if source:
+            source_text = t("ingedit_ciqual_source", code=source["code"], food=source["food"])
+            if source.get("qualifiers"):
+                source_text += "\n" + t("ingedit_ciqual_bounds")
+        elif existing_nutri and (get_ingredient_override(existing_name) or {}).get("nutrition"):
+            source_text = t("ingedit_personal_nutrition")
+        else:
+            source_text = t("ingedit_unverified_nutrition")
+        ttk.Label(nutrition_tab, text=source_text, wraplength=460,
+                  foreground=COLOR_TEXT_MUTED).pack(fill="x", pady=(0, 8))
 
-        ttk.Label(self, text=t("ingedit_price_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(15, 5))
-        price_frame = ttk.Frame(self)
+        ttk.Label(nutrition_tab, text=t("ingedit_price_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(8, 5))
+        price_frame = ttk.Frame(nutrition_tab)
         price_frame.pack()
         existing_price = get_ingredient_price(existing_name) if self.editing else None
         ttk.Label(price_frame, text=t("ingprices_price_label")).grid(row=0, column=0, padx=3)
-        self.price_entry = ttk.Entry(price_frame, width=8)
+        self.price_entry = ttk.Entry(price_frame, width=9)
         if existing_price:
             self.price_entry.insert(0, str(existing_price["price"]))
         self.price_entry.grid(row=0, column=1, padx=3)
@@ -9706,11 +10028,10 @@ class IngredientEditWindow(tk.Toplevel):
         self.unit_combo.grid(row=0, column=3, padx=3)
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=15)
-        ttk.Button(btn_frame, text=t("ingedit_save_button"), command=self.save).grid(row=0, column=0, padx=5)
+        btn_frame.pack(pady=(0, 12))
+        ttk.Button(btn_frame, text=t("ingedit_save_button"), style="Primary.TButton", command=self.save).grid(row=0, column=0, padx=5)
         if self.editing:
-            ttk.Button(btn_frame, text=t("ingedit_delete_button"),
-                       command=self.delete_ingredient).grid(row=0, column=1, padx=5)
+            ttk.Button(btn_frame, text=t("ingedit_delete_button"), command=self.delete_ingredient).grid(row=0, column=1, padx=5)
 
     def _parse_float_or_none(self, entry, field_label):
         raw = entry.get().strip().replace(",", ".")
@@ -9718,7 +10039,7 @@ class IngredientEditWindow(tk.Toplevel):
             return None, True
         try:
             value = float(raw)
-            if value < 0:
+            if not math.isfinite(value) or value < 0:
                 raise ValueError
             return value, True
         except ValueError:
@@ -9757,12 +10078,18 @@ class IngredientEditWindow(tk.Toplevel):
             if value is not None:
                 nutrition[key] = value
 
+        previous_nutrition = get_ingredient_nutrition(self.existing_name) if self.editing else None
+        if previous_nutrition and previous_nutrition.get("_ciqual") and all(
+            nutrition.get(key) == previous_nutrition.get(key) for key in nutri_field_labels
+        ):
+            nutrition["_ciqual"] = previous_nutrition["_ciqual"]
+
         raw_price = self.price_entry.get().strip().replace(",", ".")
         price = None
         if raw_price:
             try:
                 price = float(raw_price)
-                if price < 0:
+                if not math.isfinite(price) or price < 0:
                     raise ValueError
             except ValueError:
                 messagebox.showerror(t("common_error"), t("ingedit_error_invalid_price"))
@@ -9831,7 +10158,7 @@ class IngredientSpellCheckWindow(tk.Toplevel):
         self.app = app
         self.manage_window = manage_window
         self.title(t("spellcheck_title"))
-        self.geometry(f"{gs(580)}x{gs(560)}")
+        fit_window_to_workarea(self, gs(580), gs(560), margin=14)
         self.grab_set()
 
         ttk.Label(
@@ -9953,6 +10280,171 @@ class IngredientSpellCheckWindow(tk.Toplevel):
         self._scan()
 
 
+
+def _finite_number(value, *, minimum=None, allow_none=False, field="number"):
+    if value is None and allow_none:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"invalid_{field}")
+    if not math.isfinite(number) or (minimum is not None and number < minimum):
+        raise ValueError(f"invalid_{field}")
+    return number
+
+
+def validate_ingredients_list_payload(data):
+    if not isinstance(data, list):
+        raise ValueError("invalid_ingredients")
+    out, seen = [], set()
+    for value in data:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("invalid_ingredient_name")
+        name = value.strip()
+        key = ingredient_sort_key(name)
+        if key not in seen:
+            seen.add(key); out.append(name)
+    return out
+
+
+def validate_pantry_payload(data):
+    if not isinstance(data, dict):
+        raise ValueError("invalid_pantry")
+    out = {}
+    for raw_key, raw in data.items():
+        if not isinstance(raw, dict):
+            raise ValueError("invalid_pantry_entry")
+        name = str(raw.get("name") or raw_key).strip()
+        if not name:
+            raise ValueError("invalid_pantry_name")
+        quantity = _finite_number(raw.get("quantity", 0), minimum=0, field="pantry_quantity")
+        threshold = raw.get("threshold")
+        if threshold in ("", None): threshold = None
+        else: threshold = _finite_number(threshold, minimum=0, field="pantry_threshold")
+        entry = copy.deepcopy(raw)
+        entry.update({"name": name, "quantity": quantity, "unit": str(raw.get("unit") or "").strip(), "threshold": threshold})
+        out[ingredient_sort_key(name)] = entry
+    return out
+
+
+def validate_prices_payload(data):
+    if not isinstance(data, dict):
+        raise ValueError("invalid_prices")
+    out = {}
+    for raw_key, raw in data.items():
+        if not isinstance(raw, dict):
+            raise ValueError("invalid_price_entry")
+        name = str(raw.get("name") or raw_key).strip()
+        if not name: raise ValueError("invalid_price_name")
+        price = _finite_number(raw.get("price"), minimum=0, field="price")
+        unit = str(raw.get("unit") or "").strip()
+        if not unit: raise ValueError("invalid_price_unit")
+        out[ingredient_sort_key(name)] = {"name": name, "price": price, "unit": unit}
+    return out
+
+
+def validate_saved_lists_payload(data):
+    if not isinstance(data, list): raise ValueError("invalid_saved_shopping_lists")
+    out=[]
+    for record in data:
+        if not isinstance(record, dict) or not str(record.get("name") or "").strip():
+            raise ValueError("invalid_saved_list")
+        copy_record=copy.deepcopy(record); items=[]
+        for item in record.get("items", []) or []:
+            if not isinstance(item, dict) or not str(item.get("name") or "").strip(): raise ValueError("invalid_saved_list_item")
+            item=copy.deepcopy(item)
+            raw_quantity = item["quantity"] if "quantity" in item else 0
+            item["quantity"] = parse_optional_positive_number(raw_quantity, allow_zero=True)
+            items.append(item)
+        copy_record["items"]=items; out.append(copy_record)
+    return out
+
+
+def validate_plan_payload(data, recipes=None):
+    if not isinstance(data, dict): raise ValueError("invalid_weekly_plan")
+    out=copy.deepcopy(data)
+    for day, slots in list(out.items()):
+        if slots in (None, {}): continue
+        if not isinstance(slots, dict): raise ValueError("invalid_plan_day")
+        for slot, ref in list(slots.items()):
+            if not isinstance(ref, dict): raise ValueError("invalid_plan_slot")
+            ref["persons"]=_finite_number(ref.get("persons",1),minimum=1e-12,field="plan_persons")
+            if recipes is not None: slots[slot]=enrich_recipe_reference(ref,recipes)
+    return out
+
+
+def validate_menus_payload(data, recipes=None):
+    if not isinstance(data, list): raise ValueError("invalid_menus")
+    out=[]
+    for menu in data:
+        if not isinstance(menu, dict) or not str(menu.get("name") or "").strip(): raise ValueError("invalid_menu")
+        copy_menu=copy.deepcopy(menu); items=[]
+        for item in menu.get("items",[]) or []:
+            if not isinstance(item,dict): raise ValueError("invalid_menu_item")
+            item=copy.deepcopy(item); item["persons"]=_finite_number(item.get("persons",1),minimum=1e-12,field="menu_persons")
+            if recipes is not None: item=enrich_recipe_reference(item,recipes)
+            items.append(item)
+        copy_menu["items"]=items; out.append(copy_menu)
+    return out
+
+
+def validate_recent_payload(data):
+    if not isinstance(data,list): raise ValueError("invalid_recent_views")
+    out=[]
+    for ref in data:
+        if isinstance(ref,str) and ref.strip(): out.append(ref.strip())
+        elif isinstance(ref,dict): out.append({k:v for k,v in ref.items() if k in ("recipe_id","recipe_name") and isinstance(v,str) and v.strip()})
+        else: raise ValueError("invalid_recent_view")
+    return out
+
+
+def validate_trash_payload(data):
+    if not isinstance(data,list): raise ValueError("invalid_trash")
+    out=[]
+    for entry in data:
+        if not isinstance(entry,dict) or not isinstance(entry.get("recipe"),dict): raise ValueError("invalid_trash_entry")
+        item=copy.deepcopy(entry); item["recipe"]=validate_recipes_payload([item["recipe"]],assign_ids=True)[0]; out.append(item)
+    return out
+
+
+def validate_history_payload(data, recipes=None):
+    if not isinstance(data,list): raise ValueError("invalid_weekly_plan_history")
+    out=[]
+    for entry in data:
+        if not isinstance(entry,dict): raise ValueError("invalid_history_entry")
+        item=copy.deepcopy(entry)
+        plan=item.get("plan", item.get("data", {}))
+        if plan is not None:
+            valid=validate_plan_payload(plan,recipes)
+            if "plan" in item: item["plan"]=valid
+            elif "data" in item: item["data"]=valid
+        out.append(item)
+    return out
+
+
+def validate_templates_payload(data, recipes=None):
+    if not isinstance(data,dict): raise ValueError("invalid_weekly_plan_templates")
+    return {str(name): validate_plan_payload(plan,recipes) for name,plan in data.items() if str(name).strip()}
+
+
+def validate_backup_payloads(parsed):
+    """Validation profonde commune avant toute restauration complète."""
+    recipes = validate_recipes_payload(parsed.get("recipes.json", []), assign_ids=True) if "recipes.json" in parsed else load_recipes()
+    if "recipes.json" in parsed: parsed["recipes.json"] = recipes
+    if "ingredients.json" in parsed: parsed["ingredients.json"] = validate_ingredients_list_payload(parsed["ingredients.json"])
+    if "pantry.json" in parsed: parsed["pantry.json"] = validate_pantry_payload(parsed["pantry.json"])
+    if "ingredient_prices.json" in parsed: parsed["ingredient_prices.json"] = validate_prices_payload(parsed["ingredient_prices.json"])
+    if "saved_shopping_lists.json" in parsed: parsed["saved_shopping_lists.json"] = validate_saved_lists_payload(parsed["saved_shopping_lists.json"])
+    if "weekly_plan.json" in parsed: parsed["weekly_plan.json"] = validate_plan_payload(parsed["weekly_plan.json"], recipes)
+    if "weekly_plan_history.json" in parsed: parsed["weekly_plan_history.json"] = validate_history_payload(parsed["weekly_plan_history.json"], recipes)
+    if "weekly_plan_templates.json" in parsed: parsed["weekly_plan_templates.json"] = validate_templates_payload(parsed["weekly_plan_templates.json"], recipes)
+    if "menus.json" in parsed: parsed["menus.json"] = validate_menus_payload(parsed["menus.json"], recipes)
+    if "recent_views.json" in parsed: parsed["recent_views.json"] = validate_recent_payload(parsed["recent_views.json"])
+    if "trash.json" in parsed: parsed["trash.json"] = validate_trash_payload(parsed["trash.json"])
+    if "settings.json" in parsed and not isinstance(parsed["settings.json"],dict): raise ValueError("invalid_settings")
+    if "ingredient_custom_data.json" in parsed and not isinstance(parsed["ingredient_custom_data.json"],dict): raise ValueError("invalid_overrides")
+    return parsed
+
 # ---------------------------------------------------------------------------
 # Format de sauvegarde partagé avec l'application mobile — recettes (avec
 # leurs photos), ingrédients connus, garde-manger et personnalisations.
@@ -9960,210 +10452,454 @@ class IngredientSpellCheckWindow(tk.Toplevel):
 # (voir plus bas), mais se limite à ce sous-ensemble : le planning
 # hebdomadaire, les menus et les listes de courses enregistrées ne sont pas
 # encore inclus dans ce format — des différences de conception réelles entre
-# les deux applications (planning ici : un seul créneau par jour référencé
+# les deux applications (le planning Windows peut contenir plusieurs créneaux par jour ;
 # par nom de recette ; application mobile : trois créneaux par jour
 # référencés par identifiant) demanderaient une réflexion dédiée avant
 # d'être unifiées correctement, plutôt qu'une correspondance approximative
 # risquant de mélanger des plannings incohérents.
 # ---------------------------------------------------------------------------
 
+def _normalize_shared_override(record):
+    """Convertit une surcharge ingrédient vers le format partagé canonique."""
+    if not isinstance(record, dict):
+        record = {}
+    out = copy.deepcopy(record)
+    out.pop("name", None)
+    # Le format partagé utilise "substitutions". Les anciennes sauvegardes
+    # mobiles pouvaient employer "substitutes".
+    if "substitutions" not in out and "substitutes" in out:
+        out["substitutions"] = out.pop("substitutes")
+    else:
+        out.pop("substitutes", None)
+    # Le prix voyage désormais dans ingredient_prices.json, qui correspond
+    # directement au stockage natif de l'application Windows.
+    out.pop("price", None)
+    return out
+
+
 def build_shared_backup_zip(zip_path):
-    """Sauvegarde au format partagé avec l'application mobile."""
-    # load_recipes() applique elle-même la migration d'identifiant (voir
-    # plus haut) — chaque recette exportée en a donc toujours un, même
-    # les plus anciennes.
+    """Sauvegarde au format partagé avec l'application mobile, de façon atomique."""
     recipes = load_recipes()
     referenced_images = set()
     for r in recipes:
-        referenced_images.update(get_recipe_images(r))
+        referenced_images.update(get_all_recipe_image_refs(r))
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("recipes.json", json.dumps(recipes, ensure_ascii=False, indent=2))
-        zf.writestr("ingredients.json", json.dumps(load_ingredients(), ensure_ascii=False, indent=2))
-        zf.writestr("pantry.json", json.dumps(load_pantry(), ensure_ascii=False, indent=2))
-        zf.writestr("ingredient_custom_data.json", json.dumps(load_ingredient_overrides(), ensure_ascii=False, indent=2))
-        if os.path.isdir(IMAGES_DIR):
-            for fname in referenced_images:
-                full = os.path.join(IMAGES_DIR, fname)
-                if os.path.isfile(full):
-                    zf.write(full, arcname=f"images/{fname}")
+    overrides = load_ingredient_overrides()
+    shared_overrides = {
+        str(name).strip().lower(): _normalize_shared_override(record)
+        for name, record in overrides.items()
+        if str(name).strip()
+    }
+
+    tmp_path = str(zip_path) + ".tmp"
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("recipes.json", json.dumps(recipes, ensure_ascii=False, indent=2, allow_nan=False))
+            zf.writestr("ingredients.json", json.dumps(load_ingredients(), ensure_ascii=False, indent=2, allow_nan=False))
+            zf.writestr("pantry.json", json.dumps(load_pantry(), ensure_ascii=False, indent=2, allow_nan=False))
+            zf.writestr("ingredient_custom_data.json", json.dumps(shared_overrides, ensure_ascii=False, indent=2, allow_nan=False))
+            zf.writestr("ingredient_prices.json", json.dumps(load_ingredient_prices(), ensure_ascii=False, indent=2, allow_nan=False))
+            if os.path.isdir(IMAGES_DIR):
+                for fname in referenced_images:
+                    full = os.path.join(IMAGES_DIR, fname)
+                    if os.path.isfile(full):
+                        zf.write(full, arcname=f"images/{fname}")
+        with zipfile.ZipFile(tmp_path, "r") as check:
+            _validate_backup_zip(check)
+        os.replace(tmp_path, zip_path)
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 def restore_from_shared_zip(zip_path, merge):
-    """Restaure depuis une archive au format partagé — produite par cette
-    même fonction côté Windows, ou par l'application mobile. merge=True
-    fusionne avec les données actuelles (une recette avec un identifiant
-    déjà connu localement est mise à jour plutôt que dupliquée, une
-    recette à l'identifiant inconnu ou absent est ajoutée comme
-    nouvelle) ; merge=False remplace intégralement les recettes,
-    ingrédients, garde-manger et personnalisations actuels."""
+    """Restaure une archive partagée Windows/mobile.
+
+    Les JSON sont tous lus et validés avant la première suppression locale.
+    En fusion, une photo existante portant le même nom et le même contenu est
+    réutilisée au lieu d'être copiée sous un nouveau nom.
+    """
     if os.path.getsize(zip_path) > MAX_BACKUP_FILE_SIZE:
         raise ValueError("file_too_large")
+
     with zipfile.ZipFile(zip_path, "r") as zf:
-        names = zf.namelist()
-        image_entries = [n for n in names if n.startswith("images/") and not n.endswith("/")]
+        _validate_backup_zip(zf)
+        names = set(zf.namelist())
 
-        if not merge and os.path.isdir(IMAGES_DIR):
-            for fname in os.listdir(IMAGES_DIR):
-                full = os.path.join(IMAGES_DIR, fname)
-                if os.path.isfile(full):
-                    os.remove(full)
+        def read_json(name, default):
+            if name not in names:
+                return copy.deepcopy(default)
+            return json.loads(zf.read(name).decode("utf-8"))
 
-        # En fusion, ne renomme un fichier photo que s'il entrerait en
-        # collision avec une photo locale déjà présente sous ce nom
-        # (évite de dupliquer inutilement les photos à chaque
-        # synchronisation depuis le même appareil, tout en ne risquant
-        # jamais d'écraser une photo différente par coïncidence de nom).
+        # ---- 1. Lecture et validation complètes avant toute modification ----
+        imported_recipes = validate_recipes_payload(read_json("recipes.json", []), assign_ids=True)
+
+        imported_ingredients = validate_ingredients_list_payload(read_json("ingredients.json", []))
+
+        imported_pantry = validate_pantry_payload(read_json("pantry.json", {}))
+
+        imported_overrides = read_json("ingredient_custom_data.json", {})
+        if not isinstance(imported_overrides, dict):
+            raise ValueError("invalid_overrides")
+
+        normalized_overrides = {}
+        legacy_prices = {}
+        for raw_name, raw_record in imported_overrides.items():
+            key = str(raw_name).strip().lower()
+            if not key:
+                continue
+            record = copy.deepcopy(raw_record) if isinstance(raw_record, dict) else {}
+            if "substitutions" not in record and "substitutes" in record:
+                record["substitutions"] = record.pop("substitutes")
+            else:
+                record.pop("substitutes", None)
+
+            # Compatibilité avec les archives mobiles v196 et antérieures :
+            # le prix était intégré à ingredient_custom_data.json.
+            price = record.pop("price", None)
+            if isinstance(price, dict):
+                amount = price.get("amount")
+                unit = price.get("unit")
+                if amount is not None and unit:
+                    legacy_prices[key] = {
+                        "name": record.get("name") or raw_name,
+                        "price": amount,
+                        "unit": unit,
+                    }
+            record.pop("name", None)
+            normalized_overrides[key] = record
+
+        imported_prices = read_json("ingredient_prices.json", {})
+        for key, value in legacy_prices.items():
+            imported_prices.setdefault(key, value)
+        imported_prices = validate_prices_payload(imported_prices)
+
+        image_payloads = {}
+        for entry in names:
+            if entry.startswith("images/") and not entry.endswith("/"):
+                rel = entry[len("images/"):]
+                fname = safe_image_filename(rel)
+                if fname and rel == fname:
+                    image_payloads[fname] = zf.read(entry)
+                else:
+                    raise ValueError("unsafe_image_name")
+
+        # ---- 2. Prépare la correspondance des noms de photos ----
+        os.makedirs(IMAGES_DIR, exist_ok=True)
         rename_map = {}
-        for entry in image_entries:
-            old_fname = os.path.basename(entry)
+        for old_fname, payload in image_payloads.items():
             dest_path = os.path.join(IMAGES_DIR, old_fname)
-            if merge and os.path.exists(dest_path):
-                ext = os.path.splitext(old_fname)[1]
-                new_fname = f"{uuid.uuid4().hex}{ext}"
+            if merge and os.path.isfile(dest_path):
+                try:
+                    with open(dest_path, "rb") as existing_img:
+                        identical = existing_img.read() == payload
+                except OSError:
+                    identical = False
+                if identical:
+                    new_fname = old_fname
+                else:
+                    ext = os.path.splitext(old_fname)[1]
+                    new_fname = f"{uuid.uuid4().hex}{ext}"
             else:
                 new_fname = old_fname
-            with open(os.path.join(IMAGES_DIR, new_fname), "wb") as out:
-                out.write(zf.read(entry))
             rename_map[old_fname] = new_fname
 
+        for recipe in imported_recipes:
+            remap_recipe_image_refs(recipe, rename_map)
+
+
+    def _apply_shared_changes():
+        # ---- 3. Applique la restauration seulement après validation ----
+        if not merge and os.path.isdir(IMAGES_DIR):
+            keep = set(rename_map.values())
+            for fname in os.listdir(IMAGES_DIR):
+                full = os.path.join(IMAGES_DIR, fname)
+                if os.path.isfile(full) and fname not in keep:
+                    os.remove(full)
+
+        for old_fname, payload in image_payloads.items():
+            new_fname = rename_map[old_fname]
+            dest_path = os.path.join(IMAGES_DIR, new_fname)
+            if os.path.isfile(dest_path):
+                try:
+                    with open(dest_path, "rb") as existing_img:
+                        if existing_img.read() == payload:
+                            continue
+                except OSError:
+                    pass
+            with open(dest_path, "wb") as out:
+                out.write(payload)
+
         if "recipes.json" in names:
-            imported_recipes = json.loads(zf.read("recipes.json").decode("utf-8"))
-            for r in imported_recipes:
-                if not r.get("id"):
-                    r["id"] = uuid.uuid4().hex
-                imgs = r.get("images")
-                if imgs:
-                    r["images"] = [rename_map.get(f, f) for f in imgs]
             if merge:
-                existing_by_id = {r.get("id"): r for r in load_recipes() if r.get("id")}
-                for r in imported_recipes:
-                    existing_by_id[r["id"]] = r
+                existing_by_id = {
+                    recipe.get("id"): recipe
+                    for recipe in load_recipes()
+                    if recipe.get("id")
+                }
+                for recipe in imported_recipes:
+                    existing_by_id[recipe["id"]] = recipe
                 save_recipes(list(existing_by_id.values()))
             else:
                 save_recipes(imported_recipes)
 
         if "ingredients.json" in names:
-            imported = json.loads(zf.read("ingredients.json").decode("utf-8"))
-            imported = [n for n in imported if isinstance(n, str) and n.strip()]
             if merge:
                 existing = load_ingredients()
-                existing_lower = {n.lower() for n in existing}
-                for n in imported:
-                    if n.lower() not in existing_lower:
-                        existing.append(n)
-                        existing_lower.add(n.lower())
+                existing_lower = {name.lower() for name in existing}
+                for name in imported_ingredients:
+                    if name.lower() not in existing_lower:
+                        existing.append(name)
+                        existing_lower.add(name.lower())
                 save_ingredients(sorted(existing, key=ingredient_sort_key))
             else:
-                save_ingredients(sorted(imported, key=ingredient_sort_key))
+                save_ingredients(sorted(imported_ingredients, key=ingredient_sort_key))
 
         if "pantry.json" in names:
-            imported = json.loads(zf.read("pantry.json").decode("utf-8"))
-            if not isinstance(imported, dict):
-                imported = {}
             if merge:
                 existing = load_pantry()
-                existing.update(imported)
+                existing.update(imported_pantry)
                 save_pantry(existing)
             else:
-                save_pantry(imported)
+                save_pantry(imported_pantry)
 
         if "ingredient_custom_data.json" in names:
-            imported = json.loads(zf.read("ingredient_custom_data.json").decode("utf-8"))
-            if not isinstance(imported, dict):
-                imported = {}
             if merge:
                 existing = load_ingredient_overrides()
-                existing.update(imported)
+                existing.update(normalized_overrides)
                 save_ingredient_overrides(existing)
             else:
-                save_ingredient_overrides(imported)
+                save_ingredient_overrides(normalized_overrides)
+
+        if "ingredient_prices.json" in names or legacy_prices:
+            if merge:
+                existing = load_ingredient_prices()
+                existing.update(imported_prices)
+                save_ingredient_prices(existing)
+            else:
+                save_ingredient_prices(imported_prices)
 
 
-def build_full_backup_zip(path):
-    """Construit une archive ZIP contenant l'intégralité des données
-    utilisateur (recettes, ingrédients personnalisés, garde-manger,
-    planning et historique, menus, listes de courses enregistrées,
-    corbeille, réglages...) et toutes les photos. Utilisé aussi bien par
-    l'export manuel que par les sauvegardes automatiques."""
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for filename in USER_DATA_FILES:
-            filepath = os.path.join(DATA_DIR, filename)
-            if os.path.exists(filepath):
-                zf.write(filepath, arcname=filename)
-        if os.path.isdir(IMAGES_DIR):
-            for fname in os.listdir(IMAGES_DIR):
-                full = os.path.join(IMAGES_DIR, fname)
-                if os.path.isfile(full):
-                    zf.write(full, arcname=f"images/{fname}")
+    snapshot = _snapshot_user_data_for_restore()
+    try:
+        _apply_shared_changes()
+    except Exception:
+        _rollback_user_data(snapshot)
+        raise
+    finally:
+        shutil.rmtree(snapshot, ignore_errors=True)
+
+def build_full_backup_zip(path, cancel_event=None, progress=None):
+    """Construit atomiquement une archive ZIP complète des données utilisateur."""
+    tmp_path = str(path) + ".tmp"
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for filename in USER_DATA_FILES:
+                _check_cancelled(cancel_event)
+                filepath = os.path.join(DATA_DIR, filename)
+                if os.path.exists(filepath):
+                    zf.write(filepath, arcname=filename)
+            if os.path.isdir(IMAGES_DIR):
+                for fname in os.listdir(IMAGES_DIR):
+                    _check_cancelled(cancel_event)
+                    full = os.path.join(IMAGES_DIR, fname)
+                    if os.path.isfile(full):
+                        zf.write(full, arcname=f"images/{fname}")
+            if progress:
+                progress()
+        _check_cancelled(cancel_event)
+        with zipfile.ZipFile(tmp_path, "r") as check:
+            _validate_backup_zip(check, max_entry=FULL_BACKUP_MAX_ENTRY_SIZE,
+                                 max_total=FULL_BACKUP_MAX_UNCOMPRESSED_SIZE)
+        if os.path.getsize(tmp_path) > FULL_BACKUP_MAX_FILE_SIZE:
+            raise ValueError("full_backup_too_large")
+        os.replace(tmp_path, path)
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
-def restore_from_zip(path, merge):
-    """Restaure des données à partir d'une archive ZIP (export manuel ou
-    sauvegarde automatique). merge=True fusionne avec les données actuelles
-    (recettes/ingrédients/photos en double sont renommés plutôt qu'écrasés ;
-    les autres données personnelles — garde-manger, prix, substituts,
-    listes de courses enregistrées, menus, historique de planning,
-    corbeille... — sont ajoutées à celles déjà présentes, sans rien
-    perdre) ; merge=False remplace tout, y compris les réglages et le
-    planning actif."""
-    if os.path.getsize(path) > MAX_BACKUP_FILE_SIZE:
+def _snapshot_user_data_for_restore():
+    """Copie les données actuelles avant restauration pour permettre un rollback complet."""
+    snapshot = tempfile.mkdtemp(prefix="mesrecettes_restore_")
+    for filename in USER_DATA_FILES:
+        src = os.path.join(DATA_DIR, filename)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(snapshot, filename))
+    if os.path.isdir(IMAGES_DIR):
+        shutil.copytree(IMAGES_DIR, os.path.join(snapshot, "images"), dirs_exist_ok=True)
+    return snapshot
+
+
+def _rollback_user_data(snapshot):
+    # Efface seulement les fichiers gérés par l'application, puis restaure l'instantané.
+    for filename in USER_DATA_FILES:
+        path = os.path.join(DATA_DIR, filename)
+        try:
+            if os.path.isfile(path): os.remove(path)
+        except OSError: pass
+    if os.path.isdir(IMAGES_DIR):
+        shutil.rmtree(IMAGES_DIR, ignore_errors=True)
+    os.makedirs(IMAGES_DIR, exist_ok=True)
+    for filename in USER_DATA_FILES:
+        src = os.path.join(snapshot, filename)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(DATA_DIR, filename))
+    imgsrc = os.path.join(snapshot, "images")
+    if os.path.isdir(imgsrc):
+        shutil.copytree(imgsrc, IMAGES_DIR, dirs_exist_ok=True)
+
+
+def restore_from_zip(path, merge, cancel_event=None, progress=None):
+    """Restaure une sauvegarde complète après validation intégrale.
+
+    Aucun fichier local n'est supprimé ou remplacé avant que tous les JSON
+    et toutes les images de l'archive aient été lus avec succès. En mode
+    fusion, les recettes sont fusionnées par identifiant stable et les
+    images identiques sont réutilisées au lieu d'être dupliquées.
+    """
+    if os.path.getsize(path) > FULL_BACKUP_MAX_FILE_SIZE:
         raise ValueError("file_too_large")
+
+    expected = {
+        "recipes.json": list,
+        "ingredients.json": list,
+        "ingredient_custom_data.json": dict,
+        "ingredient_prices.json": dict,
+        "ingredient_dismissed_pairs.json": list,
+        "weekly_plan.json": dict,
+        "weekly_plan_history.json": list,
+        "weekly_plan_templates.json": dict,
+        "menus.json": list,
+        "saved_shopping_lists.json": list,
+        "pantry.json": dict,
+        "trash.json": list,
+        "recent_views.json": list,
+        "settings.json": dict,
+    }
+
     with zipfile.ZipFile(path, "r") as zf:
-        names = zf.namelist()
-        imported_recipes = []
-        imported_ingredients = []
-        if "recipes.json" in names:
-            imported_recipes = json.loads(zf.read("recipes.json").decode("utf-8"))
-        if "ingredients.json" in names:
-            imported_ingredients = json.loads(zf.read("ingredients.json").decode("utf-8"))
-        image_entries = [n for n in names if n.startswith("images/") and not n.endswith("/")]
+        _check_cancelled(cancel_event)
+        _validate_backup_zip(
+            zf, max_entry=FULL_BACKUP_MAX_ENTRY_SIZE,
+            max_total=FULL_BACKUP_MAX_UNCOMPRESSED_SIZE, verify_crc=False
+        )
+        names = set(zf.namelist())
+        parsed = {}
+        for filename, expected_type in expected.items():
+            _check_cancelled(cancel_event)
+            if filename not in names:
+                continue
+            data = json.loads(zf.read(filename).decode("utf-8"))
+            if not isinstance(data, expected_type):
+                raise ValueError(f"invalid_{filename}")
+            parsed[filename] = data
+
+        parsed = validate_backup_payloads(parsed)
+        imported_recipes = parsed.get("recipes.json", [])
+        imported_ingredients = parsed.get("ingredients.json", [])
+
+        image_entries = {}
+        for entry in names:
+            if entry.startswith("images/") and not entry.endswith("/"):
+                rel = entry[len("images/"):]
+                fname = safe_image_filename(rel)
+                if not fname or rel != fname:
+                    raise ValueError("unsafe_image_name")
+                image_entries[fname] = entry
+
+    # Les images sont déposées sur disque une par une : la RAM ne dépend plus
+    # de la taille totale de la photothèque.
+    image_stage = tempfile.mkdtemp(prefix="mesrecettes_restore_images_")
+    image_payloads = {}
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            for index, (fname, entry) in enumerate(image_entries.items()):
+                _check_cancelled(cancel_event)
+                staged = os.path.join(image_stage, str(index))
+                with zf.open(entry, "r") as source, open(staged, "wb") as target:
+                    shutil.copyfileobj(source, target, length=1024 * 1024)
+                image_payloads[fname] = staged
+                if progress:
+                    progress()
+    except Exception:
+        shutil.rmtree(image_stage, ignore_errors=True)
+        raise
+
+    def _apply_restore_changes():
+        if not merge:
+            # « Tout remplacer » remet réellement à zéro l'ensemble des fichiers
+            # utilisateur gérés, y compris ceux absents de l'archive.
+            for _filename in USER_DATA_FILES:
+                _path = os.path.join(DATA_DIR, _filename)
+                if os.path.isfile(_path):
+                    os.remove(_path)
+        # Tout est valide à partir d'ici : préparation des noms d'images.
+        os.makedirs(IMAGES_DIR, exist_ok=True)
+        rename_map = {}
+        for old_fname, staged_path in image_payloads.items():
+            _check_cancelled(cancel_event)
+            dest = os.path.join(IMAGES_DIR, old_fname)
+            if merge and os.path.isfile(dest):
+                try:
+                    identical = filecmp.cmp(dest, staged_path, shallow=False)
+                except OSError:
+                    identical = False
+                if identical:
+                    new_fname = old_fname
+                else:
+                    ext = os.path.splitext(old_fname)[1]
+                    new_fname = f"{uuid.uuid4().hex}{ext}"
+            else:
+                new_fname = old_fname
+            rename_map[old_fname] = new_fname
+
+        for recipe in imported_recipes:
+            remap_recipe_image_refs(recipe, rename_map)
 
         if not merge:
+            keep = set(rename_map.values())
             if os.path.isdir(IMAGES_DIR):
                 for fname in os.listdir(IMAGES_DIR):
                     full = os.path.join(IMAGES_DIR, fname)
-                    if os.path.isfile(full):
+                    if os.path.isfile(full) and fname not in keep:
                         os.remove(full)
-            for entry in image_entries:
-                fname = os.path.basename(entry)
-                with open(os.path.join(IMAGES_DIR, fname), "wb") as out:
-                    out.write(zf.read(entry))
-            save_recipes(imported_recipes)
-            save_ingredients(imported_ingredients)
-        else:
-            rename_map = {}
-            for entry in image_entries:
-                old_fname = os.path.basename(entry)
-                ext = os.path.splitext(old_fname)[1]
-                new_fname = f"{uuid.uuid4().hex}{ext}"
-                with open(os.path.join(IMAGES_DIR, new_fname), "wb") as out:
-                    out.write(zf.read(entry))
-                rename_map[old_fname] = new_fname
 
-            existing_recipes = load_recipes()
-            existing_names_lower = {r["name"].strip().lower() for r in existing_recipes}
-            for r in imported_recipes:
-                img = r.get("image")
-                if img and img in rename_map:
-                    r["image"] = rename_map[img]
-                imgs = r.get("images")
-                if imgs:
-                    r["images"] = [rename_map.get(f, f) for f in imgs]
-                if r.get("name", "").strip().lower() in existing_names_lower:
-                    r["name"] = f"{r['name']} (importé)"
-                existing_recipes.append(r)
-                existing_names_lower.add(r["name"].strip().lower())
-            save_recipes(existing_recipes)
+        for old_fname, staged_path in image_payloads.items():
+            _check_cancelled(cancel_event)
+            dest = os.path.join(IMAGES_DIR, rename_map[old_fname])
+            if os.path.isfile(dest):
+                try:
+                    if filecmp.cmp(dest, staged_path, shallow=False):
+                        continue
+                except OSError:
+                    pass
+            tmp = dest + ".tmp"
+            with open(staged_path, "rb") as source, open(tmp, "wb") as target:
+                shutil.copyfileobj(source, target, length=1024 * 1024)
+                target.flush()
+                os.fsync(target.fileno())
+            os.replace(tmp, dest)
 
-            existing_ingredients = load_ingredients()
-            save_ingredients(existing_ingredients + imported_ingredients)
+        if "recipes.json" in parsed:
+            if merge:
+                by_id = {r.get("id"): r for r in load_recipes() if isinstance(r, dict) and r.get("id")}
+                unnamed = [r for r in load_recipes() if not (isinstance(r, dict) and r.get("id"))]
+                for r in imported_recipes:
+                    by_id[r["id"]] = r
+                save_recipes(unnamed + list(by_id.values()))
+            else:
+                save_recipes(imported_recipes)
 
-        # ---- Le reste des données personnelles : garde-manger, prix et
-        # substituts personnalisés, listes de courses enregistrées, menus,
-        # historique/modèles de planning, corbeille, historique récent,
-        # doublons d'ingrédients ignorés. Chaque type de fichier a sa
-        # propre logique de fusion adaptée à sa structure. ----
+        if "ingredients.json" in parsed:
+            save_ingredients(load_ingredients() + imported_ingredients if merge else imported_ingredients)
+
         dict_merge_files = [
             "ingredient_custom_data.json", "ingredient_prices.json", "pantry.json",
             "weekly_plan_templates.json",
@@ -10176,62 +10912,78 @@ def restore_from_zip(path, merge):
         simple_list_merge_files = ["trash.json", "recent_views.json"]
         replace_only_files = ["settings.json", "weekly_plan.json"]
 
-        def _read_json_entry(filename, expected_type):
-            try:
-                data = json.loads(zf.read(filename).decode("utf-8"))
-                return data if isinstance(data, expected_type) else expected_type()
-            except Exception:
-                return expected_type()
-
-        def _read_existing_json(filepath, expected_type):
+        def read_existing(filename, expected_type):
+            filepath = os.path.join(DATA_DIR, filename)
             if not os.path.exists(filepath):
                 return expected_type()
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    return data if isinstance(data, expected_type) else expected_type()
+                return data if isinstance(data, expected_type) else expected_type()
             except Exception:
                 return expected_type()
 
         for filename in dict_merge_files:
-            if filename not in names:
+            if filename not in parsed:
                 continue
-            imported = _read_json_entry(filename, dict)
-            filepath = os.path.join(DATA_DIR, filename)
+            data = copy.deepcopy(parsed[filename])
             if merge:
-                existing = _read_existing_json(filepath, dict)
-                existing.update(imported)
-                imported = existing
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(imported, f, ensure_ascii=False, indent=2)
+                existing = read_existing(filename, dict)
+                existing.update(data)
+                data = existing
+            _atomic_write_json(os.path.join(DATA_DIR, filename), data)
 
         for filename, key_field in named_list_merge_files.items():
-            if filename not in names:
+            if filename not in parsed:
                 continue
-            imported = _read_json_entry(filename, list)
-            filepath = os.path.join(DATA_DIR, filename)
+            data = copy.deepcopy(parsed[filename])
             if merge:
-                existing = _read_existing_json(filepath, list)
-                by_key = {item.get(key_field): item for item in existing if isinstance(item, dict)}
-                for item in imported:
-                    if isinstance(item, dict):
-                        by_key[item.get(key_field)] = item
-                imported = list(by_key.values())
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(imported, f, ensure_ascii=False, indent=2)
+                existing = read_existing(filename, list)
+                keyed, no_key = {}, []
+                for item in existing + data:
+                    if isinstance(item, dict) and item.get(key_field) is not None:
+                        keyed[item.get(key_field)] = item
+                    else:
+                        no_key.append(item)
+                data = no_key + list(keyed.values())
+            _atomic_write_json(os.path.join(DATA_DIR, filename), data)
 
         for filename in simple_list_merge_files:
-            if filename not in names:
+            if filename not in parsed:
                 continue
-            imported = _read_json_entry(filename, list)
-            filepath = os.path.join(DATA_DIR, filename)
+            data = copy.deepcopy(parsed[filename])
             if merge:
-                imported = _read_existing_json(filepath, list) + imported
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(imported, f, ensure_ascii=False, indent=2)
+                combined = read_existing(filename, list) + data
+                if filename == "recent_views.json":
+                    deduped, seen = [], set()
+                    for ref in combined:
+                        if isinstance(ref, dict):
+                            key = ref.get("recipe_id") or (ref.get("recipe_name") or "").casefold()
+                        else:
+                            key = str(ref).casefold()
+                        if not key or key in seen:
+                            continue
+                        seen.add(key)
+                        deduped.append(ref)
+                    data = deduped[:RECENT_VIEWS_MAX]
+                elif filename == "trash.json":
+                    deduped, seen = [], set()
+                    for entry in combined:
+                        recipe = entry.get("recipe", {}) if isinstance(entry, dict) else {}
+                        key = recipe.get("id") or (
+                            recipe.get("name"), entry.get("deleted_at") if isinstance(entry, dict) else None
+                        )
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        deduped.append(entry)
+                    data = deduped
+                else:
+                    data = combined
+            _atomic_write_json(os.path.join(DATA_DIR, filename), data)
 
-        if "ingredient_dismissed_pairs.json" in names:
-            imported_pairs = _read_json_entry("ingredient_dismissed_pairs.json", list)
+        if "ingredient_dismissed_pairs.json" in parsed:
+            imported_pairs = parsed["ingredient_dismissed_pairs.json"]
             pairs = {tuple(sorted(p)) for p in imported_pairs if isinstance(p, list) and len(p) == 2}
             if merge:
                 pairs |= load_dismissed_pairs()
@@ -10239,11 +10991,28 @@ def restore_from_zip(path, merge):
 
         if not merge:
             for filename in replace_only_files:
-                if filename in names:
-                    imported = json.loads(zf.read(filename).decode("utf-8"))
-                    filepath = os.path.join(DATA_DIR, filename)
-                    with open(filepath, "w", encoding="utf-8") as f:
-                        json.dump(imported, f, ensure_ascii=False, indent=2)
+                if filename in parsed:
+                    _atomic_write_json(os.path.join(DATA_DIR, filename), parsed[filename])
+
+    guarded_keys = set(_CORRUPTED_DATA_FILES)
+    _ALLOW_CORRUPT_OVERWRITE.update(guarded_keys)
+    snapshot = None
+    restored = False
+    try:
+        snapshot = _snapshot_user_data_for_restore()
+        _apply_restore_changes()
+        restored = True
+    except Exception:
+        if snapshot:
+            _rollback_user_data(snapshot)
+        raise
+    finally:
+        if snapshot:
+            shutil.rmtree(snapshot, ignore_errors=True)
+        shutil.rmtree(image_stage, ignore_errors=True)
+        _ALLOW_CORRUPT_OVERWRITE.difference_update(guarded_keys)
+        if restored:
+            _clear_corruption_guards()
 
 
 # ---------------------------------------------------------------------------
@@ -10251,20 +11020,44 @@ def restore_from_zip(path, merge):
 # ---------------------------------------------------------------------------
 
 def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return data
-        except Exception:
-            return {}
-    return {}
+    return _read_user_json(SETTINGS_FILE, dict, {}, label="settings")
 
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(settings, f, ensure_ascii=False, indent=2)
+    if not isinstance(settings, dict):
+        raise ValueError("settings must be a dict")
+    settings = dict(settings)
+    settings["data_schema_version"] = DATA_SCHEMA_VERSION
+    _atomic_write_json(SETTINGS_FILE, settings)
+
+
+def migrate_data_schema(recipes=None):
+    """Applique les migrations de données idempotentes connues.
+
+    Le schéma 2 formalise les IDs stables de recettes et les références
+    planning/menu/récents introduites progressivement dans les versions 22/23.
+    """
+    settings = load_settings()
+    try:
+        current = int(settings.get("data_schema_version", 1) or 1)
+    except (TypeError, ValueError):
+        current = 1
+    if current < 2:
+        recipes = recipes if recipes is not None else load_recipes()
+        # Ces chargeurs migrent déjà de façon transparente les anciennes
+        # références par nom vers les références contenant recipe_id.
+        load_weekly_plan()
+        load_weekly_plan_history()
+        load_weekly_plan_templates()
+        load_menus()
+        _load_recent_view_refs()
+        get_daily_recipe(recipes) if recipes else None
+        settings = load_settings()
+        settings["data_schema_version"] = 2
+        save_settings(settings)
+    elif settings.get("data_schema_version") != DATA_SCHEMA_VERSION:
+        settings["data_schema_version"] = DATA_SCHEMA_VERSION
+        save_settings(settings)
 
 
 def get_daily_recipe(recipes):
@@ -10276,11 +11069,18 @@ def get_daily_recipe(recipes):
     settings = load_settings()
     today = datetime.now().strftime("%Y-%m-%d")
     if settings.get("daily_recipe_date") == today:
-        match = next((r for r in recipes if r["name"] == settings.get("daily_recipe_name")), None)
+        match = find_recipe_by_id(recipes, settings.get("daily_recipe_id"))
+        if match is None:
+            match = find_recipe_by_name(recipes, settings.get("daily_recipe_name"))
         if match is not None:
+            # Migration transparente de l'ancien réglage basé uniquement sur le nom.
+            settings["daily_recipe_id"] = match.get("id")
+            settings["daily_recipe_name"] = match.get("name")
+            save_settings(settings)
             return match
     chosen = random.choice(recipes)
     settings["daily_recipe_date"] = today
+    settings["daily_recipe_id"] = chosen.get("id")
     settings["daily_recipe_name"] = chosen["name"]
     save_settings(settings)
     return chosen
@@ -10320,7 +11120,7 @@ def list_auto_backups():
     return files
 
 
-def create_auto_backup():
+def create_auto_backup(cancel_event=None, progress=None):
     """Crée une nouvelle sauvegarde automatique horodatée, puis supprime les
     plus anciennes au-delà de AUTO_BACKUP_RETENTION. Si un dossier cloud est
     configuré (Google Drive, OneDrive, Dropbox...), une copie y est aussi
@@ -10329,7 +11129,7 @@ def create_auto_backup():
     os.makedirs(BACKUPS_DIR, exist_ok=True)
     filename = f"{AUTO_BACKUP_PREFIX}{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.zip"
     path = os.path.join(BACKUPS_DIR, filename)
-    build_full_backup_zip(path)
+    build_full_backup_zip(path, cancel_event=cancel_event, progress=progress)
 
     existing = list_auto_backups()
     for old_path in existing[AUTO_BACKUP_RETENTION:]:
@@ -10353,8 +11153,8 @@ def create_auto_backup():
                     os.remove(old_cloud_path)
                 except OSError:
                     pass
-        except Exception:
-            pass  # un souci côté dossier cloud ne doit jamais faire échouer la sauvegarde locale
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)  # un souci côté dossier cloud ne doit jamais faire échouer la sauvegarde locale
 
     return path
 
@@ -10384,8 +11184,18 @@ def maybe_create_auto_backup():
     planter l'application en cas de problème (disque plein, permissions...)."""
     try:
         migrate_old_backup_filenames()
-        if not os.path.exists(DATA_FILE):
-            return  # rien à sauvegarder pour un tout premier lancement
+        if get_corrupted_data_files():
+            return  # ne jamais sauvegarder automatiquement des données suspectes
+        has_file_data = any(
+            os.path.isfile(os.path.join(DATA_DIR, filename))
+            for filename in USER_DATA_FILES
+        )
+        has_images = os.path.isdir(IMAGES_DIR) and any(
+            os.path.isfile(os.path.join(IMAGES_DIR, filename))
+            for filename in os.listdir(IMAGES_DIR)
+        )
+        if not has_file_data and not has_images:
+            return  # véritable premier lancement : aucune donnée utilisateur
         existing = list_auto_backups()
         if existing:
             last_mtime = os.path.getmtime(existing[0])
@@ -10393,8 +11203,8 @@ def maybe_create_auto_backup():
             if age_hours < AUTO_BACKUP_MIN_INTERVAL_HOURS:
                 return
         create_auto_backup()
-    except Exception:
-        pass
+    except Exception as exc:
+        log_internal_error("suppressed_exception", exc)
 
 
 class ImportExportWindow(tk.Toplevel):
@@ -10406,13 +11216,17 @@ class ImportExportWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("importexport_title"))
-        self.geometry(f"{gs(480)}x{gs(940)}")
-        self.minsize(gs(440), gs(500))
+        fit_window_to_workarea(self, gs(480), gs(940), margin=18)
+        safe_minsize(self, gs(440), gs(500))
         self.resizable(True, True)
         self.grab_set()
 
-        ttk.Label(self, text=t("importexport_heading"),
-                  font=("Segoe UI", sf(13), "bold")).pack(pady=15)
+        header_row = ttk.Frame(self)
+        header_row.pack(fill="x", padx=18, pady=(12, 6))
+        ttk.Label(header_row, text=t("importexport_heading"),
+                  font=("Segoe UI", sf(13), "bold")).pack(side="left")
+        ttk.Button(header_row, text=t("diagnostic_button"), style="Secondary.TButton",
+                   command=lambda: DiagnosticWindow(self.app, self)).pack(side="right")
 
         ttk.Label(
             self,
@@ -10434,13 +11248,20 @@ class ImportExportWindow(tk.Toplevel):
 
         ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=15)
 
-        ttk.Label(self, text=t("importexport_shared_heading"),
+        ttk.Label(self, text=t("importexport_mobile_exchange_heading"),
                   font=("Segoe UI", sf(11), "bold")).pack(pady=(0, 6))
         ttk.Label(
-            self,
-            text=t("importexport_shared_intro"),
-            justify="center", font=("Segoe UI", sf(9)), wraplength=360
+            self, text=t("importexport_mobile_exchange_intro"),
+            justify="center", font=("Segoe UI", sf(9)), wraplength=390
         ).pack(pady=(0, 10))
+        qr_row = ttk.Frame(self)
+        qr_row.pack(pady=(0, 6))
+        ttk.Button(qr_row, text=t("importexport_mobile_qr_import"),
+                   command=self.import_mobile_qr).pack(side="left", padx=4)
+        ttk.Button(qr_row, text=t("importexport_mobile_qr_export"),
+                   command=self.choose_recipe_for_qr).pack(side="left", padx=4)
+        ttk.Label(self, text=t("importexport_shared_intro"),
+                  justify="center", font=("Segoe UI", sf(8)), wraplength=390).pack(pady=(3, 8))
         ttk.Button(self, text=t("importexport_export_shared_button"),
                    width=42, command=self.export_shared_data).pack(pady=6)
         ttk.Button(self, text=t("importexport_import_shared_button"),
@@ -10495,6 +11316,18 @@ class ImportExportWindow(tk.Toplevel):
 
         tk.Frame(self, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
+    def import_mobile_qr(self):
+        self.destroy()
+        self.app.after(50, self.app.open_import_from_qr)
+
+    def choose_recipe_for_qr(self):
+        self.destroy()
+        if not self.app.recipes:
+            messagebox.showinfo(t("common_info"), t("home_recent_empty_title"), parent=self.app)
+            return
+        # La fiche recette permet de choisir la recette puis d'afficher le QR.
+        self.app.after(50, self.app.open_one_recipe)
+
     def _refresh_cloud_label(self):
         folder = get_cloud_backup_folder()
         if folder:
@@ -10535,14 +11368,72 @@ class ImportExportWindow(tk.Toplevel):
         if not self.backups:
             self.backup_listbox.insert(tk.END, t("importexport_no_backups"))
 
+    def _run_background_task(self, task, on_success, failure_key):
+        """Exécute une sauvegarde/restauration hors du thread Tkinter."""
+        cancel_event = threading.Event()
+        results = queue.Queue(maxsize=1)
+        dialog = tk.Toplevel(self)
+        dialog.title(t("backgroundtask_title"))
+        dialog.transient(self)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        dialog.protocol("WM_DELETE_WINDOW", lambda: cancel_event.set())
+        ttk.Label(dialog, text=t("backgroundtask_running"), padding=(22, 16, 22, 8)).pack()
+        bar = ttk.Progressbar(dialog, mode="indeterminate", length=320)
+        bar.pack(padx=22, pady=8)
+        bar.start(12)
+        cancel_button = ttk.Button(
+            dialog, text=t("backgroundtask_cancel"),
+            command=lambda: (cancel_event.set(), cancel_button.configure(state="disabled"))
+        )
+        cancel_button.pack(pady=(4, 16))
+        dialog.update_idletasks()
+        x = self.winfo_rootx() + max(0, (self.winfo_width() - dialog.winfo_width()) // 2)
+        y = self.winfo_rooty() + max(0, (self.winfo_height() - dialog.winfo_height()) // 2)
+        dialog.geometry(f"+{x}+{y}")
+
+        def worker():
+            try:
+                results.put((True, task(cancel_event)))
+            except Exception as exc:
+                results.put((False, exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+        def poll():
+            try:
+                ok, value = results.get_nowait()
+            except queue.Empty:
+                if dialog.winfo_exists():
+                    dialog.after(100, poll)
+                return
+            bar.stop()
+            dialog.destroy()
+            try:
+                self.grab_set()
+            except tk.TclError:
+                pass
+            if ok:
+                on_success(value)
+            elif not isinstance(value, OperationCancelled):
+                log_internal_error("background_data_task", value)
+                messagebox.showerror(
+                    t("common_error"), t(failure_key, error=value), parent=self
+                )
+
+        dialog.after(100, poll)
+
     def backup_now(self):
-        try:
-            create_auto_backup()
-        except Exception as e:
-            messagebox.showerror(t("common_error"), t("importexport_backup_failed", error=e))
-            return
-        self._populate_backups()
-        messagebox.showinfo(t("importexport_backup_created_title"), t("importexport_backup_created_message"))
+        def done(_path):
+            self._populate_backups()
+            messagebox.showinfo(
+                t("importexport_backup_created_title"),
+                t("importexport_backup_created_message"), parent=self
+            )
+        self._run_background_task(
+            lambda cancel: create_auto_backup(cancel_event=cancel),
+            done, "importexport_backup_failed"
+        )
 
     def restore_selected(self):
         sel = self.backup_listbox.curselection()
@@ -10550,6 +11441,8 @@ class ImportExportWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("importexport_select_backup_first"))
             return
         path = self.backups[sel[0]]
+        if not confirm_backup_preview(self, path):
+            return
 
         mode = messagebox.askyesnocancel(
             t("importexport_restore_mode_title"),
@@ -10557,15 +11450,18 @@ class ImportExportWindow(tk.Toplevel):
         )
         if mode is None:
             return
-        try:
-            restore_from_zip(path, merge=bool(mode))
-        except Exception as e:
-            messagebox.showerror(t("common_error"), t("importexport_restore_failed", error=e))
-            return
-        self.app.refresh_recipes()
-        self.app.refresh_ingredients()
-        messagebox.showinfo(t("importexport_restore_done_title"), t("importexport_restore_done_message"))
-        self.destroy()
+        def done(_value):
+            self.app.refresh_recipes()
+            self.app.refresh_ingredients()
+            messagebox.showinfo(
+                t("importexport_restore_done_title"),
+                t("importexport_restore_done_message"), parent=self
+            )
+            self.destroy()
+        self._run_background_task(
+            lambda cancel: restore_from_zip(path, merge=bool(mode), cancel_event=cancel),
+            done, "importexport_restore_failed"
+        )
 
     def export_data(self):
         path = filedialog.asksaveasfilename(
@@ -10576,12 +11472,14 @@ class ImportExportWindow(tk.Toplevel):
         )
         if not path:
             return
-        try:
-            build_full_backup_zip(path)
-        except Exception as e:
-            messagebox.showerror(t("common_error"), t("common_export_failed", error=e))
-            return
-        messagebox.showinfo(t("common_export_success_title"), t("importexport_export_data_success", path=path))
+        self._run_background_task(
+            lambda cancel: build_full_backup_zip(path, cancel_event=cancel),
+            lambda _value: messagebox.showinfo(
+                t("common_export_success_title"),
+                t("importexport_export_data_success", path=path), parent=self
+            ),
+            "common_export_failed"
+        )
 
     def import_data(self):
         path = filedialog.askopenfilename(
@@ -10589,6 +11487,8 @@ class ImportExportWindow(tk.Toplevel):
             filetypes=[("Archive ZIP", "*.zip")]
         )
         if not path:
+            return
+        if not confirm_backup_preview(self, path):
             return
 
         mode = messagebox.askyesnocancel(
@@ -10598,16 +11498,18 @@ class ImportExportWindow(tk.Toplevel):
         if mode is None:
             return
 
-        try:
-            restore_from_zip(path, merge=bool(mode))
-        except Exception as e:
-            messagebox.showerror(t("common_error"), t("importexport_import_failed", error=e))
-            return
-
-        self.app.refresh_recipes()
-        self.app.refresh_ingredients()
-        messagebox.showinfo(t("importexport_import_done_title"), t("importexport_import_done_message"))
-        self.destroy()
+        def done(_value):
+            self.app.refresh_recipes()
+            self.app.refresh_ingredients()
+            messagebox.showinfo(
+                t("importexport_import_done_title"),
+                t("importexport_import_done_message"), parent=self
+            )
+            self.destroy()
+        self._run_background_task(
+            lambda cancel: restore_from_zip(path, merge=bool(mode), cancel_event=cancel),
+            done, "importexport_import_failed"
+        )
 
     def export_shared_data(self):
         """Export au format compatible avec l'application mobile — voir
@@ -10637,6 +11539,21 @@ class ImportExportWindow(tk.Toplevel):
         if not path:
             return
 
+        file_size = os.path.getsize(path)
+        if file_size > MAX_BACKUP_FILE_SIZE:
+            size_mb = MAX_BACKUP_FILE_SIZE // (1024 * 1024)
+            messagebox.showerror(t("common_error"), t("importexport_file_too_large", size=size_mb))
+            return
+        if file_size > BACKUP_WARNING_SIZE:
+            current_mb = round(file_size / (1024 * 1024))
+            if not messagebox.askyesno(
+                t("common_confirm"),
+                t("importexport_large_file_warning", size=current_mb)
+            ):
+                return
+
+        if not confirm_backup_preview(self, path):
+            return
         mode = messagebox.askyesnocancel(
             t("importexport_import_mode_title"),
             t("importexport_import_mode_message")
@@ -10663,6 +11580,90 @@ class ImportExportWindow(tk.Toplevel):
         self.destroy()
 
 
+class DiagnosticWindow(tk.Toplevel):
+    """Diagnostic lisible/copiable, sans nom de recette ni donnée personnelle."""
+    def __init__(self, app, parent=None):
+        super().__init__(parent or app)
+        self.app = app
+        self.title(t("diagnostic_title"))
+        fit_window_to_workarea(self, gs(680), gs(560), margin=14)
+        safe_minsize(self, gs(560), gs(460))
+        self.resizable(True, True)
+        self.grab_set()
+
+        ttk.Label(self, text=t("diagnostic_heading"), style="Title.TLabel").pack(anchor="w", padx=18, pady=(16, 8))
+        self.text = tk.Text(self, wrap="word", font=("Consolas", sf(9)), height=18)
+        self.text.pack(fill="both", expand=True, padx=18, pady=(0, 10))
+        self.report = self._build_report()
+        self.text.insert("1.0", self.report)
+        self.text.configure(state="disabled")
+
+        buttons = ttk.Frame(self)
+        buttons.pack(fill="x", padx=18, pady=(0, 16))
+        ttk.Button(buttons, text=t("diagnostic_copy"), command=self.copy_report).pack(side="left")
+        ttk.Button(buttons, text=t("diagnostic_open_data"), command=self.open_data_folder).pack(side="left", padx=8)
+        ttk.Button(buttons, text=t("common_close"), command=self.destroy).pack(side="right")
+
+    def _build_report(self):
+        recipes = load_recipes()
+        photos = 0
+        try:
+            photos = sum(1 for n in os.listdir(IMAGES_DIR) if os.path.isfile(os.path.join(IMAGES_DIR, n)))
+        except OSError:
+            pass
+        total_size = 0
+        for base, dirs, files in os.walk(DATA_DIR):
+            for f in files:
+                try: total_size += os.path.getsize(os.path.join(base, f))
+                except OSError: pass
+        if total_size >= 1024 * 1024:
+            size_text = f"{total_size / (1024*1024):.1f} Mo"
+        else:
+            size_text = f"{total_size / 1024:.0f} Ko"
+        backups = list_auto_backups()
+        if backups:
+            last_backup = datetime.fromtimestamp(os.path.getmtime(backups[0])).strftime("%d/%m/%Y %H:%M")
+        else:
+            last_backup = t("diagnostic_never")
+        tess_status = current_tesseract_status()
+        if not tess_status["pytesseract"]:
+            tess = t("diagnostic_tesseract_pytesseract_missing")
+        elif not tess_status["executable"]:
+            tess = t("diagnostic_tesseract_exe_missing")
+        elif not tess_status["ready"]:
+            tess = t(
+                "diagnostic_tesseract_lang_missing",
+                version=tess_status.get("version") or "?",
+                lang=tess_status.get("required_lang") or "?"
+            )
+        else:
+            tess = t(
+                "diagnostic_tesseract_ready",
+                version=tess_status.get("version") or "?",
+                lang=tess_status.get("required_lang") or "?"
+            )
+        return t(
+            "diagnostic_text", version=APP_VERSION,
+            system=f"{platform.system()} {platform.release()} ({platform.machine()})",
+            data_dir=DATA_DIR, recipes=len(recipes), photos=photos, data_size=size_text,
+            last_backup=last_backup, tesseract=tess,
+            qr=t("diagnostic_yes") if QRCODE_READER_AVAILABLE else t("diagnostic_no"),
+            qrgen=t("diagnostic_yes") if QRCODE_AVAILABLE else t("diagnostic_no"),
+        )
+
+    def copy_report(self):
+        self.clipboard_clear(); self.clipboard_append(self.report); self.update()
+        self.app.show_toast(t("diagnostic_copied"))
+
+    def open_data_folder(self):
+        try:
+            if os.name == "nt": os.startfile(DATA_DIR)
+            elif sys.platform == "darwin": subprocess.Popen(["open", DATA_DIR])
+            else: subprocess.Popen(["xdg-open", DATA_DIR])
+        except Exception as e:
+            messagebox.showerror(t("common_error"), str(e), parent=self)
+
+
 class ShoppingChecklistWindow(tk.Toplevel):
     """Affiche une liste de courses déjà calculée sous forme de cases à
     cocher, pour pointer les articles au fur et à mesure des courses."""
@@ -10673,7 +11674,7 @@ class ShoppingChecklistWindow(tk.Toplevel):
         if title is None:
             title = t("allrecipes_shopping_list_title")
         self.title(f"☑️ {title}")
-        self.geometry(f"{gs(480)}x{gs(600)}")
+        fit_window_to_workarea(self, gs(960), gs(900), margin=18)
         self.grab_set()
 
         ttk.Label(self, text=f"☑️ {title}", font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
@@ -10747,7 +11748,7 @@ class ExportFormatDialog(tk.Toplevel):
     def __init__(self, parent_window, export_txt_callback, export_excel_callback, export_pdf_callback):
         super().__init__(parent_window)
         self.title(t("exportformat_title"))
-        self.geometry(f"{gs(380)}x{gs(280)}")
+        fit_window_to_workarea(self, gs(380), gs(280), margin=14)
         self.resizable(False, False)
         self.grab_set()
 
@@ -10784,8 +11785,8 @@ class AddManualIngredientDialog(tk.Toplevel):
         self.target_window = target_window
         self.staged_items = []  # ingrédients ajoutés à la liste d'attente, pas encore validés
         self.title(t("addmanual_title"))
-        self.geometry(f"{gs(600)}x{gs(560)}")
-        self.minsize(gs(420), gs(480))
+        fit_window_to_workarea(self, gs(600), gs(560), margin=14)
+        safe_minsize(self, gs(420), gs(480))
         self.resizable(True, True)
         self.grab_set()
 
@@ -10869,9 +11870,7 @@ class AddManualIngredientDialog(tk.Toplevel):
         if canonical is not None:
             name = canonical
         try:
-            quantity = float(self.qty_entry.get().strip().replace(",", "."))
-            if quantity <= 0:
-                raise ValueError
+            quantity = parse_positive_number(self.qty_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("allrecipes_invalid_quantity"))
             return
@@ -10906,83 +11905,70 @@ class AddManualIngredientDialog(tk.Toplevel):
 
 
 class SavedShoppingListsWindow(tk.Toplevel):
-    """Fenêtre pour recharger ou supprimer une liste de courses enregistrée
-    précédemment via « 💾 Enregistrer cette liste pour plus tard ». Réutilisable
-    depuis n'importe quelle fenêtre de liste de courses éditable :
-    `target_window` doit exposer une méthode `load_saved_list(items)`."""
-
+    """Gestion moderne des listes de courses enregistrées : chargement,
+    renommage, duplication et suppression."""
     def __init__(self, app, target_window):
         super().__init__(target_window)
-        self.app = app
-        self.target_window = target_window
-        self.title(t("savedlists_title"))
-        self.geometry(f"{gs(500)}x{gs(440)}")
-        self.minsize(gs(420), gs(360))
-        self.resizable(True, True)
-        self.grab_set()
+        self.app = app; self.target_window = target_window
+        self.title(t("savedlists_title")); fit_window_to_workarea(self, gs(720), gs(500), margin=14)
+        safe_minsize(self, gs(600), gs(420)); self.resizable(True, True); self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self.close)
-
-        ttk.Label(self, text=t("savedlists_heading"),
-                  font=("Segoe UI", sf(12), "bold")).pack(pady=(15, 10))
-
-        list_frame = ttk.Frame(self)
-        list_frame.pack(fill="both", expand=True, padx=15)
-        self.listbox = tk.Listbox(list_frame, height=12, font=("Segoe UI", sf(9)))
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
-        self.listbox.configure(yscrollcommand=scrollbar.set)
-        self.listbox.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        self.listbox.bind("<Double-Button-1>", lambda e: self.load_selected())
-
-        self.saved_lists = []
-        self._populate()
-
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=15)
-        ttk.Button(btn_frame, text=t("savedlists_load_button"), command=self.load_selected).grid(row=0, column=0, padx=5)
-        ttk.Button(btn_frame, text=t("savedlists_delete_button"), command=self.delete_selected).grid(row=0, column=1, padx=5)
-        ttk.Button(btn_frame, text=t("addmanual_close_button"), style="Secondary.TButton",
-                   command=self.close).grid(row=0, column=2, padx=5)
-
+        ttk.Label(self, text=t("savedlists_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15,10))
+        frame=ttk.Frame(self); frame.pack(fill="both", expand=True, padx=15)
+        self.tree=ttk.Treeview(frame, columns=("name","items","date"), show="headings", selectmode="browse")
+        for c,txt,w in (("name",t("savedlists_col_name"),330),("items",t("savedlists_col_items"),90),("date",t("savedlists_col_date"),180)):
+            self.tree.heading(c,text=txt); self.tree.column(c,width=gs(w),anchor="w" if c!="items" else "center")
+        sb=ttk.Scrollbar(frame,orient="vertical",command=self.tree.yview); self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")
+        self.tree.bind("<Double-1>",lambda e:self.load_selected())
+        btn=ttk.Frame(self); btn.pack(pady=15)
+        ttk.Button(btn,text=t("savedlists_load_button"),style="Primary.TButton",command=self.load_selected).grid(row=0,column=0,padx=4)
+        ttk.Button(btn,text=t("savedlists_rename_button"),command=self.rename_selected).grid(row=0,column=1,padx=4)
+        ttk.Button(btn,text=t("savedlists_duplicate_button"),command=self.duplicate_selected).grid(row=0,column=2,padx=4)
+        ttk.Button(btn,text=t("savedlists_delete_button"),command=self.delete_selected).grid(row=0,column=3,padx=4)
+        ttk.Button(btn,text=t("addmanual_close_button"),style="Secondary.TButton",command=self.close).grid(row=0,column=4,padx=4)
+        self.saved_lists=[]; self._populate()
     def _populate(self):
-        self.listbox.delete(0, tk.END)
-        self.saved_lists = load_saved_shopping_lists()
-        self.saved_lists.sort(key=lambda l: l.get("created_at", ""), reverse=True)
-        if not self.saved_lists:
-            self.listbox.insert(tk.END, t("savedlists_none_saved"))
-            return
-        for saved in self.saved_lists:
-            n_items = len(saved.get("items", []))
-            self.listbox.insert(
-                tk.END, t("savedlists_entry_line", name=saved['name'], count=n_items, date=saved.get('created_at', '?'))
-            )
-
+        for iid in self.tree.get_children(): self.tree.delete(iid)
+        self.saved_lists=load_saved_shopping_lists(); self.saved_lists.sort(key=lambda l:l.get("created_at",""), reverse=True)
+        for i,saved in enumerate(self.saved_lists): self.tree.insert("", "end", iid=str(i), values=(saved.get("name",""),len(saved.get("items",[])),saved.get("created_at","?")))
+    def _selected(self):
+        sel=self.tree.selection()
+        if not sel or not self.saved_lists:
+            messagebox.showinfo(t("common_info"),t("savedlists_select_list_first"),parent=self); return None
+        return self.saved_lists[int(sel[0])]
     def load_selected(self):
-        sel = self.listbox.curselection()
-        if not sel or not self.saved_lists:
-            messagebox.showinfo(t("common_info"), t("savedlists_select_list_first"))
-            return
-        saved = self.saved_lists[sel[0]]
-        self.target_window.load_saved_list(saved["items"])
-        self.close()
-
+        saved=self._selected()
+        if saved is not None: self.target_window.load_saved_list(saved.get("items",[])); self.close()
+    def rename_selected(self):
+        saved=self._selected()
+        if saved is None:return
+        name=simpledialog.askstring(t("savedlists_title"),t("savedlists_rename_prompt"),initialvalue=saved.get("name",""),parent=self)
+        if not name or not name.strip():return
+        all_lists=load_saved_shopping_lists()
+        for l in all_lists:
+            if l.get("name")==saved.get("name") and l.get("created_at")==saved.get("created_at"): l["name"]=name.strip(); break
+        save_saved_shopping_lists(all_lists); self._populate()
+    def duplicate_selected(self):
+        import copy
+        saved=self._selected()
+        if saved is None:return
+        all_lists=load_saved_shopping_lists(); base=saved.get("name","")+t("savedlists_duplicate_suffix")
+        existing={l.get("name","").lower() for l in all_lists}; name=base; n=2
+        while name.lower() in existing: name=f"{base} {n}"; n+=1
+        dup=copy.deepcopy(saved); dup["name"]=name; dup["created_at"]=datetime.now().strftime("%Y-%m-%d %H:%M")
+        all_lists.append(dup); save_saved_shopping_lists(all_lists); self._populate()
     def delete_selected(self):
-        sel = self.listbox.curselection()
-        if not sel or not self.saved_lists:
-            messagebox.showinfo(t("common_info"), t("savedlists_select_list_first"))
-            return
-        saved = self.saved_lists[sel[0]]
-        if not messagebox.askyesno(t("common_confirm"), t("savedlists_delete_confirm", name=saved['name'])):
-            return
-        all_lists = load_saved_shopping_lists()
-        all_lists = [l for l in all_lists if l["name"] != saved["name"]]
-        save_saved_shopping_lists(all_lists)
-        self._populate()
-
+        saved=self._selected()
+        if saved is None:return
+        if not messagebox.askyesno(t("common_confirm"),t("savedlists_delete_confirm",name=saved.get("name","")),parent=self):return
+        all_lists=load_saved_shopping_lists(); removed=False; kept=[]
+        for l in all_lists:
+            if not removed and l.get("name")==saved.get("name") and l.get("created_at")==saved.get("created_at"): removed=True; continue
+            kept.append(l)
+        save_saved_shopping_lists(kept); self._populate()
     def close(self):
-        self.destroy()
-        self.target_window.lift()
-        self.target_window.focus_force()
+        self.destroy(); self.target_window.lift(); self.target_window.focus_force()
 
 
 class AllRecipesWindow(tk.Toplevel):
@@ -10996,8 +11982,8 @@ class AllRecipesWindow(tk.Toplevel):
         self.app = app
         self.title(t("allrecipes_title"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(1220)}x{screen_height}+40+0")
-        self.minsize(gs(720), gs(500))
+        fit_window_to_workarea(self, gs(1830), screen_height, margin=18)
+        safe_minsize(self, gs(720), gs(500))
         self.resizable(True, True)
         self.grab_set()
         self.manual_items = []  # ingrédients ajoutés manuellement (hors recettes) : [{"name","quantity","unit"}]
@@ -11006,58 +11992,75 @@ class AllRecipesWindow(tk.Toplevel):
         ttk.Label(self, text=t("allrecipes_select_label"),
                   font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
 
+        compact_layout = self.winfo_screenwidth() < 1100 or FONT_SCALE > 1.0
         top_frame = ttk.Frame(self)
         top_frame.pack(pady=(0, 5), fill="x", padx=15)
-        ttk.Label(top_frame, text=t("common_search_label")).pack(side="left")
         self.search_entry = ttk.Entry(top_frame, width=20)
-        self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
-        self.search_entry.bind("<KeyRelease>", lambda e: self._filter_rows())
-        ttk.Label(top_frame, text=t("common_sort_by_label")).pack(side="left", padx=(10, 2))
         self.sort_combo = ttk.Combobox(top_frame, values=[translate_sort_option(o) for o in self.SORT_OPTIONS], state="readonly", width=18)
         self.sort_combo.set(translate_sort_option(self.SORT_OPTIONS[0]))
-        self.sort_combo.pack(side="left")
-        self.sort_combo.bind("<<ComboboxSelected>>", lambda e: self._apply_sort())
-        ttk.Label(top_frame, text=t("common_category_label")).pack(side="left", padx=(10, 2))
         self.category_filter_combo = ttk.Combobox(
             top_frame, values=[t("common_all_categories")] + [translate_category_name(c) for c in RecipeFormWindow.CATEGORY_OPTIONS],
             state="readonly", width=16
         )
         self.category_filter_combo.set(t("common_all_categories"))
-        self.category_filter_combo.pack(side="left")
+        if compact_layout:
+            ttk.Label(top_frame, text=t("common_search_label")).grid(row=0, column=0, sticky="w")
+            self.search_entry.grid(row=0, column=1, columnspan=3, padx=(5, 0), sticky="ew")
+            ttk.Label(top_frame, text=t("common_sort_by_label")).grid(row=1, column=0, sticky="w", pady=(5, 0))
+            self.sort_combo.grid(row=1, column=1, padx=(5, 10), pady=(5, 0), sticky="ew")
+            ttk.Label(top_frame, text=t("common_category_label")).grid(row=1, column=2, sticky="w", pady=(5, 0))
+            self.category_filter_combo.grid(row=1, column=3, padx=(5, 0), pady=(5, 0), sticky="ew")
+            top_frame.columnconfigure(1, weight=1)
+            top_frame.columnconfigure(3, weight=1)
+        else:
+            ttk.Label(top_frame, text=t("common_search_label")).pack(side="left")
+            self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
+            ttk.Label(top_frame, text=t("common_sort_by_label")).pack(side="left", padx=(10, 2))
+            self.sort_combo.pack(side="left")
+            ttk.Label(top_frame, text=t("common_category_label")).pack(side="left", padx=(10, 2))
+            self.category_filter_combo.pack(side="left")
+        self.search_entry.bind("<KeyRelease>", lambda e: self._filter_rows())
+        self.sort_combo.bind("<<ComboboxSelected>>", lambda e: self._apply_sort())
         self.category_filter_combo.bind("<<ComboboxSelected>>", lambda e: self._filter_rows())
 
         ingredient_filter_frame = ttk.LabelFrame(self, text=t("allrecipes_ingredient_filter_title"))
         ingredient_filter_frame.pack(pady=(0, 8), padx=15, fill="x")
         ingredient_values = get_display_ingredient_values(sorted(self.app.ingredient_names, key=ingredient_sort_key))
 
-        ttk.Label(ingredient_filter_frame, text=t("common_want_label")).grid(row=0, column=0, sticky="w", padx=5, pady=3)
-        self.want_entries = []
-        for i in range(2):
-            entry = self._make_ingredient_filter_entry(ingredient_filter_frame, ingredient_values)
-            entry.grid(row=0, column=1 + i, padx=5, pady=3)
-            self.want_entries.append(entry)
-
-        ttk.Label(ingredient_filter_frame, text=t("common_exclude_label")).grid(row=1, column=0, sticky="w", padx=5, pady=3)
-        self.exclude_entries = []
-        for i in range(2):
-            entry = self._make_ingredient_filter_entry(ingredient_filter_frame, ingredient_values)
-            entry.grid(row=1, column=1 + i, padx=5, pady=3)
-            self.exclude_entries.append(entry)
-
-        ttk.Label(ingredient_filter_frame, text=t("common_tags_filter_label")).grid(
-            row=2, column=0, sticky="w", padx=5, pady=3)
+        self.want_entries = [self._make_ingredient_filter_entry(ingredient_filter_frame, ingredient_values) for _ in range(2)]
+        self.exclude_entries = [self._make_ingredient_filter_entry(ingredient_filter_frame, ingredient_values) for _ in range(2)]
         self.all_tags = sorted({tag for r in self.app.recipes for tag in r.get("tags", [])}, key=ingredient_sort_key)
-        self.tag_filter_entries = []
-        for i in range(2):
-            entry = self._make_ingredient_filter_entry(ingredient_filter_frame, self.all_tags)
-            entry.grid(row=2, column=1 + i, padx=5, pady=3)
-            self.tag_filter_entries.append(entry)
+        self.tag_filter_entries = [self._make_ingredient_filter_entry(ingredient_filter_frame, self.all_tags) for _ in range(2)]
 
-        ttk.Button(ingredient_filter_frame, text=t("common_reset_button"),
-                   command=self._reset_ingredient_filters).grid(row=0, column=3, rowspan=3, padx=8)
-        ttk.Label(ingredient_filter_frame, text=t("common_filter_hint"),
-                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).grid(
-            row=3, column=0, columnspan=4, sticky="w", padx=5, pady=(0, 3))
+        if compact_layout:
+            groups = [
+                (t("common_want_label"), self.want_entries),
+                (t("common_exclude_label"), self.exclude_entries),
+                (t("common_tags_filter_label"), self.tag_filter_entries),
+            ]
+            for row_i, (label_text, entries) in enumerate(groups):
+                ttk.Label(ingredient_filter_frame, text=label_text).grid(row=row_i, column=0, sticky="w", padx=5, pady=3)
+                entries[0].grid(row=row_i, column=1, padx=5, pady=3, sticky="ew")
+                entries[1].grid(row=row_i, column=2, padx=5, pady=3, sticky="ew")
+            ingredient_filter_frame.columnconfigure(1, weight=1)
+            ingredient_filter_frame.columnconfigure(2, weight=1)
+            ttk.Button(ingredient_filter_frame, text=t("common_reset_button"),
+                       command=self._reset_ingredient_filters).grid(row=3, column=0, padx=5, pady=(3, 5), sticky="w")
+            ttk.Label(ingredient_filter_frame, text=t("common_filter_hint"),
+                      font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).grid(
+                row=3, column=1, columnspan=2, sticky="w", padx=5, pady=(3, 5))
+        else:
+            ttk.Label(ingredient_filter_frame, text=t("common_want_label")).grid(row=0, column=0, sticky="w", padx=5, pady=3)
+            for i, entry in enumerate(self.want_entries): entry.grid(row=0, column=1+i, padx=5, pady=3)
+            ttk.Label(ingredient_filter_frame, text=t("common_exclude_label")).grid(row=1, column=0, sticky="w", padx=5, pady=3)
+            for i, entry in enumerate(self.exclude_entries): entry.grid(row=1, column=1+i, padx=5, pady=3)
+            ttk.Label(ingredient_filter_frame, text=t("common_tags_filter_label")).grid(row=2, column=0, sticky="w", padx=5, pady=3)
+            for i, entry in enumerate(self.tag_filter_entries): entry.grid(row=2, column=1+i, padx=5, pady=3)
+            ttk.Button(ingredient_filter_frame, text=t("common_reset_button"),
+                       command=self._reset_ingredient_filters).grid(row=0, column=3, rowspan=3, padx=8)
+            ttk.Label(ingredient_filter_frame, text=t("common_filter_hint"),
+                      font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).grid(
+                row=3, column=0, columnspan=4, sticky="w", padx=5, pady=(0, 3))
 
         container = ttk.Frame(self)
         container.pack(fill="both", expand=True, padx=10)
@@ -11066,7 +12069,11 @@ class AllRecipesWindow(tk.Toplevel):
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
         rows_frame = ttk.Frame(canvas)
         rows_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=rows_frame, anchor="nw")
+        rows_window_id = canvas.create_window((0, 0), window=rows_frame, anchor="nw")
+        canvas.bind(
+            "<Configure>",
+            lambda e: canvas.itemconfigure(rows_window_id, width=max(1, e.width))
+        )
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
@@ -11074,52 +12081,78 @@ class AllRecipesWindow(tk.Toplevel):
         self.checks = []
         self.current_items = []       # liste plate éditable [{'name','quantity','unit','rayon'}, ...]
         self.last_chosen_recipes = []  # recettes ajoutées au panier (pour les en-têtes d'export)
+        self._recipe_cart_persons = {}  # id stable -> personnes ; un second ajout remplace le précédent
+        rows_frame.columnconfigure(0, weight=1)
         for row_index, recipe in enumerate(self.app.recipes):
-            row = ttk.Frame(rows_frame)
-            row.grid(row=row_index, column=0, sticky="ew", pady=4)
-            ttk.Label(row, text=format_recipe_list_label(recipe), width=110, anchor="w").grid(
-                row=0, column=0, sticky="w")
-            ttk.Label(row, text=t("allrecipes_persons_count_label")).grid(row=0, column=1)
-            pers_entry = ttk.Entry(row, width=5)
+            row = ttk.Frame(rows_frame, padding=(8, 5))
+            row.grid(row=row_index, column=0, sticky="ew", pady=3)
+            row.columnconfigure(0, weight=1)
+
+            # Le nom occupe une ligne complète. Les contrôles sont placés
+            # dessous : ils restent donc visibles même sur un écran étroit.
+            ttk.Label(
+                row, text=format_recipe_list_label(recipe), anchor="w",
+                font=("Segoe UI", sf(9), "bold")
+            ).grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 4))
+
+            controls = ttk.Frame(row)
+            controls.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, 2))
+
+            ttk.Label(controls, text=t("allrecipes_persons_count_label")).pack(
+                side="left"
+            )
+            pers_entry = ttk.Entry(controls, width=7)
 
             # Préremplit à partir d'une sélection faite depuis "Voir une
             # recette précise" (bouton "Ajouter à la liste de courses"),
             # sinon utilise le nombre de personnes par défaut de la recette.
-            preselected = self.app.shopping_selection.get(recipe["name"])
+            preselected = self.app.shopping_selection.get(recipe_ref_key(recipe))
             if preselected is not None:
                 pers_entry.insert(0, str(preselected))
             else:
                 pers_entry.insert(0, str(recipe.get("default_persons") or 1))
-            pers_entry.grid(row=0, column=2, padx=5)
-            ttk.Button(row, text=t("allrecipes_add_to_cart_button"), width=18,
-                       command=lambda r=recipe, e=pers_entry: self._add_recipe_to_cart(r, e)).grid(
-                row=0, column=3, padx=5)
-            ttk.Button(row, text=t("common_edit_button"), width=10,
-                       command=lambda idx=row_index: self._edit_recipe(idx)).grid(row=0, column=4, padx=5)
+            pers_entry.pack(side="left", padx=(6, 10))
+            ttk.Button(
+                controls, text=t("allrecipes_add_to_cart_button"),
+                command=lambda r=recipe, e=pers_entry: self._add_recipe_to_cart(r, e)
+            ).pack(side="left", padx=(0, 6))
+            ttk.Button(
+                controls, text=t("common_edit_button"),
+                command=lambda idx=row_index: self._edit_recipe(idx)
+            ).pack(side="left")
             self.checks.append((recipe, pers_entry, row))
 
         tk.Frame(rows_frame, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).grid(
             row=len(self.app.recipes), column=0, sticky="ew")
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=6)
         for col in range(4):
             btn_frame.columnconfigure(col, weight=1)
+        compact_actions = screen_height < 800 or self.winfo_screenwidth() < 1100
         ttk.Button(btn_frame, text=t("allrecipes_checklist_mode_button"),
-                   command=self.open_checklist).grid(row=0, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
+                   command=self.open_checklist).grid(row=0, column=0, padx=4, pady=2, sticky="ew")
         ttk.Button(btn_frame, text=t("allrecipes_clear_list_button"),
-                   command=self.clear_selection).grid(row=0, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
+                   command=self.clear_selection).grid(row=0, column=1, padx=4, pady=2, sticky="ew")
         ttk.Button(btn_frame, text=t("allrecipes_export_button"),
-                   command=self.open_export_dialog).grid(row=1, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
+                   command=self.open_export_dialog).grid(row=0, column=2, padx=4, pady=2, sticky="ew")
         ttk.Button(btn_frame, text=t("allrecipes_print_button"),
-                   command=self.print_shopping_list).grid(row=1, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_add_manual_ingredient_button"),
-                   command=self.open_add_manual_ingredient).grid(
-            row=2, column=0, columnspan=4, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_save_list_button"),
-                   command=self.save_list_for_later).grid(row=3, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_load_list_button"),
-                   command=self.open_saved_lists).grid(row=3, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
+                   command=self.print_shopping_list).grid(row=0, column=3, padx=4, pady=2, sticky="ew")
+        if compact_actions:
+            more = ttk.Button(btn_frame, text=t("weekplan_more_actions"), style="Secondary.TButton")
+            more.grid(row=1, column=0, columnspan=4, padx=4, pady=2, sticky="ew")
+            _ui_attach_more_menu(more, [
+                (t("allrecipes_add_manual_ingredient_button"), self.open_add_manual_ingredient),
+                (t("allrecipes_save_list_button"), self.save_list_for_later),
+                (t("allrecipes_load_list_button"), self.open_saved_lists),
+            ])
+        else:
+            ttk.Button(btn_frame, text=t("allrecipes_add_manual_ingredient_button"),
+                       command=self.open_add_manual_ingredient).grid(row=1, column=0, columnspan=4, padx=4, pady=2, sticky="ew")
+            ttk.Button(btn_frame, text=t("allrecipes_save_list_button"),
+                       command=self.save_list_for_later).grid(row=2, column=0, columnspan=2, padx=4, pady=2, sticky="ew")
+            ttk.Button(btn_frame, text=t("allrecipes_load_list_button"),
+                       command=self.open_saved_lists).grid(row=2, column=2, columnspan=2, padx=4, pady=2, sticky="ew")
 
         # ---- Zone de résultat éditable : chaque ingrédient peut voir sa
         # quantité modifiée ou être retiré, sans devoir tout recalculer. ----
@@ -11128,10 +12161,19 @@ class AllRecipesWindow(tk.Toplevel):
         result_canvas = tk.Canvas(result_container, highlightthickness=0)
         result_scrollbar = ttk.Scrollbar(result_container, orient="vertical", command=result_canvas.yview)
         self.result_frame = ttk.Frame(result_canvas)
+        self._shopping_columns = 1
+        self._shopping_resize_job = None
         self.result_frame.bind(
             "<Configure>", lambda e: result_canvas.configure(scrollregion=result_canvas.bbox("all"))
         )
-        result_canvas.create_window((0, 0), window=self.result_frame, anchor="nw")
+        result_window_id = result_canvas.create_window((0, 0), window=self.result_frame, anchor="nw")
+        result_canvas.bind(
+            "<Configure>",
+            lambda e: (
+                result_canvas.itemconfigure(result_window_id, width=max(1, e.width)),
+                self._on_shopping_result_resize(e.width)
+            )
+        )
         result_canvas.configure(yscrollcommand=result_scrollbar.set)
         result_canvas.pack(side="left", fill="both", expand=True)
         result_scrollbar.pack(side="right", fill="y")
@@ -11139,15 +12181,14 @@ class AllRecipesWindow(tk.Toplevel):
         def _on_result_mousewheel(event):
             result_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        result_canvas.bind("<Enter>", lambda e: result_canvas.bind_all("<MouseWheel>", _on_result_mousewheel))
-        result_canvas.bind("<Leave>", lambda e: result_canvas.unbind_all("<MouseWheel>"))
+        _ui_bind_local_mousewheel(result_canvas, self.result_frame, _on_result_mousewheel)
 
         # Ajoute automatiquement au panier les recettes présélectionnées
         # depuis "Voir une recette précise" (bouton "🛒 Ajouter à la liste de
         # courses"), pour ne pas perdre cette présélection maintenant qu'il
         # n'y a plus de case à cocher à valider soi-même.
         for recipe, pers_entry, row in self.checks:
-            if recipe["name"] in self.app.shopping_selection:
+            if recipe_ref_key(recipe) in self.app.shopping_selection:
                 self._add_recipe_to_cart(recipe, pers_entry)
 
         self._render_shopping_list()
@@ -11160,15 +12201,14 @@ class AllRecipesWindow(tk.Toplevel):
 
     def add_manual_items(self, items):
         self.manual_items.extend(items)
-        for item in items:
-            self._merge_item_into_current(
-                item["name"], item["quantity"], item["unit"], get_ingredient_rayon(item["name"])
-            )
+        self._rebuild_cart_from_recipe_selection()
         self._render_shopping_list()
 
     def _edit_recipe(self, index):
         win = RecipeFormWindow(self.app, recipe_index=index)
         self.wait_window(win)
+        if not self.winfo_exists():
+            return
         self.app.refresh_recipes()
         # La modification peut avoir changé le nom, les temps, les
         # allergènes... : on reconstruit la fenêtre pour que tout
@@ -11200,6 +12240,7 @@ class AllRecipesWindow(tk.Toplevel):
         self.manual_items = []
         self.current_items = []
         self.last_chosen_recipes = []
+        self._recipe_cart_persons = {}
         self._render_shopping_list()
 
     def _filter_rows(self):
@@ -11290,16 +12331,13 @@ class AllRecipesWindow(tk.Toplevel):
             popup.wm_attributes("-topmost", True)
         except tk.TclError:
             pass
-        x = entry.winfo_rootx()
-        y = entry.winfo_rooty() + entry.winfo_height()
-        width = max(entry.winfo_width(), 160)
-        height = min(6, len(filtered)) * 20
-        popup.wm_geometry(f"{width}x{height}+{x}+{y}")
+        width = max(entry.winfo_width(), gs(180))
 
         listbox = tk.Listbox(popup, height=min(6, len(filtered)), exportselection=False, font=("Segoe UI", sf(9)))
         listbox.pack(fill="both", expand=True)
         for v in filtered:
             listbox.insert(tk.END, v)
+        finalize_suggestion_popup(popup, entry, listbox, width)
 
         def choose(event=None):
             sel = listbox.curselection()
@@ -11358,37 +12396,36 @@ class AllRecipesWindow(tk.Toplevel):
             filtered = [v for v in full_values if typed_key in ingredient_sort_key(v)]
         return filtered
 
-    def _merge_item_into_current(self, name, qty, unit, rayon):
-        """Ajoute un ingrédient à la liste déjà affichée, en cumulant sa
-        quantité avec une ligne existante si le même ingrédient (même nom,
-        même unité) y figure déjà, plutôt que de créer une ligne en double."""
-        key = ingredient_sort_key(name)
-        for item in self.current_items:
-            if ingredient_sort_key(item["name"]) == key and item["unit"] == unit:
-                item["quantity"] += qty
-                return
-        self.current_items.append({"name": name, "quantity": qty, "unit": unit, "rayon": rayon})
+
+    def _rebuild_cart_from_recipe_selection(self):
+        pairs = []
+        chosen = []
+        for recipe_key, persons in self._recipe_cart_persons.items():
+            recipe = find_recipe_by_id(self.app.recipes, recipe_key)
+            if recipe is None:
+                # Compatibilité transitoire avec une ancienne sélection en mémoire.
+                recipe = find_recipe_by_name(self.app.recipes, recipe_key)
+            if recipe is None:
+                continue
+            pairs.append((recipe, persons))
+            chosen.append((recipe.get("name", ""), persons))
+        if self.manual_items:
+            pairs.append(({"ingredients": list(self.manual_items)}, 1))
+        grouped_totals = compute_grouped_totals(pairs)
+        self.current_items = [
+            {"name": name, "quantity": qty, "unit": unit, "rayon": rayon}
+            for rayon, items in grouped_totals for name, qty, unit in items
+        ]
+        self.last_chosen_recipes = chosen
 
     def _add_recipe_to_cart(self, recipe, pers_entry):
         try:
-            persons = float(pers_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(pers_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("allrecipes_invalid_persons", name=recipe['name']))
             return
-
-        grouped_totals = compute_grouped_totals([(recipe, persons)])
-        for rayon, items in grouped_totals:
-            for name, qty, unit in items:
-                self._merge_item_into_current(name, qty, unit, rayon)
-
-        # Met à jour la liste des recettes utilisées (pour les en-têtes des
-        # exports) : si cette recette avait déjà été ajoutée, on remplace
-        # son nombre de personnes plutôt que d'avoir une entrée en double.
-        self.last_chosen_recipes = [
-            (n, p) for (n, p) in self.last_chosen_recipes if n != recipe["name"]
-        ]
-        self.last_chosen_recipes.append((recipe["name"], persons))
-
+        self._recipe_cart_persons[recipe_ref_key(recipe)] = persons
+        self._rebuild_cart_from_recipe_selection()
         self._render_shopping_list()
 
     def _grouped_current_items(self):
@@ -11405,7 +12442,26 @@ class AllRecipesWindow(tk.Toplevel):
                 grouped.append((rayon, idxs))
         return grouped
 
+    def _on_shopping_result_resize(self, width):
+        """Bascule automatiquement la liste totale en 1 ou 2 colonnes.
+
+        Deux ingrédients par ligne sur grand écran, une seule colonne sur
+        écran étroit. On ne reconstruit l'affichage que lorsque le seuil est
+        réellement franchi afin d'éviter les rafraîchissements permanents.
+        """
+        wanted = 2 if int(width or 0) >= gs(1050) else 1
+        if wanted == getattr(self, "_shopping_columns", 1):
+            return
+        self._shopping_columns = wanted
+        if self._shopping_resize_job is not None:
+            try:
+                self.after_cancel(self._shopping_resize_job)
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
+        self._shopping_resize_job = self.after(80, self._render_shopping_list)
+
     def _render_shopping_list(self):
+        self._shopping_resize_job = None
         for child in self.result_frame.winfo_children():
             child.destroy()
 
@@ -11426,22 +12482,43 @@ class AllRecipesWindow(tk.Toplevel):
                 font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED
             ).pack(anchor="w")
 
+        columns = max(1, int(getattr(self, "_shopping_columns", 1)))
         for rayon, idxs in self._grouped_current_items():
-            ttk.Label(self.result_frame, text=translate_rayon_name(rayon), font=("Segoe UI", sf(10), "bold"),
-                      foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(12, 4))
-            for idx in idxs:
+            section = ttk.Frame(self.result_frame)
+            section.pack(fill="x", pady=(10, 2))
+            ttk.Label(
+                section, text=translate_rayon_name(rayon),
+                font=("Segoe UI", sf(10), "bold"), foreground=COLOR_ACCENT_DARK
+            ).grid(row=0, column=0, columnspan=columns, sticky="w", pady=(2, 5))
+
+            items_frame = ttk.Frame(section)
+            items_frame.grid(row=1, column=0, columnspan=columns, sticky="ew")
+            for c in range(columns):
+                items_frame.columnconfigure(c, weight=1, uniform="shopping_items")
+
+            for pos, idx in enumerate(idxs):
                 item = self.current_items[idx]
-                row = ttk.Frame(self.result_frame)
-                row.pack(fill="x", pady=1)
-                ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
-                qty_entry = ttk.Entry(row, width=8)
-                qty_entry.insert(0, str(item["quantity"]))
-                qty_entry.pack(side="left", padx=3)
+                row_no, col_no = divmod(pos, columns)
+                cell = ttk.Frame(items_frame, padding=(5, 3))
+                cell.grid(row=row_no, column=col_no, sticky="ew", padx=(0, 8), pady=1)
+                cell.columnconfigure(0, weight=1)
+
+                ttk.Label(
+                    cell, text=f"- {translate_ingredient_name(item['name'])}",
+                    anchor="w"
+                ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+                qty_entry = ttk.Entry(cell, width=7)
+                qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
+                qty_entry.grid(row=0, column=1, padx=3)
                 qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
                 qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                ttk.Label(row, text=translate_unit_name(item["unit"]), width=18, anchor="w").pack(side="left", padx=3)
-                ttk.Button(row, text="🗑", width=3,
-                           command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
+                ttk.Label(
+                    cell, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), anchor="w"
+                ).grid(row=0, column=2, padx=3, sticky="w")
+                ttk.Button(
+                    cell, text="🗑", width=3,
+                    command=lambda i=idx: self._delete_item(i)
+                ).grid(row=0, column=3, padx=(3, 0))
 
         tk.Frame(self.result_frame, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -11449,13 +12526,11 @@ class AllRecipesWindow(tk.Toplevel):
         if index >= len(self.current_items):
             return
         try:
-            new_qty = float(entry.get().strip().replace(",", "."))
-            if new_qty <= 0:
-                raise ValueError
+            new_qty = parse_optional_positive_number(entry.get(), allow_zero=False)
         except ValueError:
             messagebox.showerror(t("common_error"), t("allrecipes_invalid_quantity"))
             entry.delete(0, tk.END)
-            entry.insert(0, str(self.current_items[index]["quantity"]))
+            entry.insert(0, "" if self.current_items[index]["quantity"] is None else str(self.current_items[index]["quantity"]))
             return
         self.current_items[index]["quantity"] = new_qty
 
@@ -11501,6 +12576,8 @@ class AllRecipesWindow(tk.Toplevel):
     def load_saved_list(self, items):
         self.current_items = [dict(item) for item in items]
         self.last_chosen_recipes = []  # une liste chargée n'est pas liée à une sélection de recettes
+        self._recipe_cart_persons = {}
+        self.manual_items = []
         self._render_shopping_list()
 
     def _current_export_data(self):
@@ -11604,8 +12681,7 @@ class AllRecipesWindow(tk.Toplevel):
             messagebox.showerror(t("common_error"), t("common_print_failed", error=e))
             return
 
-        result_status = print_file(temp_path)
-        report_print_result(result_status, temp_path, t("allrecipes_print_label"))
+        print_document(self, temp_path, t("allrecipes_print_label"))
 
     def open_checklist(self):
         result = self._current_export_data()
@@ -11623,8 +12699,8 @@ class QuickSearchWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("quicksearch_title"))
-        self.geometry(f"{gs(480)}x{gs(420)}")
-        self.minsize(gs(400), gs(360))
+        fit_window_to_workarea(self, gs(480), gs(420), margin=14)
+        safe_minsize(self, gs(400), gs(360))
         self.resizable(True, True)
         self.grab_set()
         try:
@@ -11698,13 +12774,14 @@ class OneRecipeWindow(tk.Toplevel):
         self.app = app
         self.title(t("onerecipe_window_title"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(1100)}x{screen_height}+40+0")
-        self.minsize(gs(760), gs(500))
+        fit_window_to_workarea(self, gs(1650), screen_height, margin=18)
+        safe_minsize(self, gs(760), gs(500))
         self.resizable(True, True)
         self.grab_set()
         self._gallery_thumb_refs = []
         self.current_recipe = None
         self.filtered_indices = []
+        self._compact_vertical = screen_height < 760 or self.winfo_screenheight() < 760
 
         ttk.Label(self, text=t("onerecipe_choose_recipe_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
 
@@ -11730,7 +12807,7 @@ class OneRecipeWindow(tk.Toplevel):
 
         list_frame = ttk.Frame(self)
         list_frame.pack(pady=5, padx=15, fill="both")
-        list_canvas = tk.Canvas(list_frame, height=170, highlightthickness=0)
+        list_canvas = tk.Canvas(list_frame, height=80 if self._compact_vertical else 170, highlightthickness=0)
         list_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=list_canvas.yview)
         self.rows_frame = ttk.Frame(list_canvas)
         self.rows_frame.bind("<Configure>", lambda e: list_canvas.configure(scrollregion=list_canvas.bbox("all")))
@@ -11746,7 +12823,7 @@ class OneRecipeWindow(tk.Toplevel):
         # ---- Galerie de photos ----
         gallery_outer = ttk.Frame(self)
         gallery_outer.pack(fill="x", padx=15, pady=(10, 0))
-        self.gallery_canvas = tk.Canvas(gallery_outer, height=140, highlightthickness=0)
+        self.gallery_canvas = tk.Canvas(gallery_outer, height=80 if self._compact_vertical else 140, highlightthickness=0)
         gallery_scrollbar = ttk.Scrollbar(gallery_outer, orient="horizontal",
                                            command=self.gallery_canvas.xview)
         self.gallery_frame = ttk.Frame(self.gallery_canvas)
@@ -11774,28 +12851,37 @@ class OneRecipeWindow(tk.Toplevel):
         ttk.Button(persons_frame, text="×2", width=4,
                    command=lambda: self._adjust_persons(factor=2)).grid(row=1, column=4, padx=3)
 
-        # ---- Boutons d'action, alignés en rangées de 4 ----
+        # ---- Actions : compactées sur les écrans peu hauts afin de ne jamais
+        # repousser les contrôles sous la barre des tâches. ----
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10, padx=15, fill="x")
-        action_buttons = [
+        btn_frame.pack(pady=5, padx=15, fill="x")
+        primary_actions = [
             (t("onerecipe_btn_show"), self.show_recipe),
-            (t("onerecipe_btn_export_pdf"), self.export_recipe_pdf),
-            (t("onerecipe_btn_print"), self.print_recipe),
             (t("onerecipe_btn_add_to_shopping"), self.add_to_shopping_list),
             (t("onerecipe_btn_cooked"), self.mark_as_cooked),
             (t("onerecipe_btn_cooking_mode"), self.open_cooking_mode),
+        ]
+        secondary_actions = [
+            (t("onerecipe_btn_export_pdf"), self.export_recipe_pdf),
+            (t("onerecipe_btn_print"), self.print_recipe),
             (t("onerecipe_btn_qr"), self.show_qr_code),
             (t("onerecipe_btn_timers"), self.open_timers),
             (t("onerecipe_btn_cook_log"), self.open_cook_log),
             (t("onerecipe_btn_substitutions"), self.show_substitutions),
         ]
-        for col in range(4):
+        for col in range(5 if self._compact_vertical else 4):
             btn_frame.columnconfigure(col, weight=1)
-        for i, (text, command) in enumerate(action_buttons):
-            row, col = divmod(i, 4)
-            ttk.Button(btn_frame, text=text, command=command).grid(
-                row=row, column=col, padx=4, pady=4, sticky="ew"
-            )
+        if self._compact_vertical:
+            for col, (label, command) in enumerate(primary_actions):
+                ttk.Button(btn_frame, text=label, command=command).grid(row=0, column=col, padx=3, pady=2, sticky="ew")
+            more = ttk.Button(btn_frame, text=t("onerecipe_more_actions"), style="Secondary.TButton")
+            more.grid(row=0, column=4, padx=3, pady=2, sticky="ew")
+            _ui_attach_more_menu(more, secondary_actions)
+        else:
+            action_buttons = primary_actions + secondary_actions
+            for i, (label, command) in enumerate(action_buttons):
+                row, col = divmod(i, 4)
+                ttk.Button(btn_frame, text=label, command=command).grid(row=row, column=col, padx=4, pady=3, sticky="ew")
 
         # ---- Deux panneaux côte à côte : ingrédients/infos à gauche,
         # description/notes à droite. ----
@@ -11806,14 +12892,14 @@ class OneRecipeWindow(tk.Toplevel):
         left_results.pack(side="left", fill="both", expand=True, padx=(0, 8))
         ttk.Label(left_results, text=t("onerecipe_ingredients_info_label"),
                   font=("Segoe UI", sf(9), "bold")).pack(anchor="w")
-        self.result_text = tk.Text(left_results, width=48, height=14, wrap="word", font=("Segoe UI", sf(10)))
+        self.result_text = tk.Text(left_results, width=48, height=7 if self._compact_vertical else 14, wrap="word", font=("Segoe UI", sf(10)))
         self.result_text.pack(fill="both", expand=True)
 
         right_results = ttk.Frame(results_frame)
         right_results.pack(side="left", fill="both", expand=True, padx=(8, 0))
         ttk.Label(right_results, text=t("onerecipe_description_notes_label"),
                   font=("Segoe UI", sf(9), "bold")).pack(anchor="w")
-        self.description_result_text = tk.Text(right_results, width=48, height=14, wrap="word", font=("Segoe UI", sf(10)))
+        self.description_result_text = tk.Text(right_results, width=48, height=7 if self._compact_vertical else 14, wrap="word", font=("Segoe UI", sf(10)))
         self.description_result_text.pack(fill="both", expand=True)
 
         # ---- Recettes similaires : suggestions basées sur la catégorie, les
@@ -11891,6 +12977,8 @@ class OneRecipeWindow(tk.Toplevel):
     def _edit_recipe(self, index):
         win = RecipeFormWindow(self.app, recipe_index=index)
         self.wait_window(win)
+        if not self.winfo_exists():
+            return
         self.app.refresh_recipes()
         was_displaying_this = (
             self.current_recipe is not None
@@ -11900,6 +12988,30 @@ class OneRecipeWindow(tk.Toplevel):
         if was_displaying_this and index < len(self.app.recipes):
             self.current_recipe = self.app.recipes[index]
             self._display_recipe(self.current_recipe)
+        # Le formulaire modal pouvait passer devant cette fenêtre ; après sa
+        # fermeture, la fiche doit redevenir la fenêtre active.
+        try:
+            self.deiconify()
+            self.lift()
+            self.focus_force()
+            self.grab_set()
+        except tk.TclError:
+            pass
+
+    def refresh_ui(self):
+        """Rafraîchit la fiche sans détruire la fenêtre ni sa sélection."""
+        if not self.winfo_exists():
+            return
+        self.title(t("onerecipe_window_title"))
+        current_key = recipe_ref_key(self.current_recipe) if self.current_recipe else None
+        self._populate()
+        if current_key:
+            for actual_index in self.filtered_indices:
+                if actual_index < len(self.app.recipes) and recipe_ref_key(self.app.recipes[actual_index]) == current_key:
+                    self.selected_actual_index = actual_index
+                    self.current_recipe = self.app.recipes[actual_index]
+                    self._display_recipe(self.current_recipe)
+                    break
 
     def _refresh_gallery(self, recipe):
         for child in self.gallery_frame.winfo_children():
@@ -11909,12 +13021,32 @@ class OneRecipeWindow(tk.Toplevel):
         images = get_recipe_images(recipe)
         if not images:
             ttk.Label(self.gallery_frame, text=t("onerecipe_no_photo")).pack(side="left", padx=10, pady=10)
-            return
+        else:
+            for fname in images:
+                thumb = load_thumbnail(fname, size=(160, 120))
+                cell = ttk.Frame(self.gallery_frame)
+                cell.pack(side="left", padx=5, pady=5)
+                if thumb is not None:
+                    self._gallery_thumb_refs.append(thumb)
+                    ttk.Label(cell, image=thumb).pack()
+                else:
+                    ttk.Label(cell, text=t("onerecipe_preview_unavailable")).pack()
 
-        for fname in images:
-            thumb = load_thumbnail(fname, size=(160, 120))
+        # Une photo ajoutée dans « J'ai cuisiné ça » reste distincte des
+        # photos de la recette, mais elle doit être visible immédiatement
+        # dans cette fiche. On n'affiche que la plus récente pour éviter de
+        # transformer la galerie en journal complet.
+        cook_log = sorted(
+            [entry for entry in recipe.get("cook_log", []) if isinstance(entry, dict) and entry.get("photo")],
+            key=lambda entry: entry.get("date", ""),
+            reverse=True,
+        )
+        if cook_log:
+            latest_photo = cook_log[0].get("photo")
+            thumb = load_thumbnail(latest_photo, size=(160, 120))
             cell = ttk.Frame(self.gallery_frame)
             cell.pack(side="left", padx=5, pady=5)
+            ttk.Label(cell, text=t("onerecipe_latest_cook_photo")).pack()
             if thumb is not None:
                 self._gallery_thumb_refs.append(thumb)
                 ttk.Label(cell, image=thumb).pack()
@@ -11923,8 +13055,8 @@ class OneRecipeWindow(tk.Toplevel):
 
     def _adjust_persons(self, factor=None, delta=None):
         try:
-            current = float(self.pers_entry.get().strip().replace(",", "."))
-        except ValueError:
+            current = parse_positive_number(self.pers_entry.get())
+        except (ValueError, TypeError):
             current = 1.0
         if delta is not None:
             current = current + delta
@@ -11949,7 +13081,7 @@ class OneRecipeWindow(tk.Toplevel):
         if is_new_selection:
             self.pers_entry.delete(0, tk.END)
             self.pers_entry.insert(0, str(recipe.get("default_persons", 1) or 1))
-            record_recipe_view(recipe["name"])
+            record_recipe_view(recipe)
         self._display_recipe(recipe)
 
     def add_to_shopping_list(self):
@@ -11957,11 +13089,11 @@ class OneRecipeWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("onerecipe_display_first"))
             return
         try:
-            persons = float(self.pers_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(self.pers_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"))
             return
-        self.app.shopping_selection[self.current_recipe["name"]] = persons
+        self.app.shopping_selection[recipe_ref_key(self.current_recipe)] = persons
         messagebox.showinfo(
             t("onerecipe_added_to_shopping_title"),
             t("onerecipe_added_to_shopping_message", name=self.current_recipe['name'], persons=persons)
@@ -11971,66 +13103,77 @@ class OneRecipeWindow(tk.Toplevel):
         if self.current_recipe is None:
             messagebox.showinfo(t("common_info"), t("onerecipe_display_first"))
             return
-        recipes = load_recipes()
+        try:
+            persons = parse_positive_number(self.pers_entry.get())
+        except (ValueError, TypeError):
+            messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"), parent=self)
+            return
+
         target_name = self.current_recipe.get("name")
-        for r in recipes:
-            if r is self.current_recipe or r.get("name") == target_name:
-                r["times_cooked"] = r.get("times_cooked", 0) + 1
-                cooked_dates = r.get("cooked_dates", [])
-                cooked_dates.append(datetime.now().strftime("%Y-%m-%d"))
-                r["cooked_dates"] = cooked_dates
-                self.current_recipe = r
-                break
-        save_recipes(recipes)
-        self.app.refresh_recipes()
+        target_id = self.current_recipe.get("id")
+        recipes = load_recipes()
+        target = find_recipe_by_id(recipes, target_id) or find_recipe_by_name(recipes, target_name)
+        if target is None:
+            messagebox.showerror(t("common_error"), t("onerecipe_display_first"), parent=self)
+            return
 
-        # Propose de décompter du garde-manger les ingrédients utilisés, si
-        # l'utilisateur en tient un (jamais aucune supposition sur les
-        # ingrédients absents ou aux unités non comparables, voir
-        # decrement_pantry_for_recipe).
-        pantry = load_pantry()
-        if pantry:
-            try:
-                persons = float(self.pers_entry.get().strip().replace(",", "."))
-            except ValueError:
-                persons = self.current_recipe.get("default_persons", 1) or 1
-            if messagebox.askyesno(
-                t("onerecipe_pantry_decrement_title"),
-                t("onerecipe_pantry_decrement_prompt", name=target_name, persons=persons)
-            ):
-                count = decrement_pantry_for_recipe(self.current_recipe, persons)
-                if count:
-                    messagebox.showinfo(
-                        t("onerecipe_pantry_updated_title"),
-                        t("onerecipe_pantry_updated_message", count=count)
-                    )
-                else:
-                    messagebox.showinfo(t("common_info"), t("onerecipe_pantry_none_decremented"))
-
-        def _on_log_done(note, photo_filename):
-            recipes2 = load_recipes()
-            for r in recipes2:
-                if r.get("name") == target_name:
-                    cook_log = r.get("cook_log", [])
-                    cook_log.append({
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                        "note": note,
-                        "photo": photo_filename,
-                    })
-                    r["cook_log"] = cook_log
-                    self.current_recipe = r
-                    break
-            save_recipes(recipes2)
+        def _on_log_done(note, comment, photo_filename, rating=0, cooked_persons=None):
+            current = record_recipe_cooking(
+                target_id, target_name, note, comment, photo_filename,
+                rating, cooked_persons
+            )
             self.app.refresh_recipes()
-            messagebox.showinfo(t("onerecipe_marked_title"), t("onerecipe_marked_message", name=target_name))
+            # refresh_recipes recharge les objets depuis recipes.json ; la
+            # fiche doit utiliser cette instance canonique, sinon elle peut
+            # continuer à afficher l'ancien journal en mémoire.
+            refreshed = find_recipe_by_id(self.app.recipes, target_id) or find_recipe_by_name(self.app.recipes, target_name)
+            self.current_recipe = refreshed or current
+            if self.selected_actual_index is not None:
+                self._populate()
+            self._display_recipe(self.current_recipe)
+            pantry = load_pantry()
+            if pantry and messagebox.askyesno(
+                    t("onerecipe_pantry_decrement_title"),
+                    t("onerecipe_pantry_decrement_prompt", name=target_name, persons=persons),
+                    parent=self):
+                count = decrement_pantry_for_recipe(current, persons)
+                if count:
+                    messagebox.showinfo(t("onerecipe_pantry_updated_title"),
+                                        t("onerecipe_pantry_updated_message", count=count), parent=self)
+                else:
+                    messagebox.showinfo(t("common_info"), t("onerecipe_pantry_none_decremented"), parent=self)
+            messagebox.showinfo(
+                t("onerecipe_marked_title"),
+                t("onerecipe_marked_message", name=target_name),
+                parent=self
+            )
+            try:
+                self.deiconify()
+                self.lift()
+                self.focus_force()
+                self.grab_set()
+            except tk.TclError:
+                pass
 
-        CookLogEntryDialog(self.app, target_name, _on_log_done)
+        cooked_persons_display = (
+            int(persons) if float(persons).is_integer() else persons
+        )
+        CookLogEntryDialog(
+            self.app, target_name, _on_log_done,
+            persons=cooked_persons_display
+        )
 
     def open_cook_log(self):
         if self.current_recipe is None:
             messagebox.showinfo(t("common_info"), t("onerecipe_display_first"))
             return
-        CookLogWindow(self.app, self.current_recipe)
+        # Recharge la recette pour refléter une cuisson enregistrée depuis
+        # une autre fenêtre ou juste avant l'ouverture du journal.
+        latest_recipes = load_recipes()
+        latest = find_recipe_by_id(latest_recipes, self.current_recipe.get("id")) or find_recipe_by_name(
+            latest_recipes, self.current_recipe.get("name", "")
+        )
+        CookLogWindow(self.app, latest or self.current_recipe)
 
     def show_substitutions(self):
         if self.current_recipe is None:
@@ -12055,9 +13198,11 @@ class OneRecipeWindow(tk.Toplevel):
             return
 
         win = tk.Toplevel(self)
+
+        _ui_bind_escape(win)
         win.title(t("onerecipe_substitutes_title", name=recipe['name']))
-        win.geometry("520x520")
-        win.minsize(440, 400)
+        fit_window_to_workarea(win, gs(520), gs(520), margin=14)
+        safe_minsize(win, 440, 400)
         win.resizable(True, True)
         win.grab_set()
 
@@ -12092,7 +13237,7 @@ class OneRecipeWindow(tk.Toplevel):
 
     def _display_recipe(self, recipe):
         try:
-            persons = float(self.pers_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(self.pers_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"))
             return
@@ -12124,9 +13269,14 @@ class OneRecipeWindow(tk.Toplevel):
             self.result_text.insert(tk.END, t("onerecipe_allergens_label", list=", ".join(translate_allergen_name(a) for a in allergens)) + "\n\n")
 
         for ing in recipe["ingredients"]:
-            qty = round(ing["quantity"] * persons, 2)
-            unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
-            self.result_text.insert(tk.END, f"- {translate_ingredient_name(ing['name']).capitalize()} : {qty}{unit}\n")
+            qty = ingredient_quantity_for_persons(ing, persons)
+            if qty is None:
+                quantity_display = t("quantity_unspecified")
+                unit = ""
+            else:
+                quantity_display = qty
+                unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
+            self.result_text.insert(tk.END, f"- {translate_ingredient_name(ing['name']).capitalize()} : {quantity_display}{unit}\n")
 
         cost, cost_known, cost_total = compute_recipe_cost(recipe, persons)
         if cost_known:
@@ -12153,8 +13303,62 @@ class OneRecipeWindow(tk.Toplevel):
         personal_notes = recipe.get("personal_notes", "").strip()
         if personal_notes:
             self.description_result_text.insert(tk.END, t("onerecipe_notes_heading", text=personal_notes))
-        if not description and not personal_notes:
-            self.description_result_text.insert(tk.END, t("onerecipe_no_description_notes"))
+        family_opinion = (recipe.get("family_opinion") or "").strip()
+        improvement_notes = (recipe.get("improvement_notes") or "").strip()
+        actual_difficulty = (recipe.get("actual_difficulty") or "").strip()
+        if family_opinion:
+            self.description_result_text.insert(tk.END, t("onerecipe_family_opinion_heading", text=family_opinion))
+        if improvement_notes:
+            self.description_result_text.insert(tk.END, t("onerecipe_improvement_notes_heading", text=improvement_notes))
+        if actual_difficulty:
+            self.description_result_text.insert(tk.END, t("onerecipe_actual_difficulty_heading", value=translate_difficulty_name(actual_difficulty)))
+
+        # Affichage immédiat de la dernière cuisson enregistrée dans la fiche
+        # (le journal complet reste accessible par son bouton dédié).
+        cook_log = sorted(
+            [entry for entry in recipe.get("cook_log", []) if isinstance(entry, dict)],
+            key=lambda entry: entry.get("date", ""),
+            reverse=True,
+        )
+        if cook_log:
+            latest = cook_log[0]
+            self.description_result_text.insert(
+                tk.END,
+                t("onerecipe_latest_cook_heading", count=recipe.get("times_cooked", 0) or 0),
+            )
+            date_value = latest.get("date", "")
+            try:
+                date_value = datetime.fromisoformat(date_value).strftime("%d/%m/%Y à %H:%M")
+            except (TypeError, ValueError):
+                date_value = str(date_value or "?")
+            self.description_result_text.insert(
+                tk.END, t("onerecipe_latest_cook_date", date=date_value) + "\n"
+            )
+            cooked_persons = latest.get("persons")
+            if cooked_persons not in (None, ""):
+                self.description_result_text.insert(
+                    tk.END, t("cooklog_entry_persons", persons=cooked_persons) + "\n"
+                )
+            entry_rating = int(latest.get("rating", 0) or 0)
+            if entry_rating:
+                self.description_result_text.insert(
+                    tk.END,
+                    t("cooklog_entry_rating", stars="★" * entry_rating + "☆" * (5 - entry_rating)) + "\n",
+                )
+            latest_note = (latest.get("note") or "").strip()
+            latest_comment = (latest.get("comment") or "").strip()
+            if latest_note:
+                self.description_result_text.insert(
+                    tk.END, t("cooklog_note_heading") + " " + latest_note + "\n"
+                )
+            if latest_comment:
+                self.description_result_text.insert(
+                    tk.END, t("cooklog_comment_heading") + " " + latest_comment + "\n"
+                )
+            self.description_result_text.insert(tk.END, "\n")
+        if not description and not personal_notes and not family_opinion and not improvement_notes and not actual_difficulty:
+            if not cook_log:
+                self.description_result_text.insert(tk.END, t("onerecipe_no_description_notes"))
 
         self._render_similar_recipes(recipe)
 
@@ -12207,7 +13411,7 @@ class OneRecipeWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("onerecipe_display_first"))
             return
         try:
-            persons = float(self.pers_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(self.pers_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"))
             return
@@ -12217,7 +13421,7 @@ class OneRecipeWindow(tk.Toplevel):
             title=t("onerecipe_export_pdf_title"),
             defaultextension=".pdf",
             filetypes=[("Fichier PDF", "*.pdf")],
-            initialfile=f"{recipe['name']}.pdf"
+            initialfile=f"{sanitize_windows_filename(recipe.get('name'), 'recette')}.pdf"
         )
         if not path:
             return
@@ -12237,7 +13441,7 @@ class OneRecipeWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("onerecipe_display_first"))
             return
         try:
-            persons = float(self.pers_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(self.pers_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"))
             return
@@ -12250,8 +13454,7 @@ class OneRecipeWindow(tk.Toplevel):
             messagebox.showerror(t("common_error"), t("onerecipe_print_failed", error=e))
             return
 
-        result_status = print_file(temp_path)
-        report_print_result(result_status, temp_path, f"« {recipe['name']} »")
+        print_document(self, temp_path, f"« {recipe['name']} »")
 
     def show_qr_code(self):
         if not QRCODE_AVAILABLE:
@@ -12267,7 +13470,7 @@ class OneRecipeWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("onerecipe_display_first"))
             return
         try:
-            persons = float(self.pers_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(self.pers_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"))
             return
@@ -12313,7 +13516,7 @@ class OneRecipeWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("onerecipe_display_first"))
             return
         try:
-            persons = float(self.pers_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(self.pers_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"))
             return
@@ -12324,7 +13527,7 @@ class OneRecipeWindow(tk.Toplevel):
             self.grab_release()
         except tk.TclError:
             pass
-        CookingModeWindow(self.app, self.current_recipe, persons)
+        CookingModeWindow(self.app, self.current_recipe, persons, owner=self)
 
 
 class CookingModeWindow(tk.Toplevel):
@@ -12332,11 +13535,12 @@ class CookingModeWindow(tk.Toplevel):
     recette — pratique à consulter en cuisinant, posé à côté des
     fourneaux."""
 
-    def __init__(self, app, recipe, persons):
+    def __init__(self, app, recipe, persons, owner=None):
         super().__init__(app)
         self.app = app
         self.recipe = recipe
         self.persons = persons
+        self.owner_window = owner
         self.title(t("cookingmode_title", name=recipe['name']))
         self.configure(bg="white")
         self._is_fullscreen = False
@@ -12348,7 +13552,7 @@ class CookingModeWindow(tk.Toplevel):
         try:
             self.state("zoomed")
         except tk.TclError:
-            self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
+            fit_window_to_workarea(self, self.winfo_screenwidth(), get_usable_screen_height(self), margin=0, center=False)
         self.tts_engine = None
         self.tts_thread = None
         self.speech_volume = 1.0       # 0.0 (muet) à 1.0 (plein volume)
@@ -12403,59 +13607,53 @@ class CookingModeWindow(tk.Toplevel):
         self._render()
 
     def mark_as_cooked(self):
-        recipes = load_recipes()
+        try:
+            persons = parse_positive_number(self.persons)
+        except (ValueError, TypeError):
+            messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"), parent=self)
+            return
         target_name = self.recipe.get("name")
-        for r in recipes:
-            if r is self.recipe or r.get("name") == target_name:
-                r["times_cooked"] = r.get("times_cooked", 0) + 1
-                cooked_dates = r.get("cooked_dates", [])
-                cooked_dates.append(datetime.now().strftime("%Y-%m-%d"))
-                r["cooked_dates"] = cooked_dates
-                self.recipe = r
-                break
-        save_recipes(recipes)
-        self.app.refresh_recipes()
-
-        # Propose de décompter du garde-manger les ingrédients utilisés, si
-        # l'utilisateur en tient un (jamais aucune supposition sur les
-        # ingrédients absents ou aux unités non comparables, voir
-        # decrement_pantry_for_recipe).
-        pantry = load_pantry()
-        if pantry:
-            if messagebox.askyesno(
-                t("onerecipe_pantry_decrement_title"),
-                t("onerecipe_pantry_decrement_prompt", name=target_name, persons=self._fmt(self.persons))
-            ):
-                count = decrement_pantry_for_recipe(self.recipe, self.persons)
-                if count:
-                    messagebox.showinfo(
-                        t("onerecipe_pantry_updated_title"),
-                        t("onerecipe_pantry_updated_message", count=count)
-                    )
-                else:
-                    messagebox.showinfo(
-                        t("common_info"),
-                        t("onerecipe_pantry_none_decremented")
-                    )
-
-        def _on_log_done(note, photo_filename):
-            recipes2 = load_recipes()
-            for r in recipes2:
-                if r.get("name") == target_name:
-                    cook_log = r.get("cook_log", [])
-                    cook_log.append({
-                        "date": datetime.now().strftime("%Y-%m-%d"),
-                        "note": note,
-                        "photo": photo_filename,
-                    })
-                    r["cook_log"] = cook_log
-                    self.recipe = r
-                    break
-            save_recipes(recipes2)
+        target_id = self.recipe.get("id")
+        recipes = load_recipes()
+        target = find_recipe_by_id(recipes, target_id) or find_recipe_by_name(recipes, target_name)
+        if target is None:
+            return
+        def _on_log_done(note, comment, photo_filename, rating=0, cooked_persons=None):
+            current = record_recipe_cooking(
+                target_id, target_name, note, comment, photo_filename,
+                rating, cooked_persons
+            )
             self.app.refresh_recipes()
-            messagebox.showinfo(t("onerecipe_marked_title"), t("onerecipe_marked_message", name=target_name))
+            refreshed = find_recipe_by_id(self.app.recipes, target_id) or find_recipe_by_name(
+                self.app.recipes, target_name
+            )
+            self.recipe = refreshed or current
+            pantry = load_pantry()
+            if pantry and messagebox.askyesno(
+                    t("onerecipe_pantry_decrement_title"),
+                    t("onerecipe_pantry_decrement_prompt", name=target_name, persons=self._fmt(persons)),
+                    parent=self):
+                count = decrement_pantry_for_recipe(self.recipe, persons)
+                if count:
+                    messagebox.showinfo(t("onerecipe_pantry_updated_title"),
+                                        t("onerecipe_pantry_updated_message", count=count), parent=self)
+                else:
+                    messagebox.showinfo(t("common_info"), t("onerecipe_pantry_none_decremented"), parent=self)
+            messagebox.showinfo(t("onerecipe_marked_title"), t("onerecipe_marked_message", name=target_name), parent=self)
+            target_window = self.owner_window if self.owner_window is not None else self
+            try:
+                target_window.deiconify()
+                target_window.lift()
+                target_window.focus_force()
+                target_window.grab_set()
+            except tk.TclError:
+                pass
 
-        CookLogEntryDialog(self.app, target_name, _on_log_done)
+        cooked_persons_display = int(persons) if float(persons).is_integer() else persons
+        CookLogEntryDialog(
+            self.app, target_name, _on_log_done,
+            persons=cooked_persons_display
+        )
 
     def toggle_speech(self):
         if self.tts_thread is not None and self.tts_thread.is_alive():
@@ -12486,8 +13684,8 @@ class CookingModeWindow(tk.Toplevel):
                 self.tts_engine = engine
                 engine.say(text)
                 engine.runAndWait()
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
             finally:
                 self.tts_engine = None
                 try:
@@ -12502,8 +13700,8 @@ class CookingModeWindow(tk.Toplevel):
         if self.tts_engine is not None:
             try:
                 self.tts_engine.stop()
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
         try:
             self.speech_button.config(text=t("cookingmode_speech_button"))
         except tk.TclError:
@@ -12515,8 +13713,8 @@ class CookingModeWindow(tk.Toplevel):
         if self.tts_engine is not None:
             try:
                 self.tts_engine.setProperty("volume", self.speech_volume)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
 
     def _on_close(self):
         self.stop_speech()
@@ -12561,11 +13759,14 @@ class CookingModeWindow(tk.Toplevel):
         tk.Label(self.content, text=t("cookingmode_ingredients_heading"), font=("Segoe UI", sf(22), "bold"),
                  bg="white").pack(pady=(10, 8), anchor="w", fill="x")
         for ing in recipe["ingredients"]:
-            qty = round(ing["quantity"] * self.persons, 2)
-            if qty == int(qty):
-                qty = int(qty)
-            unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
-            tk.Label(self.content, text=f"•  {translate_ingredient_name(ing['name']).capitalize()} : {qty}{unit}",
+            qty = ingredient_quantity_for_persons(ing, self.persons)
+            if qty is None:
+                quantity_display = t("quantity_unspecified")
+                unit = ""
+            else:
+                quantity_display = qty
+                unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
+            tk.Label(self.content, text=f"•  {translate_ingredient_name(ing['name']).capitalize()} : {quantity_display}{unit}",
                      font=("Segoe UI", sf(18)), bg="white", anchor="w", justify="left",
                      wraplength=1000).pack(fill="x", pady=3, anchor="w")
 
@@ -12594,7 +13795,7 @@ class IngredientSearchWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("ingsearch_title"))
-        self.geometry(f"{gs(480)}x{gs(600)}")
+        fit_window_to_workarea(self, gs(960), gs(600), margin=18)
         self.grab_set()
 
         ttk.Label(self, text=t("ingsearch_question_label"),
@@ -12676,9 +13877,11 @@ class IngredientSearchWindow(tk.Toplevel):
             star = "⭐ " if recipe.get("favorite") else ""
             cat = translate_category_name(recipe.get("category", "Autre"))
             qty = ing["quantity"]
-            if qty == int(qty):
+            if qty is None:
+                qty = t("quantity_unspecified")
+            elif qty == int(qty):
                 qty = int(qty)
-            unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
+            unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] and ing["quantity"] is not None else ""
             self.result_listbox.insert(
                 tk.END, t("ingsearch_result_line", star=star, cat=cat, name=recipe['name'], qty=qty, unit=unit)
             )
@@ -12793,8 +13996,8 @@ class TimerRow(tk.Frame):
         if self._after_id is not None:
             try:
                 self.after_cancel(self._after_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
             self._after_id = None
         self.start_button.config(state="normal")
         self.pause_button.config(state="disabled")
@@ -12804,8 +14007,8 @@ class TimerRow(tk.Frame):
         if self._after_id is not None:
             try:
                 self.after_cancel(self._after_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
             self._after_id = None
         self._stop_flash()
         self.minutes_entry.config(state="normal")
@@ -12865,8 +14068,8 @@ class TimerRow(tk.Frame):
         if self._flash_after_id is not None:
             try:
                 self.after_cancel(self._flash_after_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
             self._flash_after_id = None
         self.configure(background=COLOR_CARD)
         self._set_children_bg(self, COLOR_CARD)
@@ -12878,48 +14081,105 @@ class TimerRow(tk.Frame):
         if self._after_id is not None:
             try:
                 self.after_cancel(self._after_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
         if self._flash_after_id is not None:
             try:
                 self.after_cancel(self._flash_after_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
 
 
 class CookLogEntryDialog(tk.Toplevel):
-    """Petite fenêtre pour ajouter, juste après avoir marqué une recette
-    comme cuisinée, une note et/ou une photo optionnelles au journal de
-    cuisine de cette recette."""
+    """Ajoute les informations d'une cuisson au journal de la recette."""
 
-    def __init__(self, app, recipe_name, on_done):
+    def __init__(self, app, recipe_name, on_done, persons=None):
         super().__init__(app)
         self.app = app
         self.on_done = on_done
+        self.persons = persons
         self.photo_path = None
         self.title(t("cooklogentry_title"))
-        self.geometry(f"{gs(420)}x{gs(400)}")
-        self.resizable(False, False)
+        fit_window_to_workarea(self, gs(560), gs(620), margin=14)
+        safe_minsize(self, gs(480), gs(500))
+        self.resizable(True, True)
         self.grab_set()
 
-        ttk.Label(self, text=t("cooklogentry_heading", name=recipe_name), font=("Segoe UI", sf(12), "bold"),
-                  wraplength=380, justify="center").pack(pady=(15, 2))
-        ttk.Label(self, text=t("cooklogentry_intro"),
-                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center").pack(pady=(0, 10))
+        ttk.Label(
+            self, text=t("cooklogentry_heading", name=recipe_name),
+            font=("Segoe UI", sf(12), "bold"),
+            wraplength=520, justify="center"
+        ).pack(pady=(15, 2))
+        ttk.Label(
+            self, text=t("cooklogentry_intro_v32"),
+            font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED,
+            justify="center", wraplength=520
+        ).pack(pady=(0, 10))
 
-        self.note_text = tk.Text(self, height=7, width=42, wrap="word", font=("Segoe UI", sf(10)))
-        self.note_text.pack(padx=15, pady=(0, 10))
+        form = ttk.Frame(self)
+        form.pack(fill="both", expand=True, padx=18)
 
-        photo_frame = ttk.Frame(self)
-        photo_frame.pack(pady=(0, 10))
-        self.photo_label = ttk.Label(photo_frame, text=t("cooklogentry_no_photo_chosen"), foreground=COLOR_TEXT_MUTED)
-        self.photo_label.pack(side="left", padx=(0, 8))
-        ttk.Button(photo_frame, text=t("cooklogentry_choose_photo_button"), command=self.choose_photo).pack(side="left")
+        if persons is not None:
+            ttk.Label(
+                form,
+                text=t("cooklogentry_persons_label", persons=persons),
+                font=("Segoe UI", sf(9), "bold")
+            ).pack(anchor="w", pady=(0, 8))
+
+        ttk.Label(
+            form, text=t("cooklogentry_note_label"),
+            font=("Segoe UI", sf(9), "bold")
+        ).pack(anchor="w")
+        self.note_text = tk.Text(
+            form, height=4, wrap="word", font=("Segoe UI", sf(10))
+        )
+        self.note_text.pack(fill="x", pady=(3, 10))
+
+        ttk.Label(
+            form, text=t("cooklogentry_comment_label"),
+            font=("Segoe UI", sf(9), "bold")
+        ).pack(anchor="w")
+        self.comment_text = tk.Text(
+            form, height=4, wrap="word", font=("Segoe UI", sf(10))
+        )
+        self.comment_text.pack(fill="x", pady=(3, 10))
+
+        rating_frame = ttk.Frame(form)
+        rating_frame.pack(fill="x", pady=(0, 10))
+        ttk.Label(
+            rating_frame, text=t("cooklogentry_rating_label"),
+            font=("Segoe UI", sf(9), "bold")
+        ).pack(side="left")
+        self.rating_combo = ttk.Combobox(
+            rating_frame,
+            values=["—", "★", "★★", "★★★", "★★★★", "★★★★★"],
+            state="readonly", width=10
+        )
+        self.rating_combo.current(0)
+        self.rating_combo.pack(side="left", padx=(10, 0))
+
+        photo_frame = ttk.Frame(form)
+        photo_frame.pack(fill="x", pady=(0, 10))
+        self.photo_label = ttk.Label(
+            photo_frame, text=t("cooklogentry_no_photo_chosen"),
+            foreground=COLOR_TEXT_MUTED
+        )
+        self.photo_label.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ttk.Button(
+            photo_frame, text=t("cooklogentry_choose_photo_button"),
+            command=self.choose_photo
+        ).pack(side="right")
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=15)
-        ttk.Button(btn_frame, text=t("common_save_button"), command=self.save).grid(row=0, column=0, padx=5)
-        ttk.Button(btn_frame, text=t("cooklogentry_skip_button"), style="Secondary.TButton", command=self.skip).grid(row=0, column=1, padx=5)
+        btn_frame.pack(pady=(5, 15))
+        ttk.Button(
+            btn_frame, text=t("common_save_button"),
+            style="Primary.TButton", command=self.save
+        ).grid(row=0, column=0, padx=5)
+        ttk.Button(
+            btn_frame, text=t("cooklogentry_skip_button"),
+            style="Secondary.TButton", command=self.skip
+        ).grid(row=0, column=1, padx=5)
 
         self.protocol("WM_DELETE_WINDOW", self.skip)
 
@@ -12930,16 +14190,38 @@ class CookLogEntryDialog(tk.Toplevel):
         )
         if path:
             self.photo_path = path
-            self.photo_label.config(text=os.path.basename(path), foreground=COLOR_TEXT)
+            self.photo_label.config(
+                text=os.path.basename(path), foreground=COLOR_TEXT
+            )
 
     def save(self):
         note = self.note_text.get("1.0", "end-1c").strip()
-        photo_filename = copy_image_to_store(self.photo_path) if self.photo_path else None
-        self.on_done(note, photo_filename)
+        comment = self.comment_text.get("1.0", "end-1c").strip()
+        photo_filename = (
+            copy_image_to_store(self.photo_path) if self.photo_path else None
+        )
+        rating = max(0, self.rating_combo.current())
+        try:
+            self.on_done(note, comment, photo_filename, rating, self.persons)
+        except Exception as exc:
+            if photo_filename:
+                delete_image_file(photo_filename)
+            log_internal_error("save_cook_log", exc)
+            messagebox.showerror(
+                t("common_error"), t("cooklogentry_save_failed", error=exc), parent=self
+            )
+            return
         self.destroy()
 
     def skip(self):
-        self.on_done("", None)
+        try:
+            self.on_done("", "", None, 0, self.persons)
+        except Exception as exc:
+            log_internal_error("save_cook_log", exc)
+            messagebox.showerror(
+                t("common_error"), t("cooklogentry_save_failed", error=exc), parent=self
+            )
+            return
         self.destroy()
 
 
@@ -12953,8 +14235,8 @@ class CookLogWindow(tk.Toplevel):
         self.app = app
         self.recipe = recipe
         self.title(t("cooklog_title", name=recipe['name']))
-        self.geometry(f"{gs(480)}x{gs(600)}")
-        self.minsize(gs(400), gs(400))
+        fit_window_to_workarea(self, gs(480), gs(600), margin=18)
+        safe_minsize(self, gs(400), gs(400))
         self.resizable(True, True)
         self.grab_set()
 
@@ -12962,7 +14244,11 @@ class CookLogWindow(tk.Toplevel):
                   wraplength=440, justify="center").pack(pady=(15, 2))
         times_cooked = recipe.get("times_cooked", 0)
         ttk.Label(self, text=t("cooklog_times_cooked", count=times_cooked),
-                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, 10))
+                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, 2))
+        rated_entries = [int(e.get("rating", 0) or 0) for e in recipe.get("cook_log", []) if int(e.get("rating", 0) or 0) > 0]
+        if rated_entries:
+            ttk.Label(self, text=t("cooklog_rating_summary", avg=f"{sum(rated_entries)/len(rated_entries):.1f}", count=len(rated_entries)),
+                      font=("Segoe UI", sf(9), "bold"), foreground=COLOR_ACCENT_DARK).pack(pady=(0, 10))
 
         container = ttk.Frame(self)
         container.pack(fill="both", expand=True, padx=15, pady=(0, 15))
@@ -12978,8 +14264,7 @@ class CookLogWindow(tk.Toplevel):
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        _ui_bind_local_mousewheel(canvas, rows_frame, _on_mousewheel)
 
         self._thumb_refs = []
         cook_log = list(recipe.get("cook_log", []))
@@ -13003,6 +14288,16 @@ class CookLogWindow(tk.Toplevel):
             ttk.Label(entry_card, text=date_display, font=("Segoe UI", sf(10), "bold"),
                       style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(anchor="w", padx=10, pady=(8, 2))
 
+            persons = entry.get("persons")
+            if persons not in (None, ""):
+                ttk.Label(
+                    entry_card,
+                    text=t("cooklog_entry_persons", persons=persons),
+                    style="Card.TLabel",
+                    foreground=COLOR_TEXT_MUTED,
+                    font=("Segoe UI", sf(8))
+                ).pack(anchor="w", padx=10, pady=(0, 4))
+
             photo_filename = entry.get("photo")
             if photo_filename:
                 thumb = load_thumbnail(photo_filename, size=(220, 160))
@@ -13010,13 +14305,41 @@ class CookLogWindow(tk.Toplevel):
                     self._thumb_refs.append(thumb)
                     tk.Label(entry_card, image=thumb, background=COLOR_CARD).pack(padx=10, pady=4)
 
+            entry_rating = int(entry.get("rating", 0) or 0)
+            if entry_rating > 0:
+                ttk.Label(entry_card, text=t("cooklog_entry_rating", stars="★" * entry_rating + "☆" * (5-entry_rating)),
+                          style="Card.TLabel", foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(9), "bold")).pack(anchor="w", padx=10, pady=(2, 4))
+
             note = (entry.get("note") or "").strip()
             if note:
-                ttk.Label(entry_card, text=note, style="Card.TLabel", wraplength=420,
-                          justify="left").pack(anchor="w", padx=10, pady=(0, 8))
-            else:
-                ttk.Label(entry_card, text=t("cooklog_no_note"), style="Card.TLabel",
-                          foreground=COLOR_TEXT_MUTED, font=("Segoe UI", sf(8))).pack(anchor="w", padx=10, pady=(0, 8))
+                ttk.Label(
+                    entry_card, text=t("cooklog_note_heading"),
+                    style="Card.TLabel", font=("Segoe UI", sf(8), "bold"),
+                    foreground=COLOR_ACCENT_DARK
+                ).pack(anchor="w", padx=10, pady=(2, 1))
+                ttk.Label(
+                    entry_card, text=note, style="Card.TLabel",
+                    wraplength=420, justify="left"
+                ).pack(anchor="w", padx=10, pady=(0, 6))
+
+            comment = (entry.get("comment") or "").strip()
+            if comment:
+                ttk.Label(
+                    entry_card, text=t("cooklog_comment_heading"),
+                    style="Card.TLabel", font=("Segoe UI", sf(8), "bold"),
+                    foreground=COLOR_ACCENT_DARK
+                ).pack(anchor="w", padx=10, pady=(2, 1))
+                ttk.Label(
+                    entry_card, text=comment, style="Card.TLabel",
+                    wraplength=420, justify="left"
+                ).pack(anchor="w", padx=10, pady=(0, 8))
+
+            if not note and not comment:
+                ttk.Label(
+                    entry_card, text=t("cooklog_no_note"),
+                    style="Card.TLabel", foreground=COLOR_TEXT_MUTED,
+                    font=("Segoe UI", sf(8))
+                ).pack(anchor="w", padx=10, pady=(0, 8))
 
 
 class TimersWindow(tk.Toplevel):
@@ -13031,8 +14354,8 @@ class TimersWindow(tk.Toplevel):
         if initial_label is None:
             initial_label = t("onerecipe_default_timer_label")
         self.title(t("timers_title"))
-        self.geometry(f"{gs(380)}x{gs(560)}")
-        self.minsize(gs(340), gs(300))
+        fit_window_to_workarea(self, gs(380), gs(560), margin=14)
+        safe_minsize(self, gs(340), gs(300))
         self.resizable(True, True)
         # Reste visible au premier plan même par-dessus une autre fenêtre
         # maximisée (ex. le mode cuisine) : on veut toujours voir les
@@ -13089,80 +14412,576 @@ class TimersWindow(tk.Toplevel):
         self.destroy()
 
 
-class QRCodeWindow(tk.Toplevel):
-    """Affiche une recette (nom + ingrédients) sous forme de QR code, à
-    scanner avec un téléphone, et permet de l'enregistrer en image PNG."""
 
-    MAX_CHARS = 800  # limite la taille du texte encodé pour rester scannable
+MULTI_QR_PREFIX = "MRQ1"
+MOBILE_QR_MAX_BYTES = 800
+
+
+class QrImportIncompleteError(Exception):
+    def __init__(self, received, total):
+        super().__init__(f"incomplete QR set: {received}/{total}")
+        self.received = received
+        self.total = total
+
+
+class QrImportMixedBatchesError(Exception):
+    pass
+
+
+class QrImportChecksumError(Exception):
+    pass
+
+
+def _base36(number):
+    alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
+    number = int(number)
+    if number == 0:
+        return "0"
+    chars = []
+    while number:
+        number, rem = divmod(number, 36)
+        chars.append(alphabet[rem])
+    return "".join(reversed(chars))
+
+
+def _mobile_qr_checksum(text_value):
+    """Exact equivalent du computeChecksum() JavaScript mobile.
+
+    JavaScript charCodeAt() travaille sur des unités UTF-16 ; on reproduit ce
+    comportement afin que les lots contenant aussi des emoji ou caractères
+    hors BMP aient exactement la même somme de contrôle sur Windows/mobile.
+    """
+    data = text_value.encode("utf-16-le")
+    hash_value = 5381
+    for i in range(0, len(data), 2):
+        code_unit = data[i] | (data[i + 1] << 8)
+        hash_value = ((hash_value << 5) + hash_value + code_unit) & 0xFFFFFFFF
+    return _base36(hash_value)
+
+
+def _qr_mojibake_score(text_value):
+    """Mesure les marqueurs typiques d'un mauvais décodage QR UTF-8."""
+    score = 100 * text_value.count("\ufffd")
+    for char in text_value:
+        if char in "ÃÂâð":
+            score += 8
+        elif "\uff61" <= char <= "\uff9f":  # katakana demi-largeur issu de Shift-JIS
+            score += 12
+        elif "\x80" <= char <= "\x9f":
+            score += 12
+    return score
+
+
+def _qr_chunk_repair_candidates(text_value):
+    """Retourne les lectures réversibles possibles d'une partie de QR.
+
+    ZBar peut choisir un encodage différent pour chaque image d'un même lot :
+    UTF-8 correct, Latin-1, Windows-1252 ou Shift-JIS. Chaque conversion reste
+    un simple candidat ; seule la somme de contrôle du contenu complet permet
+    ensuite de l'accepter.
+    """
+    candidates = [text_value]
+    for mistaken_encoding in ("latin-1", "cp1252", "shift_jis"):
+        try:
+            candidate = text_value.encode(mistaken_encoding).decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+        if candidate not in candidates:
+            candidates.append(candidate)
+    # Les textes présentant le moins de traces de mojibake sont essayés en
+    # premier. L'ordre initial départage les égalités sans modifier les données.
+    initial_order = {candidate: index for index, candidate in enumerate(candidates)}
+    return sorted(
+        candidates,
+        key=lambda candidate: (_qr_mojibake_score(candidate), initial_order[candidate]),
+    )
+
+
+def _split_mobile_qr_parts(content, max_chunk_bytes=MOBILE_QR_MAX_BYTES):
+    if len(content.encode("utf-8")) <= max_chunk_bytes:
+        return [content]
+
+    chunks = []
+    current = []
+    current_bytes = 0
+    for ch in content:
+        size = len(ch.encode("utf-8"))
+        if current and current_bytes + size > max_chunk_bytes:
+            chunks.append("".join(current))
+            current = []
+            current_bytes = 0
+        current.append(ch)
+        current_bytes += size
+    if current:
+        chunks.append("".join(current))
+
+    batch_id = uuid.uuid4().hex[:12]
+    checksum = _mobile_qr_checksum(content)
+    total = len(chunks)
+    return [
+        f"{MULTI_QR_PREFIX}|{batch_id}|{index}|{total}|{checksum}|{chunk}"
+        for index, chunk in enumerate(chunks, start=1)
+    ]
+
+
+def _parse_multi_qr_fragment(text_value):
+    if not isinstance(text_value, str) or not text_value.startswith(MULTI_QR_PREFIX + "|"):
+        return None
+    parts = text_value.split("|", 5)
+    if len(parts) != 6:
+        return None
+    _, batch_id, part_index, total_parts, checksum, chunk = parts
+    try:
+        part_index = int(part_index)
+        total_parts = int(total_parts)
+    except ValueError:
+        return None
+    if not batch_id or not checksum or part_index < 1 or part_index > total_parts:
+        return None
+    return {
+        "batch_id": batch_id,
+        "part_index": part_index,
+        "total_parts": total_parts,
+        "checksum": checksum,
+        "chunk": chunk,
+    }
+
+
+def _recipe_to_mobile_qr_payload(recipe, persons):
+    """Construit exactement le JSON compact v1 utilisé par l'app mobile."""
+    payload = {
+        "v": 1,
+        "n": recipe.get("name", ""),
+        "p": persons,
+    }
+    if recipe.get("difficulty"):
+        payload["d"] = recipe["difficulty"]
+    if recipe.get("prep_time"):
+        payload["pt"] = recipe["prep_time"]
+    if recipe.get("cook_time"):
+        payload["ct"] = recipe["cook_time"]
+    if recipe.get("allergens"):
+        payload["a"] = recipe["allergens"]
+    if recipe.get("description"):
+        payload["de"] = recipe["description"]
+    if recipe.get("personal_notes"):
+        payload["no"] = recipe["personal_notes"]
+
+    payload["i"] = []
+    for ing in recipe.get("ingredients", []):
+        qty = ing.get("quantity")
+        if qty is not None:
+            try:
+                qty = round(float(qty) * persons, 2)
+                if qty == int(qty):
+                    qty = int(qty)
+            except (TypeError, ValueError):
+                qty = None
+        payload["i"].append([ing.get("name", ""), qty, ing.get("unit") or ""])
+    # separators reproduit JSON.stringify() (pas d'espaces superflus) et
+    # ensure_ascii=False laisse qrcode encoder directement le vrai UTF-8.
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def _compact_mobile_qr_to_prefill(text_value):
+    try:
+        data = json.loads((text_value or "").strip())
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict) or data.get("v") != 1 or not isinstance(data.get("n"), str) or not isinstance(data.get("i"), list):
+        return None
+    try:
+        persons = float(data.get("p", 4))
+        if persons <= 0:
+            persons = 4
+    except (TypeError, ValueError):
+        persons = 4
+
+    ingredients = []
+    for item in data["i"]:
+        if not isinstance(item, list) or not item or not isinstance(item[0], str) or not item[0].strip():
+            continue
+        qty = item[1] if len(item) > 1 else None
+        try:
+            qty = float(qty) / persons if qty is not None else None
+        except (TypeError, ValueError, ZeroDivisionError):
+            qty = None
+        ingredients.append({
+            "name": item[0].strip(),
+            "quantity": qty,
+            "unit": (item[2] if len(item) > 2 else "") or "",
+        })
+
+    default_persons = int(persons) if persons == int(persons) else persons
+    return {
+        "name": data.get("n", ""),
+        "ingredients": ingredients,
+        "prep_time": data.get("pt"),
+        "cook_time": data.get("ct"),
+        "difficulty": data.get("d") or "Facile",
+        "allergens": data.get("a") if isinstance(data.get("a"), list) else [],
+        "description": data.get("de") if isinstance(data.get("de"), str) else "",
+        "personal_notes": data.get("no") if isinstance(data.get("no"), str) else "",
+        "default_persons": default_persons,
+    }
+
+
+def _legacy_recipe_qr_to_prefill(text_value):
+    """Compatibilité avec les anciens QR texte du bureau."""
+    lines = [line.strip() for line in (text_value or "").replace("\r\n", "\n").split("\n") if line.strip()]
+    if len(lines) < 2:
+        return None
+    marker_index = next((i for i, line in enumerate(lines) if re.search(r"ingr|zutat", line, re.I)), -1)
+    if marker_index < 1:
+        return None
+
+    persons_match = re.search(r"\d+", lines[marker_index])
+    persons = int(persons_match.group()) if persons_match else 4
+    ingredients = []
+    for line in lines[marker_index + 1:]:
+        cleaned = re.sub(r"^[-•*]\s*", "", line).strip()
+        match = re.match(r"^(.+?)\s*:\s*([\d.,]+)\s*(\S*)$", cleaned)
+        if not match:
+            continue
+        qty = float(match.group(2).replace(",", "."))
+        ingredients.append({
+            "name": match.group(1).strip(),
+            "quantity": qty / max(1, persons),
+            "unit": match.group(3) or "",
+        })
+    if not ingredients:
+        return None
+    return {
+        "name": lines[0],
+        "ingredients": ingredients,
+        "default_persons": persons,
+        "description": "",
+        "personal_notes": "",
+        "allergens": [],
+    }
+
+
+def _decode_qr_image_file(path):
+    if not QRCODE_READER_AVAILABLE or not PIL_AVAILABLE:
+        return None
+    # Pillow gère correctement les chemins Windows Unicode ; pyzbar est très
+    # robuste sur les QR denses/multi-parties produits par l'app mobile.
+    with Image.open(path) as image:
+        results = decode_barcodes(image)
+    for result in results:
+        if getattr(result, "type", "") == "QRCODE":
+            try:
+                return result.data.decode("utf-8")
+            except UnicodeDecodeError:
+                # Conserve chaque octet pour permettre une réparation contrôlée
+                # après réassemblage, au lieu d'insérer des caractères � qui
+                # rendraient le contenu irrécupérable.
+                return result.data.decode("latin-1")
+    return None
+
+
+def import_recipe_prefill_from_qr_images(paths):
+    decoded_values = []
+    for path in paths:
+        value = _decode_qr_image_file(path)
+        if value:
+            decoded_values.append(value)
+    if not decoded_values:
+        return None
+
+    # Un QR compact simple est immédiatement importable.
+    for value in decoded_values:
+        if not value.startswith(MULTI_QR_PREFIX + "|"):
+            parsed = _compact_mobile_qr_to_prefill(value)
+            if parsed:
+                return parsed
+            legacy = _legacy_recipe_qr_to_prefill(value)
+            if legacy:
+                return legacy
+
+    fragments = [_parse_multi_qr_fragment(value) for value in decoded_values]
+    fragments = [f for f in fragments if f]
+    if not fragments:
+        return None
+
+    batch_ids = {f["batch_id"] for f in fragments}
+    if len(batch_ids) != 1:
+        raise QrImportMixedBatchesError()
+
+    total_values = {f["total_parts"] for f in fragments}
+    checksum_values = {f["checksum"] for f in fragments}
+    if len(total_values) != 1 or len(checksum_values) != 1:
+        raise QrImportMixedBatchesError()
+
+    total = fragments[0]["total_parts"]
+    by_index = {f["part_index"]: f["chunk"] for f in fragments}
+    if len(by_index) < total or any(i not in by_index for i in range(1, total + 1)):
+        raise QrImportIncompleteError(len(by_index), total)
+
+    expected_checksum = fragments[0]["checksum"]
+    candidate_lists = [
+        _qr_chunk_repair_candidates(by_index[index])
+        for index in range(1, total + 1)
+    ]
+
+    # Le meilleur candidat de chaque partie suffit dans les cas ZBar observés.
+    full = "".join(candidates[0] for candidates in candidate_lists)
+    if _mobile_qr_checksum(full) != expected_checksum:
+        full = None
+        # Repli borné pour les rares fragments ambigus. Cette limite évite
+        # qu'un lot artificiel contenant énormément de variantes monopolise
+        # l'application tout en couvrant largement les recettes normales.
+        for attempt, combination in enumerate(itertools.product(*candidate_lists), start=1):
+            if attempt > 4096:
+                break
+            candidate_full = "".join(combination)
+            if _mobile_qr_checksum(candidate_full) == expected_checksum:
+                full = candidate_full
+                break
+        if full is None:
+            raise QrImportChecksumError()
+    return _compact_mobile_qr_to_prefill(full)
+
+
+def safe_qr_filename_component(recipe_name):
+    """Retourne un nom de recette utilisable dans un nom de fichier Windows."""
+    safe_name = re.sub(r'[\\/:*?"<>|]', "_", str(recipe_name or ""))
+    safe_name = safe_name.strip(" .")[:120].rstrip(" .")
+    return safe_name or "recette"
+
+
+def build_qr_export_paths(folder, recipe_name, total_parts):
+    """Construit les noms ordonnés d'un export QR simple ou multi-parties."""
+    if total_parts < 1:
+        raise ValueError("total_parts must be positive")
+    safe_name = safe_qr_filename_component(recipe_name)
+    if total_parts == 1:
+        return [os.path.join(folder, f"qrcode_{safe_name}.png")]
+    return [
+        os.path.join(folder, f"qrcode_{safe_name}_{index}sur{total_parts}.png")
+        for index in range(1, total_parts + 1)
+    ]
+
+
+def save_qr_parts_atomically(parts, target_paths, make_qr):
+    """Génère, vérifie puis installe un lot de QR sans laisser de lot partiel."""
+    if not parts or len(parts) != len(target_paths):
+        raise ValueError("QR parts and paths must have the same non-zero length")
+
+    staged_paths = []
+    backup_paths = {}
+    committed_paths = []
+    try:
+        for part, target_path in zip(parts, target_paths):
+            folder = os.path.dirname(target_path) or os.curdir
+            fd, staged_path = tempfile.mkstemp(
+                prefix=".qr-stage-", suffix=".png", dir=folder
+            )
+            os.close(fd)
+            staged_paths.append(staged_path)
+            make_qr(part).save(staged_path, format="PNG")
+            with Image.open(staged_path) as verification:
+                verification.verify()
+
+        for target_path in target_paths:
+            if os.path.exists(target_path):
+                folder = os.path.dirname(target_path) or os.curdir
+                fd, backup_path = tempfile.mkstemp(
+                    prefix=".qr-backup-", suffix=".png", dir=folder
+                )
+                os.close(fd)
+                shutil.copy2(target_path, backup_path)
+                backup_paths[target_path] = backup_path
+
+        for staged_path, target_path in zip(staged_paths, target_paths):
+            os.replace(staged_path, target_path)
+            committed_paths.append(target_path)
+    except Exception:
+        for target_path in reversed(committed_paths):
+            try:
+                backup_path = backup_paths.pop(target_path, None)
+                if backup_path:
+                    os.replace(backup_path, target_path)
+                elif os.path.exists(target_path):
+                    os.remove(target_path)
+            except Exception as rollback_error:
+                log_internal_error("qr_export_rollback", rollback_error)
+        raise
+    finally:
+        for temporary_path in staged_paths + list(backup_paths.values()):
+            try:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
+            except Exception as cleanup_error:
+                log_internal_error("qr_export_cleanup", cleanup_error)
+
+
+class QRCodeWindow(tk.Toplevel):
+    """QR d'une recette au format compact compatible avec l'app mobile."""
 
     def __init__(self, app, recipe, persons):
         super().__init__(app)
         self.app = app
         self.recipe = recipe
-        self.title(t("qrcode_title", name=recipe['name']))
-        self.geometry(f"{gs(420)}x{gs(540)}")
-        self.resizable(False, False)
+        self.persons = persons
+        self.title(t("qrcode_title", name=recipe["name"]))
+        fit_window_to_workarea(self, gs(500), gs(620), margin=18)
+        safe_minsize(self, gs(460), gs(580))
+        self.resizable(True, True)
         self.grab_set()
 
-        text = self._build_text(recipe, persons)
+        self.payload = _recipe_to_mobile_qr_payload(recipe, persons)
+        self.parts = _split_mobile_qr_parts(self.payload)
+        self.current_part = 0
+        self._qr_img = None
+        self._photo = None
 
-        qr = qrcode.QRCode(border=2)
-        qr.add_data(text)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-        qr_img = qr_img.resize((340, 340))
-        self._qr_img = qr_img
-        self._photo = ImageTk.PhotoImage(qr_img)
-
-        ttk.Label(self, text=t("qrcode_title", name=recipe['name']),
-                  font=("Segoe UI", sf(12), "bold"), wraplength=380, justify="center").pack(pady=10)
-        ttk.Label(self, image=self._photo).pack(pady=5)
         ttk.Label(
-            self,
-            text=t("qrcode_intro"),
-            font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=5)
+            self, text=t("qrcode_title", name=recipe["name"]),
+            font=("Segoe UI", sf(12), "bold"), wraplength=440, justify="center"
+        ).pack(pady=(12, 6))
 
-        ttk.Button(self, text=t("qrcode_save_button"),
-                   command=self.save_image).pack(pady=10)
+        self.qr_label = ttk.Label(self)
+        self.qr_label.pack(fill="both", expand=True, padx=18, pady=6)
 
-        if len(text) >= self.MAX_CHARS:
-            ttk.Label(
-                self,
-                text=t("qrcode_truncated_warning"),
-                font=("Segoe UI", sf(8)), foreground=COLOR_ERROR, justify="center"
-            ).pack(pady=(0, 10))
+        ttk.Label(
+            self, text=t("qrcode_mobile_compatible"),
+            font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED,
+            justify="center", wraplength=440
+        ).pack(pady=(2, 8))
 
-    @classmethod
-    def _build_text(cls, recipe, persons):
-        lines = [recipe["name"], "", t("qrcode_encoded_ingredients_heading", persons=persons)]
-        for ing in recipe["ingredients"]:
-            qty = round(ing["quantity"] * persons, 2)
-            if qty == int(qty):
-                qty = int(qty)
-            unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
-            lines.append(f"- {translate_ingredient_name(ing['name']).capitalize()} : {qty}{unit}")
-        text = "\n".join(lines)
-        if len(text) > cls.MAX_CHARS:
-            text = text[: cls.MAX_CHARS - 3] + "..."
-        return text
+        self.nav_frame = ttk.Frame(self)
+        if len(self.parts) > 1:
+            self.nav_frame.pack(fill="x", padx=18, pady=(0, 6))
+            ttk.Button(
+                self.nav_frame, text=t("qrcode_part_prev"),
+                command=self._previous_part
+            ).pack(side="left")
+            self.part_label = ttk.Label(self.nav_frame, text="")
+            self.part_label.pack(side="left", expand=True)
+            ttk.Button(
+                self.nav_frame, text=t("qrcode_part_next"),
+                command=self._next_part
+            ).pack(side="right")
+        else:
+            self.part_label = None
+
+        save_buttons = ttk.Frame(self)
+        save_buttons.pack(pady=(4, 12))
+        ttk.Button(
+            save_buttons,
+            text=t(
+                "qrcode_save_button"
+                if len(self.parts) > 1 else "qrcode_save_single_button"
+            ),
+            command=self.save_image,
+        ).pack(side="left", padx=4)
+        if len(self.parts) > 1:
+            ttk.Button(
+                save_buttons,
+                text=t("qrcode_save_all_button", count=len(self.parts)),
+                command=self.save_all_images,
+                style="Primary.TButton",
+            ).pack(side="left", padx=4)
+
+        self._render_current_part()
+
+    def _make_qr(self, text_value):
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=7,
+            border=4,  # zone blanche minimale standard : 4 modules
+        )
+        qr.add_data(text_value)
+        qr.make(fit=True)
+        return qr.make_image(fill_color="black", back_color="white").convert("RGB")
+
+    def _render_current_part(self):
+        self._qr_img = self._make_qr(self.parts[self.current_part])
+        display = self._qr_img.copy()
+        # L'aperçu reste grand sans modifier le fichier QR réellement enregistré.
+        max_side = gs(390)
+        display.thumbnail((max_side, max_side), Image.Resampling.NEAREST)
+        self._photo = ImageTk.PhotoImage(display)
+        self.qr_label.configure(image=self._photo)
+        if self.part_label is not None:
+            self.part_label.configure(
+                text=t(
+                    "qrcode_part_indicator",
+                    current=self.current_part + 1,
+                    total=len(self.parts)
+                )
+            )
+
+    def _previous_part(self):
+        if self.current_part > 0:
+            self.current_part -= 1
+            self._render_current_part()
+
+    def _next_part(self):
+        if self.current_part < len(self.parts) - 1:
+            self.current_part += 1
+            self._render_current_part()
 
     def save_image(self):
-        safe_name = re.sub(r'[\\/:*?"<>|]', "_", self.recipe["name"])
+        safe_name = safe_qr_filename_component(self.recipe["name"])
+        suffix = (
+            f"_{self.current_part + 1}sur{len(self.parts)}"
+            if len(self.parts) > 1 else ""
+        )
         path = filedialog.asksaveasfilename(
             title=t("qrcode_save_dialog_title"),
             defaultextension=".png",
             filetypes=[("Image PNG", "*.png")],
-            initialfile=f"qrcode_{safe_name}.png"
+            initialfile=f"qrcode_{safe_name}{suffix}.png"
         )
         if not path:
             return
         try:
-            self._qr_img.save(path)
+            self._qr_img.save(path, format="PNG")
         except Exception as e:
             messagebox.showerror(t("common_error"), t("qrcode_save_failed", error=e))
             return
-        messagebox.showinfo(t("allrecipes_list_saved_title"), t("qrcode_saved_message", path=path))
+        messagebox.showinfo(
+            t("allrecipes_list_saved_title"),
+            t("qrcode_saved_message", path=path)
+        )
+
+    def save_all_images(self):
+        folder = filedialog.askdirectory(
+            title=t("qrcode_choose_folder_title"),
+            mustexist=True,
+            parent=self,
+        )
+        if not folder:
+            return
+
+        target_paths = build_qr_export_paths(
+            folder, self.recipe["name"], len(self.parts)
+        )
+        existing_count = sum(os.path.exists(path) for path in target_paths)
+        if existing_count and not messagebox.askyesno(
+            t("common_confirm"),
+            t("qrcode_overwrite_all_confirm", count=existing_count),
+            parent=self,
+        ):
+            return
+
+        try:
+            save_qr_parts_atomically(self.parts, target_paths, self._make_qr)
+        except Exception as error:
+            messagebox.showerror(
+                t("common_error"),
+                t("qrcode_save_failed", error=error),
+                parent=self,
+            )
+            return
+        messagebox.showinfo(
+            t("allrecipes_list_saved_title"),
+            t("qrcode_saved_all_message", count=len(target_paths), path=folder),
+            parent=self,
+        )
 
 
 CONVERTER_UNIT_KEYS = [
@@ -13187,8 +15006,8 @@ class UnitConverterWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("unitconv_title"))
-        self.geometry(f"{gs(440)}x{gs(460)}")
-        self.minsize(gs(400), gs(400))
+        fit_window_to_workarea(self, gs(440), gs(460), margin=14)
+        safe_minsize(self, gs(400), gs(400))
         self.resizable(True, True)
         self.grab_set()
 
@@ -13231,8 +15050,8 @@ class UnitConverterWindow(tk.Toplevel):
 
     def convert(self):
         try:
-            quantity = float(self.qty_entry.get().strip().replace(",", "."))
-        except ValueError:
+            quantity = parse_positive_number(self.qty_entry.get())
+        except (ValueError, TypeError):
             messagebox.showerror(t("common_error"), t("unitconv_error_invalid_quantity"))
             return
         from_unit = self.from_combo.get()
@@ -13248,94 +15067,112 @@ class UnitConverterWindow(tk.Toplevel):
 
 
 class PantryWindow(tk.Toplevel):
-    """Fenêtre de suivi du garde-manger : indiquez ce que vous avez chez vous
-    et en quelle quantité, pour que « Que puis-je cuisiner ? » puisse vérifier
-    non seulement la présence d'un ingrédient mais aussi si vous en avez
-    assez, et pour pouvoir décompter automatiquement le stock après avoir
-    cuisiné une recette."""
-
+    """Tableau de bord du garde-manger avec recherche, statuts et filtres."""
     def __init__(self, app):
-        super().__init__(app)
-        self.app = app
-        self.title(t("pantry_title"))
+        super().__init__(app); self.app=app; self.title(t("pantry_title"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(680)}x{min(screen_height, gs(860))}+40+20")
-        self.minsize(gs(560), gs(500))
-        self.resizable(True, True)
-        self.grab_set()
-
-        ttk.Label(self, text=t("pantry_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
-        ttk.Label(
-            self, text=t("pantry_intro"),
-            font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
-
-        add_frame = ttk.Frame(self)
-        add_frame.pack(pady=5, padx=15, fill="x")
-        ttk.Label(add_frame, text=t("common_ingredient_label")).grid(row=0, column=0, padx=5, sticky="e")
-        self.name_entry = ttk.Entry(add_frame, width=24)
-        self.name_entry.full_values = get_display_ingredient_values(sorted(self.app.ingredient_names, key=ingredient_sort_key))
-        self.name_entry.grid(row=0, column=1, padx=5)
-        self.name_entry.bind("<KeyRelease>", lambda e: self._on_name_entry_keyrelease(e))
-        self.name_entry.bind("<FocusIn>", lambda e: self._on_name_entry_focus_in(e))
-        self.name_entry.bind("<FocusOut>", lambda e: self._on_name_entry_focus_out(e))
-        ttk.Label(add_frame, text=t("common_quantity_label")).grid(row=0, column=2, padx=5)
-        self.qty_entry = ttk.Entry(add_frame, width=7)
-        self.qty_entry.insert(0, "1")
-        self.qty_entry.grid(row=0, column=3, padx=5)
-        self.unit_options = RecipeFormWindow.UNIT_OPTIONS[:-1] + ["boîte", "paquet", "rouleau", "bouteille"]
-        self.unit_combo = ttk.Combobox(add_frame, values=[translate_unit_name(u) for u in self.unit_options], width=13)
-        self.unit_combo.set(translate_unit_name("pièce"))
-        self.unit_combo.grid(row=0, column=4, padx=5)
-        ttk.Label(add_frame, text=t("pantry_threshold_label")).grid(row=1, column=0, padx=5, pady=(6, 0), sticky="e")
-        self.threshold_entry = ttk.Entry(add_frame, width=7)
-        self.threshold_entry.grid(row=1, column=1, padx=5, pady=(6, 0), sticky="w")
-        ttk.Button(add_frame, text=t("common_save_button"), command=self.save_item).grid(
-            row=1, column=2, padx=5, pady=(6, 0))
-        ttk.Button(add_frame, text=t("common_new_ingredient_button"),
-                   command=self.create_new_ingredient).grid(row=1, column=3, columnspan=2, padx=5, pady=(6, 0))
-
-        ttk.Label(
-            self, text=t("pantry_help_text"),
-            font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 5))
-
-        list_frame = ttk.Frame(self)
-        list_frame.pack(pady=10, padx=15, fill="both", expand=True)
-        self.listbox = tk.Listbox(list_frame, font=("Segoe UI", sf(9)))
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
-        self.listbox.configure(yscrollcommand=scrollbar.set)
-        self.listbox.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        self.listbox.bind("<<ListboxSelect>>", lambda e: self._load_selected_for_edit())
-
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=(0, 15))
-        ttk.Button(btn_frame, text=t("pantry_remove_button"),
-                   command=self.remove_selected).grid(row=0, column=0, padx=5)
-
-        tk.Frame(self, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
-
-        self.pantry_entries_ordered = []
-        self._populate()
-
+        fit_window_to_workarea(self, gs(1050), get_usable_screen_height(self), margin=18)
+        safe_minsize(self, gs(820),gs(560)); self.resizable(True, True); self.grab_set()
+        ttk.Label(self,text=t("pantry_heading"),font=("Segoe UI",sf(15),"bold")).pack(pady=(14,3))
+        self.summary_label=ttk.Label(self,text="",foreground=COLOR_TEXT_MUTED); self.summary_label.pack(pady=(0,8))
+        compact = self.winfo_screenwidth() < 1200 or screen_height < 700 or FONT_SCALE > 1.0
+        add=ttk.LabelFrame(self,text=t("common_save_button")); add.pack(fill="x",padx=15,pady=(0,6))
+        self.name_entry=ttk.Entry(add,width=24); self.name_entry.full_values=get_display_ingredient_values(sorted(self.app.ingredient_names,key=ingredient_sort_key))
+        self.qty_entry=ttk.Entry(add,width=7); self.qty_entry.insert(0,"1")
+        self.unit_options=RecipeFormWindow.UNIT_OPTIONS[:-1]+["boîte","paquet","rouleau","bouteille"]
+        self.unit_combo=ttk.Combobox(add,values=[translate_unit_name(u) for u in self.unit_options],width=13); self.unit_combo.set(translate_unit_name("pièce"))
+        self.threshold_entry=ttk.Entry(add,width=7)
+        self.expiration_entry=ttk.Entry(add,width=12)
+        if compact:
+            ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=4,pady=4,sticky="e"); self.name_entry.grid(row=0,column=1,padx=4,sticky="ew")
+            ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=4); self.qty_entry.grid(row=0,column=3,padx=4)
+            self.unit_combo.grid(row=0,column=4,padx=4)
+            ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=4,pady=4,sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=4,sticky="w")
+            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=4,pady=4,sticky="e"); self.expiration_entry.grid(row=1,column=3,padx=4,sticky="w")
+            ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=2,column=0,columnspan=2,padx=4,pady=4,sticky="ew")
+            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=2,column=2,columnspan=3,padx=4,pady=4,sticky="ew")
+            add.columnconfigure(1,weight=1)
+        else:
+            ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=5,pady=6,sticky="e"); self.name_entry.grid(row=0,column=1,padx=5)
+            ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=5); self.qty_entry.grid(row=0,column=3,padx=5); self.unit_combo.grid(row=0,column=4,padx=5)
+            ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=5,pady=6,sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=5,sticky="w")
+            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=5,pady=6,sticky="e"); self.expiration_entry.grid(row=1,column=3,padx=5,sticky="w")
+            ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=1,column=4,padx=5)
+            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=0,column=5,rowspan=2,padx=8)
+        self.name_entry.bind("<KeyRelease>",lambda e:self._on_name_entry_keyrelease(e)); self.name_entry.bind("<FocusIn>",lambda e:self._on_name_entry_focus_in(e)); self.name_entry.bind("<FocusOut>",lambda e:self._on_name_entry_focus_out(e))
+        tools=ttk.Frame(self); tools.pack(fill="x",padx=15,pady=(0,6))
+        self.search_var=tk.StringVar(); ent=ttk.Entry(tools,textvariable=self.search_var,width=22); ent.bind("<KeyRelease>",lambda e:self._populate())
+        self.filter_combo=ttk.Combobox(tools,state="readonly",width=17,values=[t("pantry_filter_all"),t("pantry_filter_low"),t("pantry_filter_expiring"),t("pantry_filter_expired")]); self.filter_combo.set(t("pantry_filter_all")); self.filter_combo.bind("<<ComboboxSelected>>",lambda e:self._populate())
+        self.sort_combo=ttk.Combobox(tools,state="readonly",width=15,values=[t("pantry_sort_name"),t("pantry_sort_expiry"),t("pantry_sort_status")]); self.sort_combo.set(t("pantry_sort_name")); self.sort_combo.bind("<<ComboboxSelected>>",lambda e:self._populate())
+        if compact:
+            ttk.Label(tools,text=t("pantry_search_label")).grid(row=0,column=0,sticky="w"); ent.grid(row=0,column=1,padx=(4,10),sticky="ew")
+            ttk.Label(tools,text=t("pantry_filter_label")).grid(row=0,column=2,sticky="w"); self.filter_combo.grid(row=0,column=3,padx=4,sticky="ew")
+            ttk.Label(tools,text=t("pantry_sort_label")).grid(row=1,column=0,sticky="w",pady=(4,0)); self.sort_combo.grid(row=1,column=1,padx=(4,10),pady=(4,0),sticky="ew")
+            tools.columnconfigure(1,weight=1); tools.columnconfigure(3,weight=1)
+        else:
+            ttk.Label(tools,text=t("pantry_search_label")).pack(side="left"); ent.pack(side="left",padx=(4,12))
+            ttk.Label(tools,text=t("pantry_filter_label")).pack(side="left"); self.filter_combo.pack(side="left",padx=4)
+            ttk.Label(tools,text=t("pantry_sort_label")).pack(side="left",padx=(12,0)); self.sort_combo.pack(side="left",padx=4)
+        frame=ttk.Frame(self); frame.pack(fill="both",expand=True,padx=15,pady=(0,8))
+        cols=("name","qty","threshold","expiry","status","section"); self.tree=ttk.Treeview(frame,columns=cols,show="headings",selectmode="browse")
+        specs=(("name",t("pantry_col_name"),260,"w"),("qty",t("pantry_col_qty"),110,"center"),("threshold",t("pantry_col_threshold"),100,"center"),("expiry",t("pantry_col_expiry"),120,"center"),("status",t("pantry_col_status"),160,"center"),("section",t("pantry_col_section"),150,"w"))
+        for c,txt,w,a in specs:self.tree.heading(c,text=txt);self.tree.column(c,width=gs(w),anchor=a)
+        sb=ttk.Scrollbar(frame,orient="vertical",command=self.tree.yview); self.tree.configure(yscrollcommand=sb.set); self.tree.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")
+        self.tree.bind("<<TreeviewSelect>>",lambda e:self._load_selected_for_edit())
+        btn=ttk.Frame(self); btn.pack(pady=(0,10),fill="x",padx=15)
+        for c in range(2 if compact else 4): btn.columnconfigure(c,weight=1)
+        actions=[
+            (t("pantry_use_soon_button"),self.show_use_soon,"Primary.TButton"),
+            (t("pantry_add_selected_shopping"),self.add_selected_to_shopping,None),
+            (t("pantry_add_low_shopping"),self.add_low_to_shopping,None),
+            (t("pantry_remove_button"),self.remove_selected,None),
+        ]
+        for i,(label,command,style) in enumerate(actions):
+            kwargs={"text":label,"command":command}
+            if style: kwargs["style"]=style
+            ttk.Button(btn,**kwargs).grid(row=(i//2 if compact else 0),column=(i%2 if compact else i),padx=3,pady=2,sticky="ew")
+        self.pantry_entries_ordered=[]; self._entry_by_iid={}; self._populate()
+    def _status_for(self,entry):
+        qty=float(entry.get("quantity",0) or 0); threshold=entry.get("threshold"); expiry=parse_pantry_expiration(entry.get("expiration_date")); days=(expiry-datetime.now().date()).days if expiry else None
+        if days is not None and days<0:return "expired",t("pantry_status_expired")
+        if days is not None and days<=5:return "expiring",t("pantry_status_expiring")
+        if threshold is not None and qty<float(threshold):return "low",t("pantry_status_low")
+        return "ok",t("pantry_status_ok")
     def _populate(self):
-        self.listbox.delete(0, tk.END)
-        pantry = load_pantry()
-        self.pantry_entries_ordered = sorted(pantry.values(), key=lambda e: ingredient_sort_key(e["name"]))
-        if not self.pantry_entries_ordered:
-            self.listbox.insert(tk.END, t("pantry_empty"))
-            return
-        for entry in self.pantry_entries_ordered:
-            unit_display = f" {entry['unit']}" if entry["unit"] else ""
-            qty = entry["quantity"]
-            qty_display = int(qty) if qty == int(qty) else round(qty, 2)
-            threshold = entry.get("threshold")
-            low_stock = threshold is not None and qty < threshold
-            prefix = "⚠️ " if low_stock else ""
-            suffix = t("pantry_threshold_suffix", threshold=threshold) if threshold is not None else ""
-            self.listbox.insert(tk.END, f"{prefix}{translate_ingredient_name(entry['name'])} : {qty_display}{unit_display}{suffix}")
-
+        for iid in self.tree.get_children():self.tree.delete(iid)
+        pantry=load_pantry(); all_entries=list(pantry.values()); low=sum(1 for e in all_entries if self._status_for(e)[0]=="low"); exp=sum(1 for e in all_entries if self._status_for(e)[0] in ("expiring","expired")); self.summary_label.configure(text=t("pantry_summary",count=len(all_entries),low=low,expiring=exp))
+        q=ingredient_sort_key(self.search_var.get()) if hasattr(self,"search_var") else ""; f=self.filter_combo.get() if hasattr(self,"filter_combo") else t("pantry_filter_all")
+        entries=[]
+        for e in all_entries:
+            code,label=self._status_for(e)
+            if q and q not in ingredient_sort_key(e.get("name","")):continue
+            if f==t("pantry_filter_low") and code!="low":continue
+            if f==t("pantry_filter_expiring") and code!="expiring":continue
+            if f==t("pantry_filter_expired") and code!="expired":continue
+            entries.append(e)
+        sortv=self.sort_combo.get() if hasattr(self,"sort_combo") else t("pantry_sort_name")
+        if sortv==t("pantry_sort_expiry"): entries.sort(key=lambda e:(parse_pantry_expiration(e.get("expiration_date")) or datetime.max.date(),ingredient_sort_key(e.get("name",""))))
+        elif sortv==t("pantry_sort_status"): entries.sort(key=lambda e:({"expired":0,"expiring":1,"low":2,"ok":3}[self._status_for(e)[0]],ingredient_sort_key(e.get("name",""))))
+        else: entries.sort(key=lambda e:ingredient_sort_key(e.get("name","")))
+        self.pantry_entries_ordered=entries; self._entry_by_iid={}
+        for i,e in enumerate(entries):
+            iid=str(i); self._entry_by_iid[iid]=e; qty=e.get("quantity",0); qtytxt=str(int(qty)) if isinstance(qty,(int,float)) and float(qty).is_integer() else str(round(float(qty),2)); unit=translate_unit_name(e.get("unit","")); thr=e.get("threshold"); thrtxt="—" if thr is None else str(thr); expiry=parse_pantry_expiration(e.get("expiration_date")); exptxt=expiry.strftime("%d/%m/%Y") if expiry else "—"; status=self._status_for(e)[1]; section=translate_rayon_name(get_ingredient_rayon(e.get("name","")))
+            self.tree.insert("","end",iid=iid,values=(translate_ingredient_name(e.get("name","")).capitalize(),f"{qtytxt} {unit}".strip(),thrtxt,exptxt,status,section))
+    def _shopping_qty(self,e):
+        threshold=e.get("threshold")
+        if threshold is not None and float(threshold)>float(e.get("quantity",0) or 0): return max(float(threshold)-float(e.get("quantity",0) or 0),1)
+        return max(float(threshold or 1),1)
+    def _open_shopping_with(self,entries):
+        if not entries:return
+        win=AllRecipesWindow(self.app); items=[{"name":e["name"],"quantity":self._shopping_qty(e),"unit":e.get("unit","")} for e in entries]; win.add_manual_items(items); messagebox.showinfo(t("common_info"),t("pantry_added_to_shopping",count=len(items)),parent=win)
+    def add_selected_to_shopping(self):
+        sel=self.tree.selection()
+        if not sel: messagebox.showinfo(t("common_info"),t("pantry_select_for_shopping"),parent=self); return
+        e=self._entry_by_iid.get(sel[0]); self._open_shopping_with([e] if e else [])
+    def add_low_to_shopping(self):
+        entries=[e for e in load_pantry().values() if self._status_for(e)[0]=="low"]
+        if not entries: messagebox.showinfo(t("common_info"),t("pantry_none_low"),parent=self); return
+        self._open_shopping_with(entries)
     def create_new_ingredient(self):
         typed = normalize_oe(self.name_entry.get().strip())
         win = IngredientEditWindow(self.app, manage_window=None, existing_name=None,
@@ -13357,12 +15194,18 @@ class PantryWindow(tk.Toplevel):
             self.threshold_entry.delete(0, tk.END)
             if entry.get("threshold") is not None:
                 self.threshold_entry.insert(0, str(entry["threshold"]))
+            self.expiration_entry.delete(0, tk.END)
+            expiry = parse_pantry_expiration(entry.get("expiration_date"))
+            if expiry:
+                self.expiration_entry.insert(0, expiry.strftime("%d/%m/%Y"))
 
     def _load_selected_for_edit(self):
-        sel = self.listbox.curselection()
+        sel = self.tree.selection()
         if not sel or not self.pantry_entries_ordered:
             return
-        entry = self.pantry_entries_ordered[sel[0]]
+        entry = self._entry_by_iid.get(sel[0])
+        if entry is None:
+            return
         self.name_entry.delete(0, tk.END)
         self.name_entry.insert(0, translate_ingredient_name(entry["name"]))
         self.qty_entry.delete(0, tk.END)
@@ -13371,6 +15214,10 @@ class PantryWindow(tk.Toplevel):
         self.threshold_entry.delete(0, tk.END)
         if entry.get("threshold") is not None:
             self.threshold_entry.insert(0, str(entry["threshold"]))
+        self.expiration_entry.delete(0, tk.END)
+        expiry = parse_pantry_expiration(entry.get("expiration_date"))
+        if expiry:
+            self.expiration_entry.insert(0, expiry.strftime("%d/%m/%Y"))
 
     # ---- Autocomplétion du champ ingrédient (même principe que les autres
     # listes déroulantes d'ingrédients de l'application) ----
@@ -13396,16 +15243,13 @@ class PantryWindow(tk.Toplevel):
             popup.wm_attributes("-topmost", True)
         except tk.TclError:
             pass
-        x = entry.winfo_rootx()
-        y = entry.winfo_rooty() + entry.winfo_height()
-        width = max(entry.winfo_width(), 160)
-        height = min(6, len(filtered)) * 20
-        popup.wm_geometry(f"{width}x{height}+{x}+{y}")
+        width = max(entry.winfo_width(), gs(180))
 
         listbox = tk.Listbox(popup, height=min(6, len(filtered)), exportselection=False, font=("Segoe UI", sf(9)))
         listbox.pack(fill="both", expand=True)
         for v in filtered:
             listbox.insert(tk.END, v)
+        finalize_suggestion_popup(popup, entry, listbox, width)
 
         def choose(event=None):
             sel = listbox.curselection()
@@ -13476,9 +15320,7 @@ class PantryWindow(tk.Toplevel):
             )
             return
         try:
-            quantity = float(self.qty_entry.get().strip().replace(",", "."))
-            if quantity < 0:
-                raise ValueError
+            quantity = parse_positive_number(self.qty_entry.get(), allow_zero=True)
         except ValueError:
             messagebox.showerror(t("common_error"), t("pantry_error_invalid_quantity"))
             return
@@ -13486,30 +15328,112 @@ class PantryWindow(tk.Toplevel):
         threshold = None
         if threshold_str:
             try:
-                threshold = float(threshold_str.replace(",", "."))
-                if threshold < 0:
-                    raise ValueError
+                threshold = parse_positive_number(threshold_str, allow_zero=True)
             except ValueError:
                 messagebox.showerror(t("common_error"), t("pantry_error_invalid_threshold"))
                 return
+        expiration_raw = self.expiration_entry.get().strip()
+        expiration = None
+        if expiration_raw:
+            expiration_date = parse_pantry_expiration(expiration_raw)
+            if expiration_date is None:
+                messagebox.showerror(t("common_error"), t("pantry_error_invalid_expiration"))
+                return
+            expiration = expiration_date.isoformat()
         unit = resolve_unit_input_best_effort(self.unit_combo.get().strip(), self.unit_options)
-        set_pantry_item(canonical, quantity, unit, threshold)
+        set_pantry_item(canonical, quantity, unit, threshold, expiration)
         self._populate()
         self.name_entry.delete(0, tk.END)
         self.qty_entry.delete(0, tk.END)
         self.qty_entry.insert(0, "1")
         self.threshold_entry.delete(0, tk.END)
+        self.expiration_entry.delete(0, tk.END)
+
+    def show_use_soon(self):
+        items = get_expiring_pantry_items(days=5)
+        if not items:
+            messagebox.showinfo(t("common_info"), t("pantry_no_expiring_items"))
+            return
+        UseSoonRecipesWindow(self.app, items, parent_window=self)
 
     def remove_selected(self):
-        sel = self.listbox.curselection()
+        sel = self.tree.selection()
         if not sel or not self.pantry_entries_ordered:
-            messagebox.showinfo(t("common_info"), t("pantry_select_ingredient_first"))
+            messagebox.showinfo(t("common_info"), t("pantry_select_ingredient_first"), parent=self)
             return
-        entry = self.pantry_entries_ordered[sel[0]]
+        entry = self._entry_by_iid.get(sel[0])
+        if entry is None:
+            return
         if not messagebox.askyesno(t("common_confirm"), t("pantry_remove_confirm_message", name=entry['name'])):
             return
         remove_pantry_item(entry["name"])
         self._populate()
+
+
+class UseSoonRecipesWindow(tk.Toplevel):
+    """Propose les recettes qui utilisent les produits bientôt périmés."""
+
+    def __init__(self, app, expiring_items=None, parent_window=None):
+        super().__init__(parent_window or app)
+        self.app = app
+        self.items = expiring_items or get_expiring_pantry_items(days=5)
+        self.title(t("use_soon_title"))
+        fit_window_to_workarea(self, gs(760), gs(620), margin=18)
+        safe_minsize(self, gs(620), gs(480))
+        self.grab_set()
+
+        ttk.Label(self, text=t("use_soon_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
+        names = ", ".join(translate_ingredient_name(e.get("name", "")).capitalize() for e in self.items)
+        ttk.Label(self, text=t("use_soon_intro", names=names), foreground=COLOR_TEXT_MUTED,
+                  justify="center", wraplength=680).pack(padx=20, pady=(0, 12))
+
+        frame = ttk.Frame(self)
+        frame.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+        self.tree = ttk.Treeview(frame, columns=("uses", "missing", "time"), show="headings", selectmode="browse")
+        self.tree.heading("uses", text=t("use_soon_col_recipe"))
+        self.tree.heading("missing", text=t("use_soon_col_products"))
+        self.tree.heading("time", text=t("use_soon_col_missing"))
+        self.tree.column("uses", width=260, anchor="w")
+        self.tree.column("missing", width=260, anchor="w")
+        self.tree.column("time", width=120, anchor="center")
+        sb = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        self.tree.bind("<Double-1>", lambda e: self.open_selected())
+        self.recipe_by_iid = {}
+        self._populate()
+        ttk.Button(self, text=t("use_soon_open"), style="Primary.TButton", command=self.open_selected).pack(pady=(0, 15))
+
+    def _populate(self):
+        exp_keys = {ingredient_sort_key(e.get("name", "")): e for e in self.items}
+        scored = []
+        for recipe in self.app.recipes:
+            recipe_keys = {ingredient_sort_key(i.get("name", "")) for i in recipe.get("ingredients", [])}
+            used = [e for k, e in exp_keys.items() if k in recipe_keys]
+            if not used:
+                continue
+            missing = [i.get("name", "") for i in recipe.get("ingredients", []) if ingredient_sort_key(i.get("name", "")) not in {ingredient_sort_key(x.get("name", "")) for x in load_pantry().values()}]
+            scored.append((len(used), len(missing), recipe, used, missing))
+        scored.sort(key=lambda x: (-x[0], x[1], ingredient_sort_key(x[2].get("name", ""))))
+        for _, _, recipe, used, missing in scored:
+            iid = self.tree.insert("", "end", values=(
+                recipe.get("name", ""),
+                ", ".join(translate_ingredient_name(e.get("name", "")).capitalize() for e in used),
+                len(missing),
+            ))
+            self.recipe_by_iid[iid] = recipe.get("name")
+        if not scored:
+            iid = self.tree.insert("", "end", values=(t("use_soon_no_recipe"), "", ""))
+            self.recipe_by_iid[iid] = None
+
+    def open_selected(self):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        name = self.recipe_by_iid.get(sel[0])
+        if name:
+            OneRecipeWindow(self.app, initial_recipe_name=name)
 
 
 class WhatCanICookWindow(tk.Toplevel):
@@ -13520,7 +15444,7 @@ class WhatCanICookWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("cook_title"))
-        self.geometry(f"{gs(640)}x{gs(660)}")
+        fit_window_to_workarea(self, gs(960), gs(660), margin=18)
         self.grab_set()
         # Pré-coche les ingrédients de base qu'on a presque toujours sous la
         # main (correspondance exacte, insensible à la casse, avec la liste
@@ -13575,13 +15499,29 @@ class WhatCanICookWindow(tk.Toplevel):
 
         result_frame = ttk.Frame(self)
         result_frame.pack(pady=5, padx=15, fill="both", expand=True)
-        self.result_listbox = tk.Listbox(result_frame, height=14, font=("Segoe UI", sf(9)))
-        result_scrollbar = ttk.Scrollbar(result_frame, orient="vertical", command=self.result_listbox.yview)
-        self.result_listbox.configure(yscrollcommand=result_scrollbar.set)
-        self.result_listbox.pack(side="left", fill="both", expand=True)
+
+        # Text plutôt que Listbox : les recettes partielles peuvent contenir
+        # plusieurs ingrédients manquants et doivent revenir automatiquement
+        # à la ligne lorsque la fenêtre est étroite.
+        self.result_text = tk.Text(
+            result_frame, height=14, wrap="word",
+            font=("Segoe UI", sf(9)), cursor="arrow",
+            padx=8, pady=6
+        )
+        result_scrollbar = ttk.Scrollbar(
+            result_frame, orient="vertical", command=self.result_text.yview
+        )
+        self.result_text.configure(yscrollcommand=result_scrollbar.set)
+        self.result_text.pack(side="left", fill="both", expand=True)
         result_scrollbar.pack(side="right", fill="y")
-        self.result_listbox.bind("<Double-Button-1>", lambda e: self.open_selected_recipe())
-        self.feasible_recipe_names = []  # correspondance ligne -> nom de recette (None pour les en-têtes)
+        self.result_text.bind("<Double-Button-1>", self._open_result_at_event)
+
+        # Une entrée par ligne logique du widget Text. Même si la ligne se
+        # replie visuellement sur 2 ou 3 lignes, elle pointe toujours vers
+        # la même recette.
+        self._result_recipe_ranges = []  # (début, fin, nom de recette)
+        self._selected_result_recipe = None
+        self.result_text.bind("<ButtonRelease-1>", self._select_result_at_event)
 
         ttk.Button(self, text=t("cook_open_selected_button"),
                    command=self.open_selected_recipe).pack(pady=(5, 10))
@@ -13641,19 +15581,42 @@ class WhatCanICookWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("cook_add_ingredient_first"))
             return
 
+        pantry = load_pantry()
         results = []
         for recipe in self.app.recipes:
             seen = set()
             missing = []
-            for ing in recipe["ingredients"]:
-                key = ingredient_sort_key(ing["name"])
-                if key not in have_keys and key not in seen:
-                    seen.add(key)
-                    missing.append(ing["name"])
+            try:
+                persons = parse_positive_number(recipe.get("default_persons", 1) or 1)
+            except ValueError:
+                persons = 1
+            for ing in recipe.get("ingredients", []):
+                key = ingredient_sort_key(ing.get("name", ""))
+                if key in seen:
+                    continue
+                seen.add(key)
+                if key not in have_keys:
+                    missing.append(ing.get("name", ""))
+                    continue
+                # Si l'ingrédient provient du garde-manger, vérifier aussi la
+                # quantité réellement disponible pour le nombre de personnes
+                # par défaut de la recette.
+                if key in pantry and ing.get("quantity") is not None:
+                    needed = ingredient_quantity_for_persons(ing, persons)
+                    status = pantry_stock_status(ing.get("name", ""), needed, ing.get("unit", ""), pantry)
+                    if status == "insuffisant":
+                        missing.append(ing.get("name", ""))
             results.append((recipe, missing))
 
         feasible = [r for r in results if not r[1]]
-        remaining = [r for r in results if r[1] and len(r[1]) <= 3]
+        remaining = []
+        for recipe, missing in results:
+            if not missing:
+                continue
+            unique_total = len({ingredient_sort_key(i["name"]) for i in recipe.get("ingredients", [])})
+            coverage = 0.0 if unique_total <= 0 else (unique_total - len(missing)) / unique_total
+            if len(missing) <= 5 or (coverage >= 0.70 and len(missing) <= 6):
+                remaining.append((recipe, missing, coverage))
 
         # Pour les recettes avec 1 à 3 ingrédients manquants, vérifie si un
         # substitut connu pour l'ingrédient manquant est déjà dans "Ce que
@@ -13661,7 +15624,7 @@ class WhatCanICookWindow(tk.Toplevel):
         # disponible, la recette devient réalisable avec substitution.
         substitutable = []
         almost = []
-        for recipe, missing in remaining:
+        for recipe, missing, coverage in remaining:
             subs_used = {}
             all_covered = True
             for ing_name in missing:
@@ -13675,16 +15638,39 @@ class WhatCanICookWindow(tk.Toplevel):
                 else:
                     all_covered = False
             if all_covered:
-                substitutable.append((recipe, missing, subs_used))
+                substitutable.append((recipe, missing, subs_used, coverage))
             else:
-                almost.append((recipe, missing))
+                almost.append((recipe, missing, coverage))
 
-        self.result_listbox.delete(0, tk.END)
-        self.feasible_recipe_names = []
+        self.result_text.config(state="normal")
+        self.result_text.delete("1.0", tk.END)
+        self._result_recipe_ranges = []
+        self._selected_result_recipe = None
 
-        def add_header(text):
-            self.result_listbox.insert(tk.END, text)
-            self.feasible_recipe_names.append(None)
+        def add_result(text_value, recipe_name=None, header=False):
+            if self.result_text.get("1.0", "end-1c"):
+                self.result_text.insert(tk.END, "\n")
+            start_index = self.result_text.index("end-1c")
+            self.result_text.insert(tk.END, text_value)
+            end_index = self.result_text.index("end-1c")
+            if recipe_name:
+                # Toute la recette est une seule zone : nom + détails +
+                # ingrédients manquants, même si elle se replie visuellement.
+                self._result_recipe_ranges.append((start_index, end_index, recipe_name))
+                self.result_text.tag_add("recipe_row", start_index, end_index)
+            elif header:
+                self.result_text.tag_add("result_header", start_index, end_index)
+
+        self.result_text.tag_configure(
+            "result_header", font=("Segoe UI", sf(9), "bold"),
+            foreground=COLOR_ACCENT_DARK, spacing1=5, spacing3=2
+        )
+        self.result_text.tag_configure(
+            "recipe_row", lmargin1=12, lmargin2=28, spacing1=2, spacing3=2
+        )
+
+        def add_header(text_value):
+            add_result(text_value, header=True)
 
         if feasible:
             add_header(t("cook_feasible_header"))
@@ -13695,45 +15681,98 @@ class WhatCanICookWindow(tk.Toplevel):
                 if pantry:
                     insufficient = [
                         translate_ingredient_name(ing["name"]).capitalize() for ing in recipe["ingredients"]
-                        if pantry_stock_status(ing["name"], ing["quantity"], ing["unit"], pantry) == "insuffisant"
+                        if ing.get("quantity") is not None and pantry_stock_status(
+                            ing["name"],
+                            ingredient_quantity_for_persons(ing, recipe.get("default_persons", 1) or 1),
+                            ing["unit"], pantry
+                        ) == "insuffisant"
                     ]
                     if insufficient:
                         warning = t("cook_insufficient_quantity", list=", ".join(insufficient))
-                self.result_listbox.insert(tk.END, f"   {star}{recipe['name']}{warning}")
-                self.feasible_recipe_names.append(recipe["name"])
+                add_result(
+                    f"   {star}{recipe['name']}{warning}",
+                    recipe_name=recipe["name"]
+                )
         else:
             add_header(t("cook_none_feasible"))
 
         if substitutable:
             add_header("")
             add_header(t("cook_substitutable_header"))
-            for recipe, missing, subs_used in sorted(substitutable, key=lambda pair: ingredient_sort_key(pair[0]["name"])):
+            for recipe, missing, subs_used, coverage in sorted(
+                    substitutable, key=lambda pair: ingredient_sort_key(pair[0]["name"])):
                 details = ", ".join(
                     f"{translate_ingredient_name(m).capitalize()} → {translate_ingredient_name(subs_used[m])}"
                     for m in missing
                 )
-                self.result_listbox.insert(tk.END, f"   {recipe['name']} ({details})")
-                self.feasible_recipe_names.append(recipe["name"])
+                add_result(
+                    f"   {recipe['name']} ({details})",
+                    recipe_name=recipe["name"]
+                )
 
         if almost:
             add_header("")
             add_header(t("cook_almost_header"))
-            for recipe, missing in sorted(almost, key=lambda pair: (len(pair[1]), ingredient_sort_key(pair[0]["name"]))):
-                missing_display = ", ".join(translate_ingredient_name(m).capitalize() for m in missing)
-                self.result_listbox.insert(tk.END, t("cook_missing_label", name=recipe['name'], list=missing_display))
-                self.feasible_recipe_names.append(recipe["name"])
+            for recipe, missing, coverage in sorted(
+                    almost, key=lambda pair: (len(pair[1]), -pair[2], ingredient_sort_key(pair[0]["name"]))):
+                missing_display = ", ".join(
+                    translate_ingredient_name(m).capitalize() for m in missing
+                )
+                pct = int(round(coverage * 100))
+                add_result(
+                    t("cook_missing_label", name=recipe['name'], list=missing_display)
+                    + f"  [{pct}%]",
+                    recipe_name=recipe["name"]
+                )
 
         if not feasible and not substitutable and not almost:
             add_header(t("cook_no_results"))
 
+        self.result_text.config(state="disabled")
+
+    def _result_range_at_event(self, event):
+        try:
+            index = self.result_text.index(f"@{event.x},{event.y}")
+            for start_index, end_index, recipe_name in self._result_recipe_ranges:
+                if (self.result_text.compare(index, ">=", start_index) and
+                        self.result_text.compare(index, "<=", end_index)):
+                    return start_index, end_index, recipe_name
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
+        return None
+
+    def _recipe_at_result_event(self, event):
+        found = self._result_range_at_event(event)
+        return found[2] if found else None
+
+    def _select_result_at_event(self, event):
+        found = self._result_range_at_event(event)
+        self._selected_result_recipe = found[2] if found else None
+        try:
+            self.result_text.tag_remove("selected_recipe", "1.0", tk.END)
+            if found:
+                start_index, end_index, _recipe_name = found
+                self.result_text.tag_configure(
+                    "selected_recipe", background=COLOR_ACCENT_LIGHT
+                )
+                self.result_text.tag_add(
+                    "selected_recipe", start_index, end_index
+                )
+        except Exception as exc:
+            log_internal_error("suppressed_exception", exc)
+
+    def _open_result_at_event(self, event):
+        recipe_name = self._recipe_at_result_event(event)
+        if recipe_name:
+            OneRecipeWindow(self.app, initial_recipe_name=recipe_name)
+            return "break"
+
     def open_selected_recipe(self):
-        sel = self.result_listbox.curselection()
-        if not sel:
-            messagebox.showinfo(t("common_info"), t("cook_select_recipe_from_results"))
-            return
-        recipe_name = self.feasible_recipe_names[sel[0]]
-        if recipe_name is None:
-            messagebox.showinfo(t("common_info"), t("cook_select_recipe_row"))
+        recipe_name = self._selected_result_recipe
+        if not recipe_name:
+            messagebox.showinfo(
+                t("common_info"), t("cook_select_recipe_from_results")
+            )
             return
         OneRecipeWindow(self.app, initial_recipe_name=recipe_name)
 
@@ -13744,14 +15783,14 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
     planning actuel — pratique pour éviter de refaire deux fois la même
     chose de trop près."""
 
-    def __init__(self, app, parent_window):
-        super().__init__(parent_window)
+    def __init__(self, app, parent_window=None):
+        super().__init__(parent_window or app)
         self.app = app
         self.parent_window = parent_window
         self.title(t("weekhistory_title"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(620)}x{min(screen_height, gs(760))}+40+20")
-        self.minsize(gs(500), gs(500))
+        fit_window_to_workarea(self, gs(930), gs(760), margin=18)
+        safe_minsize(self, gs(500), gs(500))
         self.resizable(True, True)
         self.grab_set()
 
@@ -13764,7 +15803,7 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
 
         list_frame = ttk.Frame(self)
         list_frame.pack(padx=15, pady=5, fill="both", expand=True)
-        self.week_listbox = tk.Listbox(list_frame, width=16, font=("Segoe UI", sf(9)))
+        self.week_listbox = tk.Listbox(list_frame, width=22, font=("Segoe UI", sf(9)))
         week_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.week_listbox.yview)
         self.week_listbox.configure(yscrollcommand=week_scrollbar.set)
         self.week_listbox.pack(side="left", fill="y")
@@ -13833,7 +15872,11 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
             t("weekhistory_reload_confirm_message", week=entry.get('week_start', '?'))
         ):
             return
-        self.parent_window.apply_plan(entry.get("plan", {}))
+        if self.parent_window is not None and hasattr(self.parent_window, "apply_plan"):
+            self.parent_window.apply_plan(entry.get("plan", {}))
+        else:
+            save_weekly_plan(entry.get("plan", {}))
+            self.app.show_toast(t("weekhistory_reloaded_home"))
         self.destroy()
 
     def delete_selected(self):
@@ -13864,8 +15907,8 @@ class WeeklyPlanTemplatesWindow(tk.Toplevel):
         self.parent_window = parent_window
         self.title(t("weektemplates_title"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(560)}x{min(screen_height, gs(700))}+40+20")
-        self.minsize(gs(460), gs(460))
+        fit_window_to_workarea(self, gs(560), gs(700), margin=18)
+        safe_minsize(self, gs(460), gs(460))
         self.resizable(True, True)
         self.grab_set()
 
@@ -13977,8 +16020,8 @@ class WeeklyPlanWindow(tk.Toplevel):
         self.app = app
         self.title(t("weekplan_title"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(1080)}x{screen_height}+40+0")
-        self.minsize(gs(600), gs(400))
+        fit_window_to_workarea(self, gs(1620), screen_height, margin=18)
+        safe_minsize(self, gs(600), gs(400))
         self.resizable(True, True)
         self.grab_set()
 
@@ -14003,24 +16046,29 @@ class WeeklyPlanWindow(tk.Toplevel):
 
         # ---- En-tête des jours de la semaine, fixe : reste toujours visible
         # à l'écran, même en faisant défiler la grille vers le bas. ----
-        header_frame = ttk.Frame(self)
-        header_frame.pack(fill="x", padx=(10, 10 + SCROLLBAR_WIDTH_ESTIMATE))
-        header_frame.grid_columnconfigure(0, minsize=COL0_WIDTH)
-        ttk.Label(header_frame, text="", width=17).grid(row=0, column=0, padx=2, pady=2)
-        for col, day in enumerate(WEEKDAYS, start=1):
-            header_frame.grid_columnconfigure(col, minsize=DAY_COL_WIDTH)
-            ttk.Label(header_frame, text=translate_weekday_name(day), font=("Segoe UI", sf(9), "bold"),
-                      foreground=COLOR_ACCENT_DARK, anchor="center").grid(
-                row=0, column=col, padx=3, pady=(2, 6), sticky="ew")
+        header_canvas = tk.Canvas(self, height=gs(38), highlightthickness=0)
+        header_canvas.pack(fill="x", padx=(10, 10 + SCROLLBAR_WIDTH_ESTIMATE))
+        # Les jours sont dessinés après calcul des dimensions réelles des
+        # colonnes du calendrier : plus de décalage entre en-tête et cellules.
+        self._planning_header_canvas = header_canvas
         ttk.Separator(self, orient="horizontal").pack(fill="x", padx=10)
 
         grid_container = ttk.Frame(self)
         grid_container.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         h_scrollbar = ttk.Scrollbar(grid_container, orient="horizontal")
         v_scrollbar = ttk.Scrollbar(grid_container, orient="vertical")
+        def _on_plan_xscroll(first, last):
+            h_scrollbar.set(first, last)
+            try:
+                header_canvas.xview_moveto(first)
+            except Exception as exc:
+                log_internal_error("planning_header_scroll", exc)
         canvas = tk.Canvas(grid_container, highlightthickness=0,
-                            xscrollcommand=h_scrollbar.set, yscrollcommand=v_scrollbar.set)
-        h_scrollbar.config(command=canvas.xview)
+                            xscrollcommand=_on_plan_xscroll, yscrollcommand=v_scrollbar.set)
+        def _sync_xview(*args):
+            canvas.xview(*args)
+            header_canvas.xview(*args)
+        h_scrollbar.config(command=_sync_xview)
         v_scrollbar.config(command=canvas.yview)
         v_scrollbar.pack(side="right", fill="y")
         h_scrollbar.pack(side="bottom", fill="x")
@@ -14030,14 +16078,44 @@ class WeeklyPlanWindow(tk.Toplevel):
         calendar_frame.grid_columnconfigure(0, minsize=COL0_WIDTH)
         for col in range(1, len(WEEKDAYS) + 1):
             calendar_frame.grid_columnconfigure(col, minsize=DAY_COL_WIDTH)
-        calendar_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        def _sync_planning_header(_event=None):
+            try:
+                calendar_frame.update_idletasks()
+                header_canvas.delete("all")
+                total_width = 0
+                for col in range(0, len(WEEKDAYS) + 1):
+                    bbox = calendar_frame.grid_bbox(col, 0)
+                    if not bbox:
+                        continue
+                    x, _y, width, _height = bbox
+                    total_width = max(total_width, x + width)
+                    if col == 0:
+                        continue
+                    day = WEEKDAYS[col - 1]
+                    header_canvas.create_text(
+                        x + width / 2, gs(18),
+                        text=translate_weekday_name(day),
+                        font=("Segoe UI", sf(9), "bold"),
+                        fill=COLOR_ACCENT_DARK,
+                        anchor="center",
+                    )
+                header_canvas.configure(
+                    scrollregion=(0, 0, max(1, total_width), gs(38))
+                )
+            except Exception as exc:
+                log_internal_error("planning_header_alignment", exc)
+
+        def _on_calendar_configure(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            _sync_planning_header()
+
+        calendar_frame.bind("<Configure>", _on_calendar_configure)
         canvas.create_window((0, 0), window=calendar_frame, anchor="nw")
 
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        _ui_bind_local_mousewheel(canvas, calendar_frame, _on_mousewheel)
 
         # Les créneaux de repas (lignes), sans ligne d'en-tête ici puisqu'elle
         # est maintenant affichée séparément, fixe, au-dessus de la grille.
@@ -14059,43 +16137,58 @@ class WeeklyPlanWindow(tk.Toplevel):
                 pers_frame = ttk.Frame(cell, style="Card.TFrame")
                 pers_frame.pack(padx=3, pady=(0, 3))
                 ttk.Label(pers_frame, text="👤", style="Card.TLabel").pack(side="left")
-                pers_entry = ttk.Entry(pers_frame, width=3)
-                pers_entry.insert(0, str(slot_data.get("persons", 4)))
+                pers_entry = ttk.Entry(pers_frame, width=4)
+                selected_name = slot_data.get("recipe_name")
+                selected_recipe = find_recipe_by_name(self.app.recipes, selected_name) if selected_name else None
+                default_for_recipe = (selected_recipe or {}).get("default_persons", 4) or 4
+                pers_entry.insert(0, str(slot_data.get("persons", default_for_recipe)))
                 pers_entry.pack(side="left")
+                combo.bind(
+                    "<<ComboboxSelected>>",
+                    lambda e, c=combo, p=pers_entry: self._sync_slot_default_persons(c, p)
+                )
                 self.widgets[(day, slot)] = (combo, pers_entry)
+
+        self.after_idle(_sync_planning_header)
 
         tk.Frame(calendar_frame, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).grid(
             row=len(self.MEAL_SLOTS), column=0, columnspan=len(WEEKDAYS) + 1, sticky="ew")
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=8)
-        for col in range(4):
+        btn_frame.pack(pady=5)
+        for col in range(5):
             btn_frame.columnconfigure(col, weight=1)
-        ttk.Button(btn_frame, text=t("weekplan_save_button"),
-                   command=self.save_plan).grid(row=0, column=0, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("weekplan_clear_button"),
-                   command=self.clear_plan).grid(row=0, column=1, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("weekplan_export_ics_button"),
-                   command=self.export_ics).grid(row=0, column=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("weekplan_compute_button"),
-                   command=self.compute).grid(row=0, column=3, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_export_button"), command=self.open_export_dialog).grid(
-            row=1, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_print_button"), command=self.print_list).grid(
-            row=1, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("weekplan_checklist_button"),
-                   command=self.open_checklist).grid(row=2, column=0, columnspan=4, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_add_manual_ingredient_button"),
-                   command=self.open_add_manual_ingredient).grid(
-            row=3, column=0, columnspan=4, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_save_list_button"),
-                   command=self.save_list_for_later).grid(row=4, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("allrecipes_load_list_button"),
-                   command=self.open_saved_lists).grid(row=4, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("weekhistory_heading"),
-                   command=self.open_history).grid(row=5, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(btn_frame, text=t("weektemplates_heading"),
-                   command=self.open_templates).grid(row=5, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
+        compact_actions = screen_height < 760 or self.winfo_screenheight() < 760
+        ttk.Button(btn_frame, text=t("weekplan_save_button"), command=self.save_plan).grid(row=0,column=0,padx=3,pady=2,sticky="ew")
+        ttk.Button(btn_frame, text=t("weekplan_clear_button"), command=self.clear_plan).grid(row=0,column=1,padx=3,pady=2,sticky="ew")
+        ttk.Button(btn_frame, text=t("weekplan_compute_button"), command=self.compute).grid(row=0,column=2,padx=3,pady=2,sticky="ew")
+        ttk.Button(btn_frame, text=t("weekplan_checklist_button"), command=self.open_checklist).grid(row=0,column=3,padx=3,pady=2,sticky="ew")
+        if compact_actions:
+            more = ttk.Button(btn_frame, text=t("weekplan_more_actions"), style="Secondary.TButton")
+            more.grid(row=0,column=4,padx=3,pady=2,sticky="ew")
+            _ui_attach_more_menu(more, [
+                (t("weekplan_export_ics_button"), self.export_ics),
+                (t("allrecipes_export_button"), self.open_export_dialog),
+                (t("allrecipes_print_button"), self.print_list),
+                (t("allrecipes_add_manual_ingredient_button"), self.open_add_manual_ingredient),
+                (t("allrecipes_save_list_button"), self.save_list_for_later),
+                (t("allrecipes_load_list_button"), self.open_saved_lists),
+                (t("weekhistory_heading"), self.open_history),
+                (t("weektemplates_heading"), self.open_templates),
+            ])
+        else:
+            ttk.Button(btn_frame, text=t("weekplan_export_ics_button"), command=self.export_ics).grid(row=0,column=4,padx=3,pady=2,sticky="ew")
+            ttk.Button(btn_frame, text=t("allrecipes_export_button"), command=self.open_export_dialog).grid(row=1,column=0,columnspan=2,padx=3,pady=2,sticky="ew")
+            ttk.Button(btn_frame, text=t("allrecipes_print_button"), command=self.print_list).grid(row=1,column=2,columnspan=2,padx=3,pady=2,sticky="ew")
+            more = ttk.Button(btn_frame, text=t("weekplan_more_actions"), style="Secondary.TButton")
+            more.grid(row=1,column=4,padx=3,pady=2,sticky="ew")
+            _ui_attach_more_menu(more, [
+                (t("allrecipes_add_manual_ingredient_button"), self.open_add_manual_ingredient),
+                (t("allrecipes_save_list_button"), self.save_list_for_later),
+                (t("allrecipes_load_list_button"), self.open_saved_lists),
+                (t("weekhistory_heading"), self.open_history),
+                (t("weektemplates_heading"), self.open_templates),
+            ])
 
         # ---- Zone de résultat éditable : chaque ingrédient peut voir sa
         # quantité modifiée ou être retiré, sans devoir tout recalculer. ----
@@ -14118,8 +16211,7 @@ class WeeklyPlanWindow(tk.Toplevel):
         def _on_result_mousewheel(event):
             result_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        result_canvas.bind("<Enter>", lambda e: result_canvas.bind_all("<MouseWheel>", _on_result_mousewheel))
-        result_canvas.bind("<Leave>", lambda e: result_canvas.unbind_all("<MouseWheel>"))
+        _ui_bind_local_mousewheel(result_canvas, self.result_frame, _on_result_mousewheel)
 
         self._render_shopping_list()
 
@@ -14174,11 +16266,11 @@ class WeeklyPlanWindow(tk.Toplevel):
                 row.pack(fill="x", pady=1)
                 ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
                 qty_entry = ttk.Entry(row, width=8)
-                qty_entry.insert(0, str(item["quantity"]))
+                qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
                 qty_entry.pack(side="left", padx=3)
                 qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
                 qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                ttk.Label(row, text=translate_unit_name(item["unit"]), width=18, anchor="w").pack(side="left", padx=3)
+                ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
                 ttk.Button(row, text="🗑", width=3,
                            command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
 
@@ -14188,13 +16280,11 @@ class WeeklyPlanWindow(tk.Toplevel):
         if index >= len(self.current_items):
             return
         try:
-            new_qty = float(entry.get().strip().replace(",", "."))
-            if new_qty <= 0:
-                raise ValueError
+            new_qty = parse_optional_positive_number(entry.get(), allow_zero=False)
         except ValueError:
             messagebox.showerror(t("common_error"), t("allrecipes_invalid_quantity"))
             entry.delete(0, tk.END)
-            entry.insert(0, str(self.current_items[index]["quantity"]))
+            entry.insert(0, "" if self.current_items[index]["quantity"] is None else str(self.current_items[index]["quantity"]))
             return
         self.current_items[index]["quantity"] = new_qty
 
@@ -14246,6 +16336,17 @@ class WeeklyPlanWindow(tk.Toplevel):
         grouped_totals = grouped_totals_from_flat_items(self.current_items)
         return self.last_chosen_recipes, grouped_totals
 
+    def _sync_slot_default_persons(self, combo, pers_entry):
+        name = combo.get()
+        if not name or name == t("common_none_option"):
+            return
+        recipe = find_recipe_by_name(self.app.recipes, name)
+        if recipe is None:
+            return
+        value = recipe.get("default_persons", 4) or 4
+        pers_entry.delete(0, tk.END)
+        pers_entry.insert(0, str(value))
+
     def _collect_selection(self):
         new_plan = {}
         pairs = []
@@ -14256,7 +16357,7 @@ class WeeklyPlanWindow(tk.Toplevel):
                 if not name or name == t("common_none_option"):
                     continue
                 try:
-                    persons = float(pers_entry.get().strip().replace(",", "."))
+                    persons = parse_positive_number(pers_entry.get())
                 except ValueError:
                     messagebox.showerror(
                         t("common_error"),
@@ -14266,7 +16367,10 @@ class WeeklyPlanWindow(tk.Toplevel):
                 recipe = find_recipe_by_name(self.app.recipes, name)
                 if recipe is None:
                     continue
-                new_plan.setdefault(day, {})[slot] = {"recipe_name": name, "persons": persons}
+                new_plan.setdefault(day, {})[slot] = {
+                    "recipe_id": recipe.get("id"), "recipe_name": recipe.get("name"),
+                    "persons": persons
+                }
                 pairs.append((recipe, persons))
         return new_plan, pairs
 
@@ -14297,7 +16401,10 @@ class WeeklyPlanWindow(tk.Toplevel):
             slot_data = day_data.get(slot) or {}
             combo.set(slot_data.get("recipe_name") or t("common_none_option"))
             pers_entry.delete(0, tk.END)
-            pers_entry.insert(0, str(slot_data.get("persons", 4)))
+            selected_name = slot_data.get("recipe_name")
+            selected_recipe = find_recipe_by_ref(self.app.recipes, slot_data) if selected_name or slot_data.get("recipe_id") else None
+            default_for_recipe = (selected_recipe or {}).get("default_persons", 4) or 4
+            pers_entry.insert(0, str(slot_data.get("persons", default_for_recipe)))
 
     def open_history(self):
         WeeklyPlanHistoryWindow(self.app, self)
@@ -14439,8 +16546,7 @@ class WeeklyPlanWindow(tk.Toplevel):
         except Exception as e:
             messagebox.showerror(t("common_error"), t("common_print_failed", error=e))
             return
-        result_status = print_file(temp_path)
-        report_print_result(result_status, temp_path, t("weekplan_print_label"))
+        print_document(self, temp_path, t("weekplan_print_label"))
 
     def open_checklist(self):
         result = self._current_export_data()
@@ -14458,7 +16564,7 @@ class MenuManagerWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("menumanager_title"))
-        self.geometry(f"{gs(420)}x{gs(480)}")
+        fit_window_to_workarea(self, gs(420), gs(480), margin=14)
         self.grab_set()
 
         ttk.Label(self, text=t("menumanager_list_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
@@ -14527,8 +16633,8 @@ class MenuFormWindow(tk.Toplevel):
 
         self.title(t("menuform_title_edit") if self.editing else t("menuform_title_new"))
         screen_height = get_usable_screen_height(self)
-        self.geometry(f"{gs(700)}x{screen_height}+40+0")
-        self.minsize(gs(560), gs(400))
+        fit_window_to_workarea(self, gs(700), screen_height, margin=18)
+        safe_minsize(self, gs(560), gs(400))
         self.resizable(True, True)
         self.grab_set()
 
@@ -14552,8 +16658,13 @@ class MenuFormWindow(tk.Toplevel):
             self.recipe_combo.current(0)
         ttk.Label(add_frame, text=t("menuform_persons_short_label")).pack(side="left")
         self.add_persons_entry = ttk.Entry(add_frame, width=5)
-        self.add_persons_entry.insert(0, "4")
+        initial_persons = 4
+        if recipe_names:
+            first_recipe = find_recipe_by_name(self.app.recipes, recipe_names[0])
+            initial_persons = (first_recipe or {}).get("default_persons", 4) or 4
+        self.add_persons_entry.insert(0, str(initial_persons))
         self.add_persons_entry.pack(side="left", padx=5)
+        self.recipe_combo.bind("<<ComboboxSelected>>", lambda e: self._sync_menu_default_persons())
         ttk.Button(add_frame, text=t("menuform_add_button"), command=self.add_item).pack(side="left", padx=5)
 
         ttk.Label(self, text=t("menuform_recipes_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(15, 5))
@@ -14562,27 +16673,33 @@ class MenuFormWindow(tk.Toplevel):
         self._refresh_items_listbox()
         ttk.Button(self, text=t("menuform_remove_button"), command=self.remove_item).pack(pady=5)
 
-        ttk.Button(self, text=t("menuform_save_button"), command=self.save_menu).pack(pady=8)
-
         export_frame = ttk.Frame(self)
-        export_frame.pack(pady=5)
+        export_frame.pack(pady=6, padx=15, fill="x")
         for col in range(4):
             export_frame.columnconfigure(col, weight=1)
+        ttk.Button(export_frame, text=t("menuform_save_button"), style="Primary.TButton",
+                   command=self.save_menu).grid(row=0, column=0, padx=4, sticky="ew")
         ttk.Button(export_frame, text=t("menuform_compute_button"),
-                   command=self.compute).grid(row=0, column=0, columnspan=4, padx=5, pady=3, sticky="ew")
-        ttk.Button(export_frame, text=t("allrecipes_export_button"), command=self.open_export_dialog).grid(
-            row=1, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(export_frame, text=t("allrecipes_print_button"), command=self.print_list).grid(
-            row=1, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
+                   command=self.compute).grid(row=0, column=1, padx=4, sticky="ew")
         ttk.Button(export_frame, text=t("weekplan_checklist_button"),
-                   command=self.open_checklist).grid(row=2, column=0, columnspan=4, padx=5, pady=3, sticky="ew")
-        ttk.Button(export_frame, text=t("allrecipes_add_manual_ingredient_button"),
-                   command=self.open_add_manual_ingredient).grid(
-            row=3, column=0, columnspan=4, padx=5, pady=3, sticky="ew")
-        ttk.Button(export_frame, text=t("allrecipes_save_list_button"),
-                   command=self.save_list_for_later).grid(row=4, column=0, columnspan=2, padx=5, pady=3, sticky="ew")
-        ttk.Button(export_frame, text=t("allrecipes_load_list_button"),
-                   command=self.open_saved_lists).grid(row=4, column=2, columnspan=2, padx=5, pady=3, sticky="ew")
+                   command=self.open_checklist).grid(row=0, column=2, padx=4, sticky="ew")
+        more_button = ttk.Button(export_frame, text=t("menuform_more_actions"))
+        more_button.grid(row=0, column=3, padx=4, sticky="ew")
+        ttk.Button(
+            export_frame,
+            text=t("menuform_send_to_normal_shopping"),
+            style="Secondary.TButton",
+            command=self.send_to_normal_shopping_list
+        ).grid(row=1, column=0, columnspan=4, padx=4, pady=(6, 0), sticky="ew")
+        more_menu = tk.Menu(more_button, tearoff=0)
+        more_menu.add_command(label=t("allrecipes_export_button"), command=self.open_export_dialog)
+        more_menu.add_command(label=t("allrecipes_print_button"), command=self.print_list)
+        more_menu.add_separator()
+        more_menu.add_command(label=t("allrecipes_add_manual_ingredient_button"), command=self.open_add_manual_ingredient)
+        more_menu.add_command(label=t("allrecipes_save_list_button"), command=self.save_list_for_later)
+        more_menu.add_command(label=t("allrecipes_load_list_button"), command=self.open_saved_lists)
+        more_button.configure(command=lambda: more_menu.tk_popup(
+            more_button.winfo_rootx(), more_button.winfo_rooty() + more_button.winfo_height()))
 
         # ---- Zone de résultat éditable : chaque ingrédient peut voir sa
         # quantité modifiée ou être retiré, sans devoir tout recalculer. ----
@@ -14605,8 +16722,7 @@ class MenuFormWindow(tk.Toplevel):
         def _on_result_mousewheel(event):
             result_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        result_canvas.bind("<Enter>", lambda e: result_canvas.bind_all("<MouseWheel>", _on_result_mousewheel))
-        result_canvas.bind("<Leave>", lambda e: result_canvas.unbind_all("<MouseWheel>"))
+        _ui_bind_local_mousewheel(result_canvas, self.result_frame, _on_result_mousewheel)
 
         self._render_shopping_list()
 
@@ -14661,11 +16777,11 @@ class MenuFormWindow(tk.Toplevel):
                 row.pack(fill="x", pady=1)
                 ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
                 qty_entry = ttk.Entry(row, width=8)
-                qty_entry.insert(0, str(item["quantity"]))
+                qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
                 qty_entry.pack(side="left", padx=3)
                 qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
                 qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                ttk.Label(row, text=translate_unit_name(item["unit"]), width=18, anchor="w").pack(side="left", padx=3)
+                ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
                 ttk.Button(row, text="🗑", width=3,
                            command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
 
@@ -14675,13 +16791,11 @@ class MenuFormWindow(tk.Toplevel):
         if index >= len(self.current_items):
             return
         try:
-            new_qty = float(entry.get().strip().replace(",", "."))
-            if new_qty <= 0:
-                raise ValueError
+            new_qty = parse_optional_positive_number(entry.get(), allow_zero=False)
         except ValueError:
             messagebox.showerror(t("common_error"), t("allrecipes_invalid_quantity"))
             entry.delete(0, tk.END)
-            entry.insert(0, str(self.current_items[index]["quantity"]))
+            entry.insert(0, "" if self.current_items[index]["quantity"] is None else str(self.current_items[index]["quantity"]))
             return
         self.current_items[index]["quantity"] = new_qty
 
@@ -14736,22 +16850,31 @@ class MenuFormWindow(tk.Toplevel):
     def _refresh_items_listbox(self):
         self.items_listbox.delete(0, tk.END)
         for item in self.items:
-            recipe = find_recipe_by_name(self.app.recipes, item["recipe_name"])
+            recipe = find_recipe_by_ref(self.app.recipes, item)
             cat = translate_category_name(recipe.get("category", "Autre")) if recipe else "?"
             self.items_listbox.insert(
                 tk.END, t("menuform_item_row_label", cat=cat, name=item['recipe_name'], persons=item['persons'])
             )
+
+    def _sync_menu_default_persons(self):
+        recipe = find_recipe_by_name(self.app.recipes, self.recipe_combo.get())
+        if recipe is None:
+            return
+        value = recipe.get("default_persons", 4) or 4
+        self.add_persons_entry.delete(0, tk.END)
+        self.add_persons_entry.insert(0, str(value))
 
     def add_item(self):
         name = self.recipe_combo.get()
         if not name:
             return
         try:
-            persons = float(self.add_persons_entry.get().strip().replace(",", "."))
+            persons = parse_positive_number(self.add_persons_entry.get())
         except ValueError:
             messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"))
             return
-        self.items.append({"recipe_name": name, "persons": persons})
+        recipe = find_recipe_by_name(self.app.recipes, name)
+        self.items.append({"recipe_id": recipe.get("id") if recipe else None, "recipe_name": name, "persons": persons})
         self._refresh_items_listbox()
 
     def remove_item(self):
@@ -14786,14 +16909,18 @@ class MenuFormWindow(tk.Toplevel):
         sorted_items = sorted(
             self.items,
             key=lambda it: self.CATEGORY_ORDER.get(
-                (find_recipe_by_name(self.app.recipes, it["recipe_name"]) or {}).get("category", "Autre"), 4
+                (find_recipe_by_ref(self.app.recipes, it) or {}).get("category", "Autre"), 4
             )
         )
         for item in sorted_items:
-            recipe = find_recipe_by_name(self.app.recipes, item["recipe_name"])
+            recipe = find_recipe_by_ref(self.app.recipes, item)
             if recipe is None:
                 continue
-            persons = item["persons"]
+            try:
+                persons = parse_positive_number(item.get("persons", 0))
+            except ValueError:
+                messagebox.showerror(t("common_error"), t("onerecipe_invalid_persons"), parent=self)
+                return [], []
             pairs.append((recipe, persons))
             cat = translate_category_name(recipe.get("category", "Autre"))
             chosen_recipes.append((f"{cat} — {recipe['name']}", persons))
@@ -14819,6 +16946,21 @@ class MenuFormWindow(tk.Toplevel):
 
         return chosen_recipes, grouped_totals
 
+    def send_to_normal_shopping_list(self):
+        """Ouvre Mes courses avec la liste calculée du menu déjà chargée."""
+        if not self.current_items:
+            result = self.compute()
+            if result is None and not self.current_items:
+                return
+        items = [dict(item) for item in self.current_items]
+        win = AllRecipesWindow(self.app)
+        win.load_saved_list(items)
+        win.lift()
+        win.focus_force()
+        self.app.show_toast(
+            t("menuform_sent_to_normal_shopping", count=len(items))
+        )
+
     def export_txt(self):
         result = self._current_export_data()
         if result is None:
@@ -14827,7 +16969,7 @@ class MenuFormWindow(tk.Toplevel):
         menu_name = self.name_entry.get().strip() or "menu"
         path = filedialog.asksaveasfilename(
             title=t("weekplan_export_shopping_list_title"), defaultextension=".txt",
-            filetypes=[("Fichier texte", "*.txt")], initialfile=f"{menu_name}.txt"
+            filetypes=[("Fichier texte", "*.txt")], initialfile=f"{sanitize_windows_filename(menu_name, 'menu')}.txt"
         )
         if not path:
             return
@@ -14849,7 +16991,7 @@ class MenuFormWindow(tk.Toplevel):
         menu_name = self.name_entry.get().strip() or "menu"
         path = filedialog.asksaveasfilename(
             title=t("weekplan_export_shopping_list_title"), defaultextension=".xlsx",
-            filetypes=[("Fichier Excel", "*.xlsx")], initialfile=f"{menu_name}.xlsx"
+            filetypes=[("Fichier Excel", "*.xlsx")], initialfile=f"{sanitize_windows_filename(menu_name, 'menu')}.xlsx"
         )
         if not path:
             return
@@ -14872,7 +17014,7 @@ class MenuFormWindow(tk.Toplevel):
         menu_name = self.name_entry.get().strip() or "menu"
         path = filedialog.asksaveasfilename(
             title=t("weekplan_export_shopping_list_title"), defaultextension=".pdf",
-            filetypes=[("Fichier PDF", "*.pdf")], initialfile=f"{menu_name}.pdf"
+            filetypes=[("Fichier PDF", "*.pdf")], initialfile=f"{sanitize_windows_filename(menu_name, 'menu')}.pdf"
         )
         if not path:
             return
@@ -14898,8 +17040,7 @@ class MenuFormWindow(tk.Toplevel):
         except Exception as e:
             messagebox.showerror(t("common_error"), t("common_print_failed", error=e))
             return
-        result_status = print_file(temp_path)
-        report_print_result(result_status, temp_path, t("menuform_print_label", name=menu_name))
+        print_document(self, temp_path, t("menuform_print_label", name=menu_name))
 
     def open_checklist(self):
         result = self._current_export_data()
@@ -14911,40 +17052,59 @@ class MenuFormWindow(tk.Toplevel):
 
 
 class ImportFromUrlWindow(tk.Toplevel):
-    """Importe une recette à partir d'un lien internet (fonctionne avec les
-    sites utilisant le format de données standard Schema.org Recipe)."""
+    """Importe une recette depuis un lien, avec aperçu avant création."""
 
     def __init__(self, app):
         super().__init__(app)
         self.app = app
+        self.recipe_data = None
         self.title(t("importurl_title"))
-        self.geometry(f"{gs(520)}x{gs(280)}")
-        self.resizable(False, False)
+        # Plus grande pour l'aperçu texte + photo.
+        fit_window_to_workarea(self, gs(1380), get_usable_screen_height(self), margin=18)
+        safe_minsize(self, gs(720), min(gs(580), get_usable_screen_height(self) - 48))
+        self.resizable(True, True)
         self.grab_set()
+        self._closed = False
+        self._handoff = False
+        self.protocol("WM_DELETE_WINDOW", self._close_import_window)
 
-        ttk.Label(self, text=t("importurl_heading"),
-                  font=("Segoe UI", sf(13), "bold")).pack(pady=15)
-        ttk.Label(
-            self,
-            text=t("importurl_intro"),
-            justify="center", font=("Segoe UI", sf(9))
-        ).pack(pady=(0, 15))
-
-        self.url_entry = ttk.Entry(self, width=55)
+        ttk.Label(self, text=t("importurl_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("importurl_intro"), justify="center", font=("Segoe UI", sf(9)), wraplength=640).pack(pady=(0, 10))
+        self.url_entry = ttk.Entry(self, width=70)
         self.url_entry.pack(pady=5, padx=20, fill="x")
         self.url_entry.bind("<Return>", lambda e: self.fetch())
 
-        self.status_label = ttk.Label(self, text="", font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED)
-        self.status_label.pack(pady=(5, 5))
+        action = ttk.Frame(self)
+        action.pack(fill="x", padx=20, pady=5)
+        self.fetch_button = ttk.Button(action, text=t("importurl_fetch_button"), command=self.fetch)
+        self.fetch_button.pack(side="left")
+        self.status_label = ttk.Label(action, text="", foreground=COLOR_TEXT_MUTED)
+        self.status_label.pack(side="left", padx=12)
+        self.progress = ttk.Progressbar(action, mode="indeterminate", length=180)
+        # Masquée au repos : elle n'apparaît que pendant la récupération.
+        self._progress_visible = False
 
-        self.fetch_button = ttk.Button(self, text=t("importurl_fetch_button"), command=self.fetch)
-        self.fetch_button.pack(pady=10)
+        preview = ttk.LabelFrame(self, text=t("importurl_preview_heading"), padding=10)
+        preview.pack(fill="both", expand=True, padx=20, pady=10)
 
-        ttk.Label(
-            self,
-            text=t("importurl_after_import_note"),
-            justify="center", font=("Segoe UI", sf(8)), foreground="#999"
-        ).pack(pady=(5, 0))
+        self.preview_photo_label = ttk.Label(preview, anchor="n")
+        self._preview_photo_ref = None
+
+        preview_text_frame = ttk.Frame(preview)
+        preview_text_frame.pack(side="left", fill="both", expand=True)
+        self.preview_text = tk.Text(preview_text_frame, wrap="word", height=20,
+                                    font=("Segoe UI", sf(9)), state="disabled")
+        sb = ttk.Scrollbar(preview_text_frame, orient="vertical", command=self.preview_text.yview)
+        self.preview_text.configure(yscrollcommand=sb.set)
+        self.preview_text.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+        bottom = ttk.Frame(self)
+        bottom.pack(fill="x", padx=20, pady=(0, 15))
+        ttk.Button(bottom, text=t("recipeform_cancel_button"), command=self._close_import_window).pack(side="right", padx=(8, 0))
+        self.import_button = ttk.Button(bottom, text=t("importurl_confirm_button"), style="Primary.TButton",
+                                        command=self.confirm_import, state="disabled")
+        self.import_button.pack(side="right")
 
     def fetch(self):
         url = self.url_entry.get().strip()
@@ -14953,177 +17113,686 @@ class ImportFromUrlWindow(tk.Toplevel):
             return
         if not url.lower().startswith(("http://", "https://")):
             url = "https://" + url
-
         self.fetch_button.config(state="disabled")
+        self.import_button.config(state="disabled")
         self.status_label.config(text=t("importurl_fetching"))
-        self.update()
+        if not self._progress_visible:
+            self.progress.pack(side="right")
+            self._progress_visible = True
+        self.progress.start(10)
+        threading.Thread(target=self._fetch_worker, args=(url,), daemon=True).start()
 
+    def _fetch_worker(self, url):
         try:
-            recipe_data = fetch_recipe_from_url(url)
-        except Exception as e:
-            self.status_label.config(text="")
-            self.fetch_button.config(state="normal")
-            messagebox.showerror(t("importurl_failed_title"), str(e))
-            return
+            data = fetch_recipe_from_url(url)
+            try:
+                if not self._closed and self.winfo_exists():
+                    self.after(0, lambda: self._fetch_done(data, None))
+            except tk.TclError:
+                return
+        except Exception as exc:
+            try:
+                if not self._closed and self.winfo_exists():
+                    self.after(0, lambda exc=exc: self._fetch_done(None, exc))
+            except tk.TclError:
+                return
 
-        # Enregistre automatiquement tout ingrédient qui n'existe pas encore.
-        # Si l'ingrédient importé n'est qu'une variante singulier/pluriel
-        # d'un ingrédient déjà connu (ex. la recette utilise "Tomates" alors
-        # que la liste a déjà "Tomate"), on réutilise directement la forme
-        # existante plutôt que de créer un doublon — à la fois dans la liste
-        # ET dans le nom de l'ingrédient de la recette elle-même, pour que
-        # la détection des allergènes/valeurs nutritionnelles continue de
-        # fonctionner sur cet ingrédient.
+    def _fetch_done(self, recipe_data, error):
+        if self._closed or not self.winfo_exists():
+            return
+        self.progress.stop()
+        if self._progress_visible:
+            self.progress.pack_forget()
+            self._progress_visible = False
+        self.status_label.config(text="")
+        self.fetch_button.config(state="normal")
+        if error is not None:
+            messagebox.showerror(t("importurl_failed_title"), str(error))
+            return
+        self.recipe_data = recipe_data
+        ingredients = recipe_data.get("ingredients", [])
+        preview_persons = recipe_data.get("default_persons") or 1
+        lines = [
+            t("importurl_preview_name", value=recipe_data.get("name") or "—"),
+            t("importurl_preview_persons", value=preview_persons),
+            t("importurl_preview_times", prep=recipe_data.get("prep_time") or "—", cook=recipe_data.get("cook_time") or "—"),
+            t("importurl_preview_ingredients_for_persons", count=len(ingredients), persons=preview_persons),
+            "",
+        ]
+        for ing in ingredients[:12]:
+            try:
+                displayed_quantity = ingredient_quantity_for_persons(ing, preview_persons)
+            except (TypeError, ValueError):
+                displayed_quantity = ing.get("quantity", "")
+            if displayed_quantity is None:
+                displayed_quantity = t("quantity_unspecified")
+                unit_display = ""
+            else:
+                unit_display = f" {translate_unit_name(ing.get('unit', ''))}" if ing.get("unit") else ""
+            lines.append(f"• {displayed_quantity}{unit_display} {translate_ingredient_name(ing.get('name', ''))}".strip())
+        if len(ingredients) > 12:
+            lines.append(t("importurl_preview_more", count=len(ingredients)-12))
+        desc = (recipe_data.get("description") or "").strip()
+        if desc:
+            lines += ["", t("importurl_preview_description"), desc[:700] + ("…" if len(desc) > 700 else "")]
+        self.preview_text.config(state="normal")
+        self.preview_text.delete("1.0", tk.END)
+        self.preview_text.insert("1.0", "\n".join(lines))
+        self.preview_text.config(state="disabled")
+
+        # Afficher la photo récupérée dans l'aperçu lorsqu'elle existe.
+        self.preview_photo_label.pack_forget()
+        self._preview_photo_ref = None
+        image_sources = recipe_data.get("image_sources", []) or []
+        images = recipe_data.get("images", []) or []
+        if (image_sources or images) and PIL_AVAILABLE:
+            try:
+                thumb = (load_thumbnail_from_path(image_sources[0], size=(430, 340))
+                         if image_sources else load_thumbnail(images[0], size=(430, 340)))
+                if thumb is not None:
+                    self._preview_photo_ref = thumb
+                    self.preview_photo_label.configure(image=thumb)
+                    self.preview_photo_label.pack(side="left", padx=(0, 14),
+                                                  pady=(2, 0), anchor="n")
+            except Exception as exc:
+                log_internal_error("suppressed_exception", exc)
+
+        self.import_button.config(state="normal")
+
+    def _close_import_window(self):
+        self._closed = True
+        if not self._handoff and self.recipe_data:
+            for path in self.recipe_data.get("temporary_image_sources", []) or []:
+                try:
+                    if path and os.path.isfile(path) and os.path.commonpath([os.path.abspath(path), os.path.abspath(IMPORT_TEMP_DIR)]) == os.path.abspath(IMPORT_TEMP_DIR):
+                        os.remove(path)
+                except Exception as exc:
+                    log_internal_error("cleanup_url_import_temp", exc)
+        self.destroy()
+
+    def confirm_import(self):
+        if not self.recipe_data:
+            return
+        recipe_data = self.recipe_data
         known_lower = {n.lower() for n in self.app.ingredient_names}
         ingredients_list = load_ingredients()
         changed = False
-        for ing in recipe_data["ingredients"]:
-            if ing["name"].lower() in known_lower:
+        for ing in recipe_data.get("ingredients", []):
+            if ing.get("name", "").lower() in known_lower:
                 continue
-            plural_match = find_plural_duplicate(ing["name"], ingredients_list)
+            plural_match = find_plural_duplicate(ing.get("name", ""), ingredients_list)
             if plural_match:
                 ing["name"] = plural_match
                 continue
-            ingredients_list.append(ing["name"])
-            known_lower.add(ing["name"].lower())
-            changed = True
+            if ing.get("name"):
+                ingredients_list.append(ing["name"])
+                known_lower.add(ing["name"].lower())
+                changed = True
         if changed:
             self.app.ingredient_names = save_ingredients(ingredients_list)
-
-        self.status_label.config(text="")
-        self.fetch_button.config(state="normal")
+        self._handoff = True
+        self._closed = True
         self.destroy()
         RecipeFormWindow(self.app, recipe_index=None, prefill=recipe_data)
 
 
 class ImportFromPhotoWindow(tk.Toplevel):
-    """Importe une recette à partir d'une photo (recette manuscrite ou page
-    d'un livre de cuisine), en extrayant le texte par reconnaissance optique
-    de caractères (OCR). Contrairement à l'import depuis un lien, le texte
-    extrait n'est pas automatiquement organisé en ingrédients/étapes — il
-    est présenté à relire et corriger avant de créer la recette."""
+    """Import OCR depuis une ou plusieurs photos, dans l'ordre choisi."""
+
+    IMAGE_FILETYPES = [
+        ("Images", "*.jpg *.jpeg *.png *.webp *.bmp *.tiff *.tif"),
+        ("Tous les fichiers", "*.*"),
+    ]
 
     def __init__(self, app):
         super().__init__(app)
         self.app = app
         self.title(t("importphoto_title"))
-        self.geometry(f"{gs(540)}x{gs(640)}")
-        self.minsize(gs(460), gs(500))
+        fit_window_to_workarea(
+            self, gs(980), get_usable_screen_height(self), margin=18
+        )
+        safe_minsize(self, gs(760), gs(560))
         self.resizable(True, True)
         self.grab_set()
-        self.photo_path = None
+        self._closed = False
+        self.protocol("WM_DELETE_WINDOW", self._close_import_window)
+
+        self.photo_paths = []
+        self.photo_rotations = {}
         self._preview_ref = None
+        self._ocr_status = {
+            "pytesseract": PYTESSERACT_AVAILABLE,
+            "executable": None,
+            "ready": False,
+            "reason": "checking",
+            "required_lang": TESSERACT_LANG_CODES.get(CURRENT_LANGUAGE, "fra"),
+        }
+        self._ocr_status_checking = False
+        self._ocr_status_results = queue.Queue(maxsize=1)
+        self._ocr_work_results = queue.Queue()
 
-        ttk.Label(self, text=t("importphoto_heading"),
-                  font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
         ttk.Label(
-            self,
-            text=t("importphoto_intro"),
-            font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center", wraplength=480
-        ).pack(pady=(0, 10))
+            self, text=t("importphoto_heading"),
+            font=("Segoe UI", sf(13), "bold")
+        ).pack(pady=(14, 3))
+        ttk.Label(
+            self, text=t("importphoto_intro_multi_v31"),
+            font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED,
+            justify="center", wraplength=900
+        ).pack(pady=(0, 7))
 
-        if not PYTESSERACT_AVAILABLE:
-            ttk.Label(
-                self,
-                text=t("importphoto_module_warning"),
-                foreground=COLOR_ERROR, font=("Segoe UI", sf(9), "bold"), justify="center"
-            ).pack(pady=10)
-
-        self.preview_label = ttk.Label(self, text=t("importphoto_no_photo_chosen"), foreground=COLOR_TEXT_MUTED)
-        self.preview_label.pack(pady=5)
-
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=5)
-        ttk.Button(btn_frame, text=t("importphoto_choose_button"),
-                   command=self.choose_photo).grid(row=0, column=0, padx=5)
-        self.extract_button = ttk.Button(btn_frame, text=t("importphoto_extract_button"),
-                                          command=self.extract_text, state="disabled")
-        self.extract_button.grid(row=0, column=1, padx=5)
-
-        ttk.Label(self, text=t("importphoto_extracted_text_label"), font=("Segoe UI", sf(9), "bold")).pack(
-            pady=(10, 3))
-        self.text_box = tk.Text(self, height=14, wrap="word", font=("Segoe UI", sf(10)))
-        self.text_box.pack(fill="both", expand=True, padx=15, pady=(0, 10))
-
-        ttk.Button(self, text=t("importphoto_create_button"),
-                   command=self.create_recipe).pack(pady=(0, 15))
-
-    def choose_photo(self):
-        path = filedialog.askopenfilename(
-            title=t("importphoto_choose_photo_title"),
-            filetypes=[("Images", "*.jpg *.jpeg *.png *.webp *.bmp *.tiff")]
+        self.ocr_status_label = ttk.Label(
+            self, text=t("importphoto_ocr_checking"),
+            foreground=COLOR_TEXT_MUTED, justify="center", wraplength=900
         )
-        if not path:
-            return
-        self.photo_path = path
-        self.preview_label.config(text=os.path.basename(path), foreground=COLOR_TEXT)
+        self.ocr_status_label.pack(pady=(0, 8))
 
-        if PIL_AVAILABLE:
+        # -------- Photos sélectionnées --------
+        photos_box = ttk.LabelFrame(
+            self, text=t("importphoto_selected_photos_heading"), padding=8
+        )
+        photos_box.pack(fill="x", padx=15, pady=(2, 8))
+        photos_box.columnconfigure(0, weight=1)
+
+        list_area = ttk.Frame(photos_box)
+        list_area.grid(row=0, column=0, rowspan=2, sticky="nsew")
+        list_area.columnconfigure(0, weight=1)
+
+        self.photo_listbox = tk.Listbox(
+            list_area, height=5, exportselection=False,
+            font=("Segoe UI", sf(9))
+        )
+        photo_scroll = ttk.Scrollbar(
+            list_area, orient="vertical", command=self.photo_listbox.yview
+        )
+        self.photo_listbox.configure(yscrollcommand=photo_scroll.set)
+        self.photo_listbox.grid(row=0, column=0, sticky="nsew")
+        photo_scroll.grid(row=0, column=1, sticky="ns")
+        self.photo_listbox.bind("<<ListboxSelect>>", self._on_photo_selected)
+
+        buttons = ttk.Frame(photos_box)
+        buttons.grid(row=0, column=1, sticky="n", padx=(10, 0))
+        ttk.Button(
+            buttons, text=t("importphoto_add_photos_button"),
+            command=self.choose_photo
+        ).pack(fill="x", pady=2)
+        ttk.Button(
+            buttons, text=t("importphoto_move_up_button"),
+            command=lambda: self._move_photo(-1)
+        ).pack(fill="x", pady=2)
+        ttk.Button(
+            buttons, text=t("importphoto_move_down_button"),
+            command=lambda: self._move_photo(1)
+        ).pack(fill="x", pady=2)
+        ttk.Button(
+            buttons, text=t("importphoto_rotate_left_button"),
+            command=lambda: self._rotate_selected_photo(-90)
+        ).pack(fill="x", pady=2)
+        ttk.Button(
+            buttons, text=t("importphoto_rotate_right_button"),
+            command=lambda: self._rotate_selected_photo(90)
+        ).pack(fill="x", pady=2)
+        ttk.Button(
+            buttons, text=t("importphoto_remove_photo_button"),
+            command=self._remove_selected_photo
+        ).pack(fill="x", pady=2)
+        ttk.Button(
+            buttons, text=t("importphoto_clear_photos_button"),
+            command=self._clear_photos
+        ).pack(fill="x", pady=2)
+
+        self.preview_label = ttk.Label(
+            photos_box, text=t("importphoto_no_photo_chosen"),
+            foreground=COLOR_TEXT_MUTED, anchor="center"
+        )
+        self.preview_label.grid(
+            row=1, column=1, sticky="ew", padx=(10, 0), pady=(6, 0)
+        )
+
+        # -------- OCR --------
+        control = ttk.Frame(self)
+        control.pack(fill="x", padx=15, pady=5)
+        self.extract_button = ttk.Button(
+            control, text=t("importphoto_extract_all_button"),
+            command=self.extract_text, state="disabled"
+        )
+        self.extract_button.pack(side="left")
+        self.refresh_ocr_button = ttk.Button(
+            control, text=t("importphoto_refresh_ocr_button"),
+            command=self._refresh_ocr_status
+        )
+        self.refresh_ocr_button.pack(side="left", padx=(8, 0))
+        self.status_label = ttk.Label(
+            control, text="", foreground=COLOR_TEXT_MUTED
+        )
+        self.status_label.pack(side="left", padx=10)
+        self.progress = ttk.Progressbar(
+            control, mode="determinate", maximum=100, length=220
+        )
+        self._progress_visible = False
+
+        ttk.Label(
+            self, text=t("importphoto_extracted_text_label"),
+            font=("Segoe UI", sf(9), "bold")
+        ).pack(pady=(8, 3))
+
+        text_frame = ttk.Frame(self)
+        text_frame.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+        self.text_box = tk.Text(
+            text_frame, height=18, wrap="word",
+            font=("Segoe UI", sf(10))
+        )
+        sb = ttk.Scrollbar(
+            text_frame, orient="vertical", command=self.text_box.yview
+        )
+        self.text_box.configure(yscrollcommand=sb.set)
+        self.text_box.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+        ttk.Button(
+            self, text=t("importphoto_create_button"),
+            style="Primary.TButton", command=self.create_recipe
+        ).pack(pady=(0, 14))
+
+        # La fenêtre et tous ses boutons existent avant de lancer la détection,
+        # qui peut prendre plusieurs secondes sur certains postes Windows.
+        self.after(50, self._refresh_ocr_status)
+
+    def _refresh_ocr_status(self):
+        if self._closed or self._ocr_status_checking:
+            return
+        self._ocr_status_checking = True
+        self.ocr_status_label.config(
+            text=t("importphoto_ocr_checking"), foreground=COLOR_TEXT_MUTED
+        )
+        self.extract_button.config(state="disabled")
+        self.refresh_ocr_button.config(state="disabled")
+
+        def worker():
             try:
-                img = Image.open(path)
-                img.thumbnail((300, 220))
-                self._preview_ref = ImageTk.PhotoImage(img)
-                self.preview_label.config(image=self._preview_ref, text="", compound="top")
-            except Exception:
-                pass
+                status = current_tesseract_status()
+            except Exception as exc:
+                status = {
+                    "pytesseract": PYTESSERACT_AVAILABLE,
+                    "executable": None,
+                    "ready": False,
+                    "reason": str(exc),
+                    "required_lang": TESSERACT_LANG_CODES.get(CURRENT_LANGUAGE, "fra"),
+                }
+            self._ocr_status_results.put(status)
 
-        if PYTESSERACT_AVAILABLE:
-            self.extract_button.config(state="normal")
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(100, self._poll_ocr_status)
 
-    def extract_text(self):
-        if not self.photo_path:
-            messagebox.showinfo(t("common_info"), t("importphoto_choose_first"))
-            return
-        if not PYTESSERACT_AVAILABLE:
-            messagebox.showerror(
-                t("common_module_missing"),
-                t("importphoto_ocr_module_missing")
-            )
+    def _poll_ocr_status(self):
+        if self._closed or not self.winfo_exists():
             return
         try:
-            image = Image.open(self.photo_path) if PIL_AVAILABLE else self.photo_path
-            tesseract_lang = TESSERACT_LANG_CODES.get(CURRENT_LANGUAGE, "fra")
-            extracted = pytesseract.image_to_string(image, lang=tesseract_lang)
-        except Exception as e:
-            messagebox.showerror(
-                t("importphoto_extraction_failed_title"),
-                t("importphoto_extraction_failed_message", error=e)
+            status = self._ocr_status_results.get_nowait()
+        except queue.Empty:
+            self.after(100, self._poll_ocr_status)
+            return
+        self._ocr_status_checking = False
+        self._ocr_status = status
+        self.refresh_ocr_button.config(state="normal")
+        self._display_ocr_status(status)
+
+    def _display_ocr_status(self, status):
+        if not status["pytesseract"]:
+            msg = t("importphoto_ocr_pytesseract_missing")
+            color = COLOR_ERROR
+        elif not status["executable"]:
+            msg = t("importphoto_ocr_exe_missing")
+            color = COLOR_ERROR
+        elif not status["ready"]:
+            msg = t(
+                "importphoto_ocr_lang_missing",
+                lang=status.get("required_lang") or "?"
+            )
+            color = COLOR_ERROR
+        else:
+            msg = t(
+                "importphoto_ocr_ready",
+                version=status.get("version") or "?",
+                lang=status.get("required_lang") or "?"
+            )
+            color = COLOR_GREEN
+        self.ocr_status_label.config(text=msg, foreground=color)
+        self._update_extract_button()
+
+    def _update_extract_button(self):
+        state = (
+            "normal"
+            if self.photo_paths and self._ocr_status.get("ready")
+            else "disabled"
+        )
+        self.extract_button.config(state=state)
+
+    def choose_photo(self):
+        paths = filedialog.askopenfilenames(
+            title=t("importphoto_choose_photo_title"),
+            filetypes=self.IMAGE_FILETYPES
+        )
+        if not paths:
+            return
+        existing = {os.path.normcase(os.path.abspath(p)) for p in self.photo_paths}
+        for path in paths:
+            full = os.path.abspath(path)
+            key = os.path.normcase(full)
+            if key not in existing:
+                self.photo_paths.append(full)
+                existing.add(key)
+        self._refresh_photo_list(select_last=True)
+
+    def _refresh_photo_list(self, select_last=False):
+        self.photo_listbox.delete(0, tk.END)
+        for index, path in enumerate(self.photo_paths, 1):
+            rotation = self.photo_rotations.get(path, 0) % 360
+            suffix = f"  ({rotation}°)" if rotation else ""
+            self.photo_listbox.insert(
+                tk.END, f"{index}. {os.path.basename(path)}{suffix}"
+            )
+        if self.photo_paths:
+            pos = len(self.photo_paths) - 1 if select_last else 0
+            self.photo_listbox.selection_set(pos)
+            self.photo_listbox.activate(pos)
+            self.photo_listbox.see(pos)
+            self._show_preview(pos)
+        else:
+            self._preview_ref = None
+            self.preview_label.config(
+                image="", text=t("importphoto_no_photo_chosen")
+            )
+        self._update_extract_button()
+
+    def _on_photo_selected(self, _event=None):
+        sel = self.photo_listbox.curselection()
+        if sel:
+            self._show_preview(sel[0])
+
+    def _show_preview(self, index):
+        if not (0 <= index < len(self.photo_paths)):
+            return
+        path = self.photo_paths[index]
+        self.preview_label.config(
+            text=t(
+                "importphoto_photo_position",
+                current=index + 1, total=len(self.photo_paths)
+            )
+        )
+        if PIL_AVAILABLE:
+            try:
+                with Image.open(path) as source:
+                    img = ImageOps.exif_transpose(source).convert("RGB")
+                rotation = self.photo_rotations.get(path, 0) % 360
+                if rotation:
+                    img = img.rotate(-rotation, expand=True)
+                img.thumbnail((260, 150))
+                self._preview_ref = ImageTk.PhotoImage(img)
+                self.preview_label.config(
+                    image=self._preview_ref, compound="top"
+                )
+            except Exception as exc:
+                log_internal_error("importphoto_preview", exc)
+
+    def _move_photo(self, delta):
+        sel = self.photo_listbox.curselection()
+        if not sel:
+            return
+        old = sel[0]
+        new = old + delta
+        if not (0 <= new < len(self.photo_paths)):
+            return
+        self.photo_paths[old], self.photo_paths[new] = (
+            self.photo_paths[new], self.photo_paths[old]
+        )
+        self._refresh_photo_list()
+        self.photo_listbox.selection_clear(0, tk.END)
+        self.photo_listbox.selection_set(new)
+        self.photo_listbox.activate(new)
+        self.photo_listbox.see(new)
+        self._show_preview(new)
+
+    def _rotate_selected_photo(self, delta):
+        sel = self.photo_listbox.curselection()
+        if not sel:
+            return
+        index = sel[0]
+        path = self.photo_paths[index]
+        self.photo_rotations[path] = (
+            self.photo_rotations.get(path, 0) + delta
+        ) % 360
+        self._refresh_photo_list()
+        self.photo_listbox.selection_clear(0, tk.END)
+        self.photo_listbox.selection_set(index)
+        self.photo_listbox.activate(index)
+        self.photo_listbox.see(index)
+        self._show_preview(index)
+
+    def _remove_selected_photo(self):
+        sel = self.photo_listbox.curselection()
+        if not sel:
+            return
+        path = self.photo_paths.pop(sel[0])
+        self.photo_rotations.pop(path, None)
+        self._refresh_photo_list()
+
+    def _clear_photos(self):
+        self.photo_paths = []
+        self.photo_rotations = {}
+        self._refresh_photo_list()
+        self.text_box.delete("1.0", tk.END)
+
+    def extract_text(self):
+        if not self.photo_paths:
+            messagebox.showinfo(
+                t("common_info"), t("importphoto_choose_first")
             )
             return
-        extracted = extracted.strip()
+
+        if self._ocr_status_checking:
+            messagebox.showinfo(
+                t("common_info"), t("importphoto_ocr_checking_wait"), parent=self
+            )
+            return
+        if not self._ocr_status.get("ready"):
+            status = self._ocr_status
+            if status.get("reason") == "language_missing":
+                messagebox.showerror(
+                    t("common_module_missing"),
+                    t(
+                        "importphoto_ocr_lang_missing_detail",
+                        lang=status.get("required_lang") or "?"
+                    ),
+                    parent=self
+                )
+            else:
+                messagebox.showerror(
+                    t("common_module_missing"),
+                    t("importphoto_ocr_tesseract_missing_detail"),
+                    parent=self
+                )
+            return
+
+        self.extract_button.config(state="disabled")
+        self.progress["value"] = 0
+        if not self._progress_visible:
+            self.progress.pack(side="right")
+            self._progress_visible = True
+        self.status_label.config(text=t("importphoto_ocr_running"))
+        paths_snapshot = list(self.photo_paths)
+        rotations_snapshot = dict(self.photo_rotations)
+        lang = self._ocr_status.get("required_lang") or "fra"
+        self._ocr_work_results = queue.Queue()
+        threading.Thread(
+            target=self._ocr_worker,
+            args=(paths_snapshot, lang, rotations_snapshot),
+            daemon=True
+        ).start()
+        self.after(100, self._poll_ocr_worker)
+
+    def _ocr_worker(self, paths, lang, rotations=None):
+        chunks = []
+        error = None
+        rotations = rotations or {}
+        try:
+            total = len(paths)
+            for idx, path in enumerate(paths, 1):
+                if self._closed:
+                    return
+                if PIL_AVAILABLE:
+                    with Image.open(path) as source:
+                        image = prepare_image_for_ocr(
+                            source, rotations.get(path, 0), max_dimension=2400
+                        )
+                    # La rotation manuelle prime. Sans correction manuelle,
+                    # OSD rattrape les photos dont l'orientation EXIF est
+                    # absente ou erronée.
+                    if not rotations.get(path, 0):
+                        auto_rotation = detect_ocr_rotation(prepare_image_for_ocr(image))
+                        if auto_rotation:
+                            image = image.rotate(-auto_rotation, expand=True)
+                    recognize = lambda candidate: pytesseract.image_to_string(
+                        candidate, lang=lang, timeout=25
+                    )
+                    raw_text = recognize(prepare_image_for_ocr(image)).strip()
+                    text_value = raw_text
+                    # Le mode de segmentation 4 respecte mieux les lignes
+                    # d'une table nom/quantité. Sur la photo Barramundi réelle,
+                    # le mode automatique plaçait « 1 barquette » avant
+                    # « Tomates cerises » ; ce second passage les réunit.
+                    if re.search(
+                        r"ingr[eé]dients?\s+(?:pour|for|para|f[uü]r)",
+                        raw_text,
+                        re.IGNORECASE,
+                    ):
+                        try:
+                            table_text = ocr_ingredient_table(image, lang, lambda: self._closed).strip()
+                        except OperationCancelled:
+                            return
+                        except (RuntimeError, ValueError) as exc:
+                            log_internal_error("ocr.table_refinement", exc)
+                            table_text = ""
+                        if table_text:
+                            text_value = table_text
+                    elif looks_like_preparation_grid(raw_text):
+                        try:
+                            grid_text = ocr_grid_cells(
+                                image, lambda cell: ocr_preparation_cell(cell, lang, lambda: self._closed)
+                            )
+                        except OperationCancelled:
+                            return
+                        except (RuntimeError, ValueError) as exc:
+                            log_internal_error("ocr.grid_refinement", exc)
+                            grid_text = ""
+                        # Le découpage n'est retenu que si plusieurs cases ont
+                        # livré un texte substantiel. Le texte brut reste le
+                        # repli sûr pour une page classique à une colonne.
+                        substantial = [
+                            part for part in grid_text.split("\n\n")
+                            if len(part.strip()) >= 45
+                        ]
+                        if len(substantial) >= 4 and len(grid_text) >= len(raw_text) * 0.55:
+                            text_value = grid_text.strip()
+                else:
+                    text_value = pytesseract.image_to_string(
+                        path, lang=lang, timeout=25
+                    ).strip()
+
+                if text_value:
+                    chunks.append(
+                        t("importphoto_page_heading", number=idx)
+                        + "\n" + text_value
+                    )
+                pct = int(idx * 100 / total)
+                self._ocr_work_results.put(("progress", (pct, idx, total)))
+        except Exception as exc:
+            error = exc
+        self._ocr_work_results.put(("done", (chunks, error)))
+
+    def _poll_ocr_worker(self):
+        if self._closed or not self.winfo_exists():
+            return
+        finished = False
+        while True:
+            try:
+                kind, payload = self._ocr_work_results.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "progress":
+                self._ocr_progress(*payload)
+            elif kind == "done":
+                self._ocr_done(*payload)
+                finished = True
+        if not finished:
+            self.after(100, self._poll_ocr_worker)
+
+    def _ocr_progress(self, pct, idx, total):
+        if self._closed or not self.winfo_exists():
+            return
+        self.progress["value"] = pct
+        self.status_label.config(
+            text=t(
+                "importphoto_ocr_progress",
+                current=idx, total=total
+            )
+        )
+
+    def _ocr_done(self, chunks, error):
+        if self._closed or not self.winfo_exists():
+            return
+        if self._progress_visible:
+            self.progress.pack_forget()
+            self._progress_visible = False
+        self.status_label.config(text="")
+        self._update_extract_button()
+
+        if error is not None:
+            messagebox.showerror(
+                t("importphoto_extraction_failed_title"),
+                t("importphoto_extraction_failed_message", error=error),
+                parent=self
+            )
+            return
+
         self.text_box.delete("1.0", tk.END)
-        if extracted:
-            self.text_box.insert("1.0", extracted)
+        if chunks:
+            self.text_box.insert("1.0", "\n\n".join(chunks))
+            warnings = parse_photo_ocr_recipe("\n\n".join(chunks)).get("ocr_warnings", [])
+            if warnings:
+                self.status_label.config(text=t("importphoto_uncertain_quantities", names=", ".join(warnings)))
         else:
             messagebox.showinfo(
-                t("common_info"),
-                t("importphoto_no_text_extracted")
+                t("common_info"), t("importphoto_no_text_extracted"),
+                parent=self
             )
+
+    def _close_import_window(self):
+        self._closed = True
+        self.destroy()
 
     def create_recipe(self):
         raw_text = self.text_box.get("1.0", "end-1c").strip()
-        if not raw_text:
-            if not messagebox.askyesno(
-                t("importphoto_no_text_title"),
-                t("importphoto_no_text_confirm")
-            ):
-                return
+        if not raw_text and not messagebox.askyesno(
+            t("importphoto_no_text_title"),
+            t("importphoto_no_text_confirm"),
+            parent=self
+        ):
+            return
 
-        images = []
-        if self.photo_path:
-            copied = copy_image_to_store(self.photo_path)
-            if copied:
-                images.append(copied)
-
+        # Toutes les photos sélectionnées sont transmises au formulaire
+        # final, dans le même ordre que celui utilisé pour l'OCR.
+        parsed_prefill = parse_photo_ocr_recipe(raw_text)
+        if not parsed_prefill.get("description"):
+            if not parsed_prefill.get("ingredients"):
+                parsed_prefill["description"] = raw_text[:12000]
         prefill = {
-            "name": "",
-            "description": raw_text[:2056],
-            "ingredients": [],
-            "prep_time": "",
-            "cook_time": "",
-            "default_persons": 4,
-            "images": images,
+            **parsed_prefill,
+            "images": [],
+            "image_sources": list(self.photo_paths),
+            "temporary_image_sources": [],
         }
+        self._closed = True
         self.destroy()
         RecipeFormWindow(self.app, recipe_index=None, prefill=prefill)
 
@@ -15136,7 +17805,7 @@ class CookbookExportWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("cookbookexport_title"))
-        self.geometry(f"{gs(560)}x{gs(600)}")
+        fit_window_to_workarea(self, gs(840), gs(900), margin=18)
         self.grab_set()
 
         ttk.Label(self, text=t("cookbookexport_heading"),
@@ -15228,180 +17897,98 @@ class CookbookExportWindow(tk.Toplevel):
 
 
 class CompareRecipesWindow(tk.Toplevel):
-    """Compare deux recettes côte à côte : temps, difficulté, note, et
-    ingrédients communs / différents."""
+    """Compare jusqu'à trois recettes côte à côte."""
 
     def __init__(self, app):
         super().__init__(app)
         self.app = app
         self.title(t("compare_title"))
-        self.geometry(f"{gs(900)}x{gs(700)}")
+        fit_window_to_workarea(self, gs(1456), get_usable_screen_height(self), margin=18)
+        safe_minsize(self, gs(900), gs(600))
         self.grab_set()
-
         recipe_names = [r["name"] for r in self.app.recipes]
-
-        picker_frame = ttk.Frame(self)
-        picker_frame.pack(pady=15, padx=15, fill="x")
-
-        ttk.Label(picker_frame, text=t("compare_recipe_a_label"), font=("Segoe UI", sf(10), "bold")).grid(
-            row=0, column=0, sticky="w", padx=(0, 5))
-        self.combo_a = ttk.Combobox(picker_frame, values=recipe_names, state="readonly", width=32)
-        self.combo_a.grid(row=0, column=1, padx=5)
-        if recipe_names:
-            self.combo_a.current(0)
-
-        ttk.Label(picker_frame, text=t("compare_recipe_b_label"), font=("Segoe UI", sf(10), "bold")).grid(
-            row=1, column=0, sticky="w", padx=(0, 5), pady=(8, 0))
-        self.combo_b = ttk.Combobox(picker_frame, values=recipe_names, state="readonly", width=32)
-        self.combo_b.grid(row=1, column=1, padx=5, pady=(8, 0))
-        if len(recipe_names) > 1:
-            self.combo_b.current(1)
-        elif recipe_names:
-            self.combo_b.current(0)
-
-        ttk.Button(picker_frame, text=t("compare_button"), command=self.compare).grid(
-            row=0, column=2, rowspan=2, padx=15)
-
-        container = ttk.Frame(self)
-        container.pack(fill="both", expand=True, padx=15, pady=(0, 15))
-        canvas = tk.Canvas(container, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        self.result_frame = ttk.Frame(canvas)
-        self.result_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=self.result_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        picker = ttk.Frame(self)
+        picker.pack(pady=12, padx=15, fill="x")
+        self.combos=[]
+        labels=[t("compare_recipe_a_label"), t("compare_recipe_b_label"), t("compare_recipe_c_label")]
+        for i,label in enumerate(labels):
+            ttk.Label(picker,text=label,font=("Segoe UI",sf(9),"bold")).grid(row=i,column=0,sticky="w",pady=3)
+            cb=ttk.Combobox(picker,values=[""]+recipe_names,state="readonly",width=38)
+            cb.grid(row=i,column=1,padx=6,pady=3,sticky="w")
+            if i < len(recipe_names): cb.current(i+1)
+            self.combos.append(cb)
+        ttk.Button(picker,text=t("compare_three_button"),style="Hero.TButton",command=self.compare).grid(row=0,column=2,rowspan=3,padx=18)
+        container=ttk.Frame(self); container.pack(fill="both",expand=True,padx=15,pady=(0,15))
+        canvas=tk.Canvas(container,highlightthickness=0); sb=ttk.Scrollbar(container,orient="vertical",command=canvas.yview)
+        self.result_frame=ttk.Frame(canvas); self.result_frame.bind("<Configure>",lambda e:canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0,0),window=self.result_frame,anchor="nw"); canvas.configure(yscrollcommand=sb.set)
+        canvas.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")
 
     def compare(self):
-        name_a = self.combo_a.get()
-        name_b = self.combo_b.get()
-        if not name_a or not name_b:
-            messagebox.showinfo(t("common_info"), t("compare_choose_each_list"))
-            return
-        recipe_a = find_recipe_by_name(self.app.recipes, name_a)
-        recipe_b = find_recipe_by_name(self.app.recipes, name_b)
-        if recipe_a is None or recipe_b is None:
-            return
+        names=[cb.get().strip() for cb in self.combos if cb.get().strip()]
+        names=list(dict.fromkeys(names))
+        if len(names)<2:
+            messagebox.showinfo(t("common_info"),t("compare_choose_each_list")); return
+        recipes=[find_recipe_by_name(self.app.recipes,n) for n in names]
+        recipes=[r for r in recipes if r is not None]
+        for child in self.result_frame.winfo_children(): child.destroy()
+        table=ttk.Frame(self.result_frame); table.pack(fill="x",pady=(0,15))
+        table.columnconfigure(0,weight=0)
+        for i in range(len(recipes)): table.columnconfigure(i+1,weight=1)
+        ttk.Label(table,text="",width=18).grid(row=0,column=0)
+        for i,r in enumerate(recipes):
+            ttk.Label(table,text=r['name'],font=("Segoe UI",sf(10),"bold"),foreground=COLOR_ACCENT_DARK,wraplength=250).grid(row=0,column=i+1,padx=8,pady=(0,6),sticky="w")
+        ttk.Separator(table,orient="horizontal").grid(row=1,column=0,columnspan=len(recipes)+1,sticky="ew",pady=(0,6))
+        row=[2]
+        def line(label,vals,best=None,lower=False):
+            rr=row[0]; ttk.Label(table,text=label,font=("Segoe UI",sf(9),"bold")).grid(row=rr,column=0,sticky="w",pady=3,padx=(0,8))
+            comparable=[v for v in vals if isinstance(v,(int,float))]
+            bestval=(min(comparable) if lower else max(comparable)) if comparable and best else None
+            for i,v in enumerate(vals):
+                display=v
+                if best and isinstance(v,(int,float)):
+                    suffix=("  "+t("compare_best_marker")) if v==bestval and len(set(comparable))>1 else ""
+                    display=best(v)+suffix
+                ttk.Label(table,text=str(display),wraplength=250,justify="left").grid(row=rr,column=i+1,sticky="w",padx=8,pady=3)
+            row[0]+=1
+        line(t("compare_field_category"),[translate_category_name(r.get('category','Autre')) for r in recipes])
+        line(t("compare_field_favorite"),[t("compare_yes") if r.get('favorite') else t("compare_no") for r in recipes])
+        line(t("compare_field_rating"),[float(r.get('rating',0) or 0) for r in recipes],best=lambda v: rating_stars(v) if v else '—')
+        line(t("compare_field_difficulty"),[translate_difficulty_name(r.get('difficulty')) or '—' for r in recipes])
+        def total(r):
+            try:return float(r.get('prep_time') or 0)+float(r.get('cook_time') or 0)
+            except:return 0
+        line(t("compare_field_total_time"),[total(r) for r in recipes],best=lambda v:f"{v:.0f} min" if v else '—',lower=True)
+        line(t("compare_field_cooked"),[int(r.get('times_cooked',0) or 0) for r in recipes],best=lambda v:t("compare_times_suffix",count=v))
+        costs=[]; kcals=[]
+        for r in recipes:
+            persons=r.get('default_persons',1) or 1
+            c,known,_=compute_recipe_cost(r,persons); costs.append((c/persons) if known else None)
+            n,knownn,_=compute_recipe_nutrition(r,persons); kcals.append((n['kcal']/persons) if knownn else None)
+        def metric_line(label,vals,fmt,lower=True):
+            nums=[v for v in vals if isinstance(v,(int,float))]; bv=min(nums) if nums and lower else (max(nums) if nums else None)
+            disp=[]
+            for v in vals:
+                if v is None: disp.append('—')
+                else: disp.append(fmt(v)+(("  "+t("compare_best_marker")) if bv is not None and v==bv and len(set(nums))>1 else ""))
+            line(label,disp)
+        metric_line(t("compare_field_cost"),costs,lambda v:f"{v:.2f} € / p.")
+        metric_line(t("compare_field_nutrition"),kcals,lambda v:f"{v:.0f} kcal / p.")
+        line(t("compare_field_ingredient_count"),[len(r.get('ingredients',[])) for r in recipes],best=lambda v:str(v),lower=True)
 
-        for child in self.result_frame.winfo_children():
-            child.destroy()
-
-        # ---- Tableau comparatif (vraies colonnes de grille, toujours bien
-        # alignées, contrairement à un padding par espaces dans du texte) ----
-        table = ttk.Frame(self.result_frame)
-        table.pack(fill="x", pady=(0, 15))
-        table.columnconfigure(0, weight=0)
-        table.columnconfigure(1, weight=1)
-        table.columnconfigure(2, weight=1)
-
-        ttk.Label(table, text="", width=16).grid(row=0, column=0)
-        ttk.Label(table, text=name_a, font=("Segoe UI", sf(10), "bold"),
-                  foreground=COLOR_ACCENT_DARK, wraplength=260).grid(row=0, column=1, padx=8, pady=(0, 6), sticky="w")
-        ttk.Label(table, text=name_b, font=("Segoe UI", sf(10), "bold"),
-                  foreground=COLOR_ACCENT_DARK, wraplength=260).grid(row=0, column=2, padx=8, pady=(0, 6), sticky="w")
-        ttk.Separator(table, orient="horizontal").grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 6))
-
-        row_counter = [2]
-
-        def field_line(label, value_a, value_b):
-            r = row_counter[0]
-            ttk.Label(table, text=label, font=("Segoe UI", sf(9), "bold")).grid(
-                row=r, column=0, sticky="w", pady=3, padx=(0, 8))
-            ttk.Label(table, text=str(value_a), wraplength=260, justify="left").grid(
-                row=r, column=1, sticky="w", padx=8, pady=3)
-            ttk.Label(table, text=str(value_b), wraplength=260, justify="left").grid(
-                row=r, column=2, sticky="w", padx=8, pady=3)
-            row_counter[0] += 1
-
-        cat_a = translate_category_name(recipe_a.get("category", "Autre"))
-        cat_b = translate_category_name(recipe_b.get("category", "Autre"))
-        field_line(t("compare_field_category"), cat_a, cat_b)
-
-        fav_a = t("compare_yes") if recipe_a.get("favorite") else t("compare_no")
-        fav_b = t("compare_yes") if recipe_b.get("favorite") else t("compare_no")
-        field_line(t("compare_field_favorite"), fav_a, fav_b)
-
-        field_line(t("compare_field_rating"), rating_stars(recipe_a.get("rating", 0)), rating_stars(recipe_b.get("rating", 0)))
-        field_line(
-            t("compare_field_difficulty"),
-            translate_difficulty_name(recipe_a.get("difficulty")) or "—",
-            translate_difficulty_name(recipe_b.get("difficulty")) or "—"
-        )
-
-        prep_a = recipe_a.get("prep_time") or "—"
-        prep_b = recipe_b.get("prep_time") or "—"
-        field_line(t("compare_field_prep"), f"{prep_a} min" if prep_a != "—" else "—", f"{prep_b} min" if prep_b != "—" else "—")
-
-        cook_a = recipe_a.get("cook_time") or "—"
-        cook_b = recipe_b.get("cook_time") or "—"
-        field_line(t("compare_field_cook"), f"{cook_a} min" if cook_a != "—" else "—", f"{cook_b} min" if cook_b != "—" else "—")
-
-        def total_minutes(r):
-            try:
-                return float(r.get("prep_time") or 0) + float(r.get("cook_time") or 0)
-            except (TypeError, ValueError):
-                return 0
-        total_a, total_b = total_minutes(recipe_a), total_minutes(recipe_b)
-        field_line(t("compare_field_total_time"), f"{total_a:.0f} min" if total_a else "—", f"{total_b:.0f} min" if total_b else "—")
-
-        field_line(
-            t("compare_field_cooked"),
-            t("compare_times_suffix", count=recipe_a.get('times_cooked', 0)),
-            t("compare_times_suffix", count=recipe_b.get('times_cooked', 0))
-        )
-
-        persons_a = recipe_a.get("default_persons", 1) or 1
-        persons_b = recipe_b.get("default_persons", 1) or 1
-        cost_a, cost_known_a, cost_total_a = compute_recipe_cost(recipe_a, persons_a)
-        cost_b, cost_known_b, cost_total_b = compute_recipe_cost(recipe_b, persons_b)
-        cost_display_a = f"{cost_a:.2f} € ({persons_a} p.)" if cost_known_a else "—"
-        cost_display_b = f"{cost_b:.2f} € ({persons_b} p.)" if cost_known_b else "—"
-        field_line(t("compare_field_cost"), cost_display_a, cost_display_b)
-
-        nutri_a, nutri_known_a, nutri_total_a = compute_recipe_nutrition(recipe_a, persons_a)
-        nutri_b, nutri_known_b, nutri_total_b = compute_recipe_nutrition(recipe_b, persons_b)
-        kcal_display_a = f"{nutri_a['kcal']:.0f} kcal ({persons_a} p.)" if nutri_known_a else "—"
-        kcal_display_b = f"{nutri_b['kcal']:.0f} kcal ({persons_b} p.)" if nutri_known_b else "—"
-        field_line(t("compare_field_nutrition"), kcal_display_a, kcal_display_b)
-
-        ing_names_a = {ing["name"].strip().lower(): ing["name"] for ing in recipe_a["ingredients"]}
-        ing_names_b = {ing["name"].strip().lower(): ing["name"] for ing in recipe_b["ingredients"]}
-        field_line(t("compare_field_ingredient_count"), len(ing_names_a), len(ing_names_b))
-
-        common_keys = set(ing_names_a) & set(ing_names_b)
-        only_a_keys = set(ing_names_a) - set(ing_names_b)
-        only_b_keys = set(ing_names_b) - set(ing_names_a)
-
-        # ---- Ingrédients : trois colonnes côte à côte, elles aussi bien
-        # alignées (communs / uniquement A / uniquement B) ----
-        ing_frame = ttk.Frame(self.result_frame)
-        ing_frame.pack(fill="x")
-        ing_frame.columnconfigure(0, weight=1)
-        ing_frame.columnconfigure(1, weight=1)
-        ing_frame.columnconfigure(2, weight=1)
-
-        def ingredient_column(parent, col, title, keys, names_map):
-            col_frame = ttk.Frame(parent)
-            col_frame.grid(row=0, column=col, sticky="nw", padx=8)
-            ttk.Label(col_frame, text=title, font=("Segoe UI", sf(9), "bold"),
-                      foreground=COLOR_ACCENT_DARK, wraplength=220, justify="left").pack(anchor="w", pady=(0, 4))
-            if keys:
-                for key in sorted(keys, key=ingredient_sort_key):
-                    ttk.Label(col_frame, text=f"• {translate_ingredient_name(names_map[key]).capitalize()}",
-                              wraplength=220, justify="left").pack(anchor="w", pady=1)
-            else:
-                ttk.Label(col_frame, text=t("compare_none"), foreground=COLOR_TEXT_MUTED).pack(anchor="w")
-
-        ingredient_column(ing_frame, 0, t("compare_common_ingredients", count=len(common_keys)), common_keys, ing_names_a)
-        ingredient_column(ing_frame, 1, t("compare_only_a", name=name_a, count=len(only_a_keys)), only_a_keys, ing_names_a)
-        ingredient_column(ing_frame, 2, t("compare_only_b", name=name_b, count=len(only_b_keys)), only_b_keys, ing_names_b)
+        ing_frame=ttk.Frame(self.result_frame); ing_frame.pack(fill="x")
+        maps=[]
+        for r in recipes: maps.append({ing.get('name','').strip().lower():ing.get('name','') for ing in r.get('ingredients',[]) if ing.get('name')})
+        common=set(maps[0])
+        for m in maps[1:]: common &= set(m)
+        common_col=ttk.Frame(ing_frame); common_col.pack(side="left",fill="both",expand=True,padx=8,anchor="n")
+        ttk.Label(common_col,text=t("compare_common_ingredients",count=len(common)),font=("Segoe UI",sf(9),"bold"),foreground=COLOR_ACCENT_DARK).pack(anchor="w")
+        for k in sorted(common,key=ingredient_sort_key): ttk.Label(common_col,text="• "+translate_ingredient_name(maps[0][k]).capitalize()).pack(anchor="w")
+        for idx,(r,m) in enumerate(zip(recipes,maps)):
+            unique=set(m) - set().union(*(set(x) for j,x in enumerate(maps) if j!=idx))
+            col=ttk.Frame(ing_frame); col.pack(side="left",fill="both",expand=True,padx=8,anchor="n")
+            ttk.Label(col,text=f"{r['name']} ({len(unique)})",font=("Segoe UI",sf(9),"bold"),foreground=COLOR_ACCENT_DARK,wraplength=220).pack(anchor="w")
+            for k in sorted(unique,key=ingredient_sort_key): ttk.Label(col,text="• "+translate_ingredient_name(m[k]).capitalize(),wraplength=220).pack(anchor="w")
 
 
 class StatisticsWindow(tk.Toplevel):
@@ -15411,10 +17998,45 @@ class StatisticsWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("stats_title"))
-        self.geometry(f"{gs(560)}x{gs(820)}")
-        self.minsize(gs(480), gs(500))
+        fit_window_to_workarea(self, gs(920), gs(840), margin=18)
+        safe_minsize(self, gs(720), gs(560))
         self.resizable(True, True)
         self.grab_set()
+
+        recipes = self.app.recipes
+        total = len(recipes)
+        total_cooked = sum(int(r.get("times_cooked", 0) or 0) for r in recipes)
+        year_prefix = str(datetime.now().year)
+        cooked_this_year = sum(
+            1 for r in recipes for d in (r.get("cooked_dates") or [])
+            if isinstance(d, str) and d.startswith(year_prefix)
+        )
+        rated = [float(r.get("rating", 0) or 0) for r in recipes if r.get("rating")]
+        avg_rating_card = (sum(rated) / len(rated)) if rated else 0
+        never_cooked_count = sum(1 for r in recipes if not r.get("times_cooked", 0))
+
+        ttk.Label(self, text=t("stats_dashboard_heading"), font=("Segoe UI", sf(15), "bold")).pack(pady=(14, 8))
+        cards = ttk.Frame(self)
+        cards.pack(fill="x", padx=15, pady=(0, 10))
+        card_data = [
+            (t("stats_card_recipes"), str(total)),
+            (t("stats_card_cooked_year"), str(cooked_this_year)),
+            (t("stats_card_total_cooked"), str(total_cooked)),
+            (t("stats_card_rating"), f"{avg_rating_card:.1f}/5" if rated else "—"),
+            (t("stats_card_never"), str(never_cooked_count)),
+        ]
+        for i, (label, value) in enumerate(card_data):
+            cards.columnconfigure(i, weight=1, uniform="stats")
+            card = tk.Frame(cards, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
+            card.grid(row=0, column=i, sticky="nsew", padx=4)
+            tk.Label(card, text=value, background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
+                     font=("Segoe UI", sf(17), "bold")).pack(pady=(10, 2))
+            tk.Label(card, text=label, background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
+                     font=("Segoe UI", sf(8)), wraplength=130, justify="center").pack(padx=6, pady=(0, 10))
+
+        actions = ttk.Frame(self)
+        actions.pack(fill="x", padx=15, pady=(0, 4))
+        ttk.Button(actions, text=t("stats_export_csv"), style="Secondary.TButton", command=self.export_csv).pack(side="right")
 
         text_frame = ttk.Frame(self)
         text_frame.pack(fill="both", expand=True, padx=15, pady=(15, 5))
@@ -15424,8 +18046,6 @@ class StatisticsWindow(tk.Toplevel):
         text.pack(side="left", fill="both", expand=True)
         text_scrollbar.pack(side="right", fill="y")
 
-        recipes = self.app.recipes
-        total = len(recipes)
         text.insert(tk.END, t("stats_heading"))
         text.insert(tk.END, t("stats_total_recipes", count=total))
 
@@ -15559,6 +18179,18 @@ class StatisticsWindow(tk.Toplevel):
             )
         else:
             text.insert(tk.END, t("stats_no_recognized_recipe"))
+        text.insert(tk.END, "\n")
+
+        total_times=[]
+        for r in recipes:
+            try:
+                minutes=float(r.get("prep_time") or 0)+float(r.get("cook_time") or 0)
+            except (TypeError,ValueError):
+                minutes=0
+            if minutes>0: total_times.append(minutes)
+        text.insert(tk.END, t("stats_avg_total_time_heading"))
+        if total_times:
+            text.insert(tk.END, t("stats_avg_total_time_line", avg=f"{sum(total_times)/len(total_times):.0f}", count=len(total_times)))
 
         text.config(state="disabled")
 
@@ -15584,6 +18216,25 @@ class StatisticsWindow(tk.Toplevel):
         ttk.Label(self, text=t("stats_heatmap_legend"), font=("Segoe UI", sf(8)),
                   foreground=COLOR_TEXT_MUTED).pack(pady=(0, 15))
         self.after(50, lambda: self._draw_cooking_heatmap(heatmap_canvas, recipes))
+
+    def export_csv(self):
+        path = filedialog.asksaveasfilename(title=t("stats_export_csv_title"), defaultextension=".csv", filetypes=[("CSV", "*.csv")])
+        if not path:
+            return
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as f:
+                w=csv.writer(f, delimiter=";")
+                w.writerow(["Recette","Catégorie","Difficulté","Note","Cuissons","Dernière cuisson","Temps total (min)","Coût/pers (€)","Calories/pers","Tags"])
+                for r in self.app.recipes:
+                    try: total=float(r.get('prep_time') or 0)+float(r.get('cook_time') or 0)
+                    except: total=0
+                    dates=r.get('cooked_dates') or []; last=max(dates) if dates else ''
+                    persons=r.get('default_persons',1) or 1
+                    cost,known,_=compute_recipe_cost(r,persons); nutrition,nknown,_=compute_recipe_nutrition(r,persons)
+                    w.writerow([r.get('name',''),translate_category_name(r.get('category','Autre')),translate_difficulty_name(r.get('difficulty')) or '',r.get('rating',0),r.get('times_cooked',0),last,f"{total:.0f}" if total else '',f"{cost/persons:.2f}" if known else '',f"{nutrition['kcal']/persons:.0f}" if nknown else '',", ".join(r.get('tags',[]))])
+            messagebox.showinfo(t("common_info"), t("stats_export_csv_done", path=path))
+        except Exception as e:
+            messagebox.showerror(t("common_error"), str(e))
 
     def _draw_cooking_heatmap(self, canvas, recipes):
         """Dessine un calendrier visuel façon « contributions GitHub » des
@@ -15701,5 +18352,6 @@ class StatisticsWindow(tk.Toplevel):
 
 
 if __name__ == "__main__":
+    enable_windows_dpi_awareness()
     app = App()
     app.mainloop()

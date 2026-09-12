@@ -5,7 +5,7 @@ Ce dossier contient tout ce qu'il faut pour utiliser Mes Recettes, Mes Courses.
 ## Option A — Utiliser directement avec Python (le plus simple pour tester)
 
 Double-cliquez sur **`main.pyw`**. Ça fonctionne tout de suite, à condition
-d'avoir Python installé sur votre PC (gratuit sur
+d'avoir Python 3.10 ou plus récent installé sur votre PC (gratuit sur
 https://www.python.org/downloads/, cocher "Add Python to PATH" pendant
 l'installation).
 
@@ -13,8 +13,11 @@ Certaines fonctionnalités (photos, export PDF/Excel, QR code, import photo,
 lecture à voix haute) nécessitent en plus quelques modules Python. Ouvrez
 une invite de commandes dans ce dossier et tapez :
 ```
-pip install pillow reportlab openpyxl qrcode pytesseract pyttsx3
+python -m pip install -r requirements.txt
 ```
+
+L'import photo nécessite aussi Tesseract OCR et les données de la langue
+utilisée, installés séparément : voir la section OCR de `LISEZ-MOI.md`.
 
 ## Option B — Créer un fichier .exe autonome (pour un usage sans Python)
 
@@ -27,10 +30,11 @@ icône à double-cliquer) :
    plus besoin de Python du tout, y compris sur d'autres PC.
 2. Double-cliquez sur **`Construire_le_exe.bat`**.
 3. Laissez faire — le script installe tout ce qu'il faut et construit
-   l'exécutable automatiquement (1 à 2 minutes).
+   l'exécutable automatiquement. La durée dépend du PC et des téléchargements.
 4. Une fois terminé, votre application se trouve dans le dossier `dist`,
    sous le nom **`MesRecettes.exe`**, accompagnée automatiquement de tous
-   les fichiers nécessaires à son fonctionnement (`ingredients_par_defaut.json`,
+   les fichiers nécessaires à son fonctionnement (`i18n_desktop.json`,
+   `ingredients_par_defaut.json`,
    `valeurs_nutritionnelles.json`, `ingredient_allergenes.json`,
    `ingredient_substitutions.json`, les traductions anglaise, espagnole et
    allemande des ingrédients et des substituts, les icônes de drapeaux, et
@@ -39,14 +43,20 @@ icône à double-cliquer) :
    Bureau, autre PC...) — gardez tous les fichiers de ce dossier ensemble.
    Le fichier **`LISEZ-MOI.txt`** à l'intérieur explique tout ce qu'il faut
    savoir pour utiliser cette version `.exe` (sans aucune référence à
-   Python, puisque vous n'en aurez plus besoin).
+   Python, puisque vous n'en aurez plus besoin). Tesseract OCR reste
+   nécessaire pour l'import photo, même avec le `.exe`.
 
 > Ce script doit être exécuté sur Windows (pas depuis ce chat) : téléchargez
 > le dossier, puis lancez `Construire_le_exe.bat` sur votre propre PC.
 
 ## Contenu de ce dossier
-- `main.pyw` : le code source de l'application (nécessite Python — voir
-  Option A), se lance sans fenêtre noire de console
+- `main.py` : le code source principal de l'application ;
+- `main.pyw` : le petit lanceur sans fenêtre noire de console (nécessite
+  Python — voir Option A)
+- `windows_printing.py` : contrôleur d’impression Windows utilisé en mode Python
+  et intégré automatiquement dans le `.exe`
+- `i18n_desktop.json` : tous les textes de l'interface dans les 4 langues
+  (français, anglais, espagnol, allemand)
 - `ingredients_par_defaut.json`, `valeurs_nutritionnelles.json`,
   `ingredient_allergenes.json`, `ingredient_substitutions.json` : les bases
   de données fournies (ingrédients courants, valeurs nutritionnelles,
@@ -68,7 +78,7 @@ icône à double-cliquer) :
   fois copié aux côtés de `MesRecettes.exe` après construction (le script
   de l'Option B s'en charge automatiquement)
 
-Au premier lancement (quelle que soit l'option choisie), l'application
-créera automatiquement à côté d'elle : `recipes.json`, `ingredients.json`,
-`weekly_plan.json`, `menus.json`, `trash.json`, `settings.json`, un dossier
-`images/` et un dossier `backups/`. Gardez tous ces fichiers ensemble.
+Au premier lancement, l'application utilise un dossier de données accessible
+en écriture. Pour une installation Windows, ce dossier peut se trouver dans
+le profil local de l'utilisateur. L'écran Diagnostic affiche son emplacement
+exact et permet de l'ouvrir.

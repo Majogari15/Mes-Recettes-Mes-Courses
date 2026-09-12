@@ -29,3 +29,11 @@ dist/
 # --- Fichiers système ---
 .DS_Store
 Thumbs.db
+
+error.log
+
+drafts/
+
+import_temp/
+
+*.tmp

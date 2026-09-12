@@ -5,9 +5,18 @@
 ; ============================================================
 
 #define MyAppName "Mes Recettes, Mes Courses"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.6.12"
 #define MyAppPublisher "Majogari"
 #define MyAppExeName "MesRecettes.exe"
+
+#ifexist "dist\MesRecettes.exe"
+#else
+#error "dist\MesRecettes.exe est absent. Lancez Construire_le_exe.bat avant de compiler l'installateur."
+#endif
+#ifexist "dist\i18n_desktop.json"
+#else
+#error "dist\i18n_desktop.json est absent. Relancez Construire_le_exe.bat."
+#endif
 
 [Setup]
 ; Identifiant unique de l'application (généré une seule fois, à garder
@@ -40,6 +49,7 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 ; L'exécutable et tous les fichiers de données, copiés depuis le
 ; dossier "dist" généré par Construire_le_exe.bat.
 Source: "dist\MesRecettes.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\i18n_desktop.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\ingredients_par_defaut.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\valeurs_nutritionnelles.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\ingredient_allergenes.json"; DestDir: "{app}"; Flags: ignoreversion

@@ -15,14 +15,19 @@ if errorlevel 1 (
 )
 
 echo Etape 1/3 : Installation des dependances necessaires...
-echo   (pillow, reportlab, openpyxl, qrcode, pytesseract, pyttsx3, pyinstaller)
+echo   (pillow, reportlab, openpyxl, qrcode, pyzbar, pytesseract, pyttsx3, tkinterdnd2, pyinstaller, pypdfium2)
 python -m pip install --upgrade pip >nul
-python -m pip install pillow reportlab openpyxl qrcode pytesseract pyttsx3 pyinstaller
+python -m pip install -r requirements.txt
 if errorlevel 1 (
     echo [ERREUR] L'installation des dependances a echoue.
     pause
     exit /b 1
 )
+
+rem Supprime les resultats precedents pour eviter qu'un ancien fichier
+rem reste dans l'installeur si une ressource n'est plus produite.
+if exist build rmdir /s /q build
+if exist dist rmdir /s /q dist
 
 echo.
 echo Etape 2/3 : Construction de l'executable (peut prendre 1 a 2 minutes)...
@@ -30,6 +35,13 @@ python -m PyInstaller --onefile --windowed --name "MesRecettes" ^
     --icon="icone_application.ico" ^
     --hidden-import=pyttsx3.drivers ^
     --hidden-import=pyttsx3.drivers.sapi5 ^
+    --additional-hooks-dir=. ^
+    --hidden-import=tkinterdnd2 ^
+    --hidden-import=windows_printing ^
+    --hidden-import=pypdfium2_raw ^
+    --collect-all=pyzbar ^
+    --collect-all=pypdfium2 ^
+    --collect-all=pypdfium2_raw ^
     main.pyw
 if errorlevel 1 (
     echo [ERREUR] La construction de l'executable a echoue.
@@ -37,8 +49,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if not exist "dist\MesRecettes.exe" (
+    echo [ERREUR] Le fichier dist\MesRecettes.exe n'a pas ete cree.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [OK] tkinterdnd2 est inclus via hook-tkinterdnd2.py :
+echo      --additional-hooks-dir=.
 echo.
 echo Etape 3/3 : Copie des fichiers necessaires a cote de l'executable...
+copy /Y i18n_desktop.json dist\i18n_desktop.json >nul
 copy /Y ingredients_par_defaut.json dist\ingredients_par_defaut.json >nul
 copy /Y valeurs_nutritionnelles.json dist\valeurs_nutritionnelles.json >nul
 copy /Y ingredient_allergenes.json dist\ingredient_allergenes.json >nul
@@ -54,6 +76,14 @@ copy /Y flag_uk.png dist\flag_uk.png >nul
 copy /Y flag_es.png dist\flag_es.png >nul
 copy /Y flag_de.png dist\flag_de.png >nul
 copy /Y LISEZ-MOI.txt dist\LISEZ-MOI.txt >nul
+
+for %%F in (MesRecettes.exe i18n_desktop.json ingredients_par_defaut.json valeurs_nutritionnelles.json ingredient_allergenes.json ingredient_substitutions.json ingredient_substitutions_en.json ingredient_substitutions_es.json ingredient_substitutions_de.json ingredient_translations_en.json ingredient_translations_es.json ingredient_translations_de.json flag_fr.png flag_uk.png flag_es.png flag_de.png LISEZ-MOI.txt) do (
+    if not exist "dist\%%F" (
+        echo [ERREUR] Ressource manquante dans dist : %%F
+        pause
+        exit /b 1
+    )
+)
 
 echo.
 echo ================================================

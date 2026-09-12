@@ -33,7 +33,9 @@
   "Amarante": [],
   "Amaretto": [],
   "Ananas": [],
-  "Anchoïade": [],
+  "Anchoïade": [
+    "Poisson"
+  ],
   "Anchois": [
     "Poisson"
   ],
@@ -91,6 +93,7 @@
   "Basilic thaï": [],
   "Batavia": [],
   "Bâtonnet de poisson": [
+    "Gluten",
     "Poisson"
   ],
   "Bâtonnet de surimi": [
@@ -107,7 +110,9 @@
   "Bergamote": [],
   "Bette à carde": [],
   "Betterave": [],
-  "Beurre": [],
+  "Beurre": [
+    "Lactose"
+  ],
   "Beurre clarifié": [
     "Lactose"
   ],
@@ -125,7 +130,7 @@
     "Lactose"
   ],
   "Beurre noisette": [
-    "Fruits à coque"
+    "Lactose"
   ],
   "Beurre salé": [
     "Lactose"
@@ -151,7 +156,8 @@
     "Œufs"
   ],
   "Biscuit sablé": [
-    "Gluten"
+    "Gluten",
+    "Lactose"
   ],
   "Blanc d'oeuf": [
     "Œufs"
@@ -364,7 +370,10 @@
   "Coquille Saint-Jacques": [
     "Mollusques"
   ],
-  "Cordon bleu": [],
+  "Cordon bleu": [
+    "Gluten",
+    "Lactose"
+  ],
   "Coriandre en grains": [],
   "Coriandre en poudre": [],
   "Coriandre fraîche": [],
@@ -384,9 +393,7 @@
   ],
   "Courge butternut": [],
   "Courge musquée": [],
-  "Courge spaghetti": [
-    "Gluten"
-  ],
+  "Courge spaghetti": [],
   "Courgette": [],
   "Couscous": [
     "Gluten"
@@ -402,13 +409,14 @@
   ],
   "Cranberry": [],
   "Cranberry séchée": [],
-  "Crème": [],
+  "Crème": [
+    "Lactose"
+  ],
   "Crème anglaise": [
-    "Lactose"
+    "Lactose",
+    "Œufs"
   ],
-  "Crème de balsamique": [
-    "Lactose"
-  ],
+  "Crème de balsamique": [],
   "Crème de coco": [],
   "Crème de marron": [],
   "Crème de tartre": [],
@@ -434,7 +442,8 @@
     "Lactose"
   ],
   "Crème pâtissière": [
-    "Lactose"
+    "Lactose",
+    "Œufs"
   ],
   "Cresson": [],
   "Crevette": [
@@ -508,14 +517,12 @@
   "Endive rouge": [],
   "Entrecôte": [],
   "Épaule d'agneau": [],
-  "Épeautre": [],
+  "Épeautre": [
+    "Gluten"
+  ],
   "Épices à colombo": [],
-  "Épices à couscous": [
-    "Gluten"
-  ],
-  "Épices à pain d'épices": [
-    "Gluten"
-  ],
+  "Épices à couscous": [],
+  "Épices à pain d'épices": [],
   "Épices barbecue": [],
   "Épices cajun": [],
   "Épices tandoori": [],
@@ -525,7 +532,9 @@
     "Lactose"
   ],
   "Escalope de dinde": [],
-  "Escalope de poulet panée": [],
+  "Escalope de poulet panée": [
+    "Gluten"
+  ],
   "Escalope de veau": [],
   "Escargot": [
     "Mollusques"
@@ -542,7 +551,9 @@
   "Faisselle": [
     "Lactose"
   ],
-  "Farine": [],
+  "Farine": [
+    "Gluten"
+  ],
   "Farine d'amande": [
     "Fruits à coque"
   ],
@@ -605,7 +616,9 @@
   ],
   "Fleur de courgette": [],
   "Fleur de sel": [],
-  "Flocons d'avoine": [],
+  "Flocons d'avoine": [
+    "Gluten"
+  ],
   "Foie de veau": [],
   "Foie gras": [],
   "Fond brun": [],
@@ -619,7 +632,9 @@
   "Fraise": [],
   "Fraise des bois": [],
   "Framboise": [],
-  "Freekeh": [],
+  "Freekeh": [
+    "Gluten"
+  ],
   "Frisée": [],
   "Fromage": [
     "Lactose"
@@ -667,12 +682,16 @@
     "Gluten",
     "Œufs"
   ],
-  "Germe de blé": [],
+  "Germe de blé": [
+    "Gluten"
+  ],
   "Germe de haricot": [],
   "Germe de soja": [
     "Soja"
   ],
-  "Ghee": [],
+  "Ghee": [
+    "Lactose"
+  ],
   "Gibier": [],
   "Gigot d'agneau": [],
   "Gin": [],
@@ -681,7 +700,9 @@
   "Gingembre frais": [],
   "Gingembre mariné": [],
   "Girolle": [],
-  "Glaçage royal": [],
+  "Glaçage royal": [
+    "Œufs"
+  ],
   "Glucose": [],
   "Gombo": [],
   "Gorgonzola": [
@@ -713,9 +734,7 @@
   "Griotte": [],
   "Gros sel": [],
   "Groseille": [],
-  "Groseille à maquereau": [
-    "Poisson"
-  ],
+  "Groseille à maquereau": [],
   "Gruyère": [
     "Lactose"
   ],
@@ -804,7 +823,9 @@
   "Jus de tomate": [],
   "Jus de viande": [],
   "Kaki": [],
-  "Kamut": [],
+  "Kamut": [
+    "Gluten"
+  ],
   "Kéfir": [
     "Lactose"
   ],
@@ -814,7 +835,9 @@
   "Kirsch": [],
   "Kiwi": [],
   "Kumquat": [],
-  "Lait": [],
+  "Lait": [
+    "Lactose"
+  ],
   "Lait concentré non sucré": [
     "Lactose"
   ],
@@ -824,7 +847,9 @@
   "Lait d'amande": [
     "Fruits à coque"
   ],
-  "Lait d'avoine": [],
+  "Lait d'avoine": [
+    "Gluten"
+  ],
   "Lait de coco": [],
   "Lait de coco en boîte": [],
   "Lait de riz": [],
@@ -868,9 +893,7 @@
   "Lentille verte": [],
   "Lentilles en boîte": [],
   "Levure": [],
-  "Levure boulangère": [
-    "Gluten"
-  ],
+  "Levure boulangère": [],
   "Levure chimique": [],
   "Levure chimique sans gluten": [],
   "Levure de bière": [
@@ -947,7 +970,6 @@
   "Merguez": [],
   "Merguez d'agneau": [],
   "Meringue": [
-    "Gluten",
     "Œufs"
   ],
   "Merlu": [
@@ -1020,7 +1042,9 @@
   "Noisette grillée": [
     "Fruits à coque"
   ],
-  "Noix": [],
+  "Noix": [
+    "Fruits à coque"
+  ],
   "Noix de cajou": [
     "Fruits à coque"
   ],
@@ -1036,7 +1060,9 @@
   "Noix de pécan": [
     "Fruits à coque"
   ],
-  "Noix de Saint-Jacques": [],
+  "Noix de Saint-Jacques": [
+    "Mollusques"
+  ],
   "Noix du Brésil": [
     "Fruits à coque"
   ],
@@ -1049,8 +1075,12 @@
   "Nouilles chinoises": [],
   "Nouilles de riz": [],
   "Nouilles soba": [],
-  "Nouilles udon": [],
-  "Nugget de poulet": [],
+  "Nouilles udon": [
+    "Gluten"
+  ],
+  "Nugget de poulet": [
+    "Gluten"
+  ],
   "Oeuf de caille": [
     "Œufs"
   ],
@@ -1061,15 +1091,12 @@
     "Œufs"
   ],
   "Oeufs de lump": [
-    "Œufs",
     "Poisson"
   ],
   "Oeufs de poisson": [
-    "Œufs",
     "Poisson"
   ],
   "Oeufs de saumon": [
-    "Œufs",
     "Poisson"
   ],
   "Oie": [],
@@ -1130,13 +1157,18 @@
   "Patate douce": [],
   "Pâte à choux": [
     "Gluten",
+    "Lactose",
     "Œufs"
   ],
   "Pâte à crêpes": [
-    "Gluten"
+    "Gluten",
+    "Lactose",
+    "Œufs"
   ],
   "Pâte à gaufres": [
-    "Gluten"
+    "Gluten",
+    "Lactose",
+    "Œufs"
   ],
   "Pâte à pizza": [
     "Gluten"
@@ -1155,7 +1187,9 @@
   "Pâte feuilletée": [
     "Gluten"
   ],
-  "Pâte filo": [],
+  "Pâte filo": [
+    "Gluten"
+  ],
   "Pâte miso": [
     "Soja"
   ],
@@ -1165,7 +1199,9 @@
   "Pâte wonton": [
     "Gluten"
   ],
-  "Pâtes": [],
+  "Pâtes": [
+    "Gluten"
+  ],
   "Pavé de saumon": [
     "Poisson"
   ],
@@ -1186,9 +1222,15 @@
   "Persil frisé": [],
   "Persil plat": [],
   "Persil racine": [],
-  "Pesto basilic": [],
-  "Pesto en pot": [],
-  "Petit épeautre": [],
+  "Pesto basilic": [
+    "Lactose"
+  ],
+  "Pesto en pot": [
+    "Lactose"
+  ],
+  "Petit épeautre": [
+    "Gluten"
+  ],
   "Petit pois cassé": [],
   "Petit-lait": [
     "Lactose"
@@ -1239,6 +1281,7 @@
     "Poisson"
   ],
   "Poisson pané": [
+    "Gluten",
     "Poisson"
   ],
   "Poisson-chat": [
@@ -1340,9 +1383,7 @@
   "Reblochon": [
     "Lactose"
   ],
-  "Réduction balsamique": [
-    "Lactose"
-  ],
+  "Réduction balsamique": [],
   "Réglisse": [],
   "Reine-claude": [],
   "Rhubarbe": [],
@@ -1354,7 +1395,9 @@
   "Ris de veau": [],
   "Riz": [],
   "Riz arborio": [],
-  "Riz au lait": [],
+  "Riz au lait": [
+    "Lactose"
+  ],
   "Riz basmati": [],
   "Riz complet": [],
   "Riz gluant": [],
@@ -1401,15 +1444,23 @@
   "Sarrasin": [],
   "Sarriette": [],
   "Sauce barbecue": [],
-  "Sauce béchamel": [],
+  "Sauce béchamel": [
+    "Gluten",
+    "Lactose"
+  ],
   "Sauce chimichurri": [],
-  "Sauce cocktail": [],
+  "Sauce cocktail": [
+    "Œufs"
+  ],
   "Sauce curry": [],
   "Sauce hoisin": [
     "Gluten",
     "Soja"
   ],
-  "Sauce hollandaise": [],
+  "Sauce hollandaise": [
+    "Lactose",
+    "Œufs"
+  ],
   "Sauce huître": [
     "Mollusques"
   ],
@@ -1420,9 +1471,13 @@
   "Sauce piquante": [],
   "Sauce piquante en bouteille": [],
   "Sauce ponzu": [],
-  "Sauce ranch": [],
+  "Sauce ranch": [
+    "Lactose"
+  ],
   "Sauce salsa": [],
-  "Sauce satay": [],
+  "Sauce satay": [
+    "Arachides"
+  ],
   "Sauce soja": [
     "Gluten",
     "Soja"
@@ -1444,7 +1499,9 @@
     "Soja"
   ],
   "Sauce tabasco": [],
-  "Sauce tartare": [],
+  "Sauce tartare": [
+    "Œufs"
+  ],
   "Sauce teriyaki": [
     "Gluten",
     "Soja"
@@ -1455,9 +1512,7 @@
   "Sauce worcestershire": [
     "Poisson"
   ],
-  "Sauce worcestershire végétarienne": [
-    "Poisson"
-  ],
+  "Sauce worcestershire végétarienne": [],
   "Saucisse": [],
   "Saucisse de Toulouse": [],
   "Saucisson à l'ail": [
@@ -1490,10 +1545,16 @@
   "Sel de mer fumé": [],
   "Sel fin": [],
   "Sel fumé": [],
-  "Semoule de blé": [],
+  "Semoule de blé": [
+    "Gluten"
+  ],
   "Semoule de maïs": [],
-  "Semoule fine": [],
-  "Semoule moyenne": [],
+  "Semoule fine": [
+    "Gluten"
+  ],
+  "Semoule moyenne": [
+    "Gluten"
+  ],
   "Sésame blanc": [
     "Sésame"
   ],
@@ -1517,8 +1578,12 @@
   "Sole": [
     "Poisson"
   ],
-  "Son d'avoine": [],
-  "Son de blé": [],
+  "Son d'avoine": [
+    "Gluten"
+  ],
+  "Son de blé": [
+    "Gluten"
+  ],
   "Sorgho": [],
   "Souris d'agneau": [],
   "Spaghetti": [
@@ -1558,8 +1623,12 @@
     "Sésame"
   ],
   "Tamarin": [],
-  "Tapenade": [],
-  "Tapenade en pot": [],
+  "Tapenade": [
+    "Poisson"
+  ],
+  "Tapenade en pot": [
+    "Poisson"
+  ],
   "Tapioca": [],
   "Tarama": [
     "Poisson"
@@ -1642,7 +1711,9 @@
   "Vermouth": [
     "Sulfites"
   ],
-  "Vernis": [],
+  "Vernis": [
+    "Mollusques"
+  ],
   "Verveine": [],
   "Viande hachée mélangée": [],
   "Vin": [],

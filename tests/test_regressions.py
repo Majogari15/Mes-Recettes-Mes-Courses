@@ -1,0 +1,252 @@
+import json
+import math
+import os
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+
+import main
+
+DATA_GLOBALS = {
+    "DATA_FILE": "recipes.json",
+    "INGREDIENTS_FILE": "ingredients.json",
+    "INGREDIENT_OVERRIDES_FILE": "ingredient_custom_data.json",
+    "INGREDIENT_PRICES_FILE": "ingredient_prices.json",
+    "WEEKLY_PLAN_FILE": "weekly_plan.json",
+    "WEEKLY_PLAN_HISTORY_FILE": "weekly_plan_history.json",
+    "WEEKLY_PLAN_TEMPLATES_FILE": "weekly_plan_templates.json",
+    "MENUS_FILE": "menus.json",
+    "TRASH_FILE": "trash.json",
+    "RECENT_VIEWS_FILE": "recent_views.json",
+    "SETTINGS_FILE": "settings.json",
+    "SAVED_SHOPPING_LISTS_FILE": "saved_shopping_lists.json",
+    "PANTRY_FILE": "pantry.json",
+}
+
+class TempDataMixin:
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self.tmp.name)
+        names = ["DATA_DIR", "IMAGES_DIR", "BACKUPS_DIR", "DRAFTS_DIR", "IMPORT_TEMP_DIR", *DATA_GLOBALS]
+        self.old = {name: getattr(main, name) for name in names}
+        main.DATA_DIR = str(self.base)
+        main.IMAGES_DIR = str(self.base / "images")
+        main.BACKUPS_DIR = str(self.base / "backups")
+        main.DRAFTS_DIR = str(self.base / "drafts")
+        main.IMPORT_TEMP_DIR = str(self.base / "import_temp")
+        for d in (main.IMAGES_DIR, main.BACKUPS_DIR, main.DRAFTS_DIR, main.IMPORT_TEMP_DIR):
+            os.makedirs(d, exist_ok=True)
+        for g, filename in DATA_GLOBALS.items():
+            setattr(main, g, str(self.base / filename))
+        main._nutrition_cache = None
+        main._ingredient_allergens_cache = None
+        main._ingredient_substitutions_cache = None
+
+    def tearDown(self):
+        for g, value in self.old.items():
+            setattr(main, g, value)
+        self.tmp.cleanup()
+
+class CoreRegressionTests(TempDataMixin, unittest.TestCase):
+    def recipe(self, rid="r1", name="Test", persons=4, ingredients=None, images=None, cook_log=None):
+        return {
+            "id": rid,
+            "name": name,
+            "default_persons": persons,
+            "ingredients": ingredients or [{"name": "Farine", "quantity": 100, "unit": "Gr"}],
+            "images": images or [],
+            "cook_log": cook_log or [],
+        }
+
+    def test_non_finite_numbers_rejected(self):
+        for value in ("nan", "NaN", "inf", "-inf", float("nan"), float("inf")):
+            with self.assertRaises(ValueError):
+                main.parse_positive_number(value)
+        with self.assertRaises(ValueError):
+            main._atomic_write_json(self.base / "bad.json", {"x": float("nan")})
+
+    def test_recipe_payload_validation_and_safe_images(self):
+        with self.assertRaises(ValueError):
+            main.validate_recipes_payload({})
+        r = self.recipe(images=["ok.jpg", "../evil.jpg", "folder/x.png"])
+        r["cook_log"] = [{"photo": "../../bad.png"}, {"photo": "cook.jpg"}]
+        clean = main.validate_recipes_payload([r])[0]
+        self.assertEqual(clean["images"], ["ok.jpg"])
+        self.assertNotIn("photo", clean["cook_log"][0])
+        self.assertEqual(clean["cook_log"][1]["photo"], "cook.jpg")
+        self.assertIsNone(main.safe_image_filename("../evil.jpg"))
+
+    def test_unit_merging_and_scaling(self):
+        r1 = self.recipe("r1", ingredients=[{"name":"Farine","quantity":100,"unit":"Gr"}])
+        r2 = self.recipe("r2", name="B", ingredients=[{"name":"Farine","quantity":0.1,"unit":"Kilo"}])
+        grouped = main.compute_grouped_totals([(r1, 1), (r2, 1)])
+        flat = [(name, qty, unit) for _, items in grouped for name, qty, unit in items]
+        self.assertTrue(any(name.lower()=="farine" and abs(float(qty)-200)<1e-6 and unit=="Gr" for name, qty, unit in flat))
+        v1 = self.recipe("v1", ingredients=[{"name":"Lait","quantity":10,"unit":"cl"}])
+        v2 = self.recipe("v2", name="V2", ingredients=[{"name":"Lait","quantity":100,"unit":"ml"}])
+        grouped = main.compute_grouped_totals([(v1, 1), (v2, 1)])
+        flat = [(name, qty, unit) for _, items in grouped for name, qty, unit in items]
+        self.assertTrue(any(name.lower()=="lait" and abs(float(qty)-20)<1e-6 and unit=="cl" for name, qty, unit in flat))
+
+    def test_pantry_decrement_uses_person_count(self):
+        main.save_pantry({"farine": {"name":"Farine","quantity":1000,"unit":"Gr","threshold":None}})
+        r = self.recipe(ingredients=[{"name":"Farine","quantity":100,"unit":"Gr"}])
+        self.assertEqual(main.decrement_pantry_for_recipe(r, 4), 1)
+        self.assertAlmostEqual(main.load_pantry()["farine"]["quantity"], 600)
+
+    def test_pantry_decrement_cross_unit(self):
+        main.save_pantry({"farine": {"name":"Farine","quantity":1.0,"unit":"Kilo","threshold":None}})
+        r = self.recipe(ingredients=[{"name":"Farine","quantity":250,"unit":"Gr"}])
+        main.decrement_pantry_for_recipe(r, 2)
+        self.assertAlmostEqual(main.load_pantry()["farine"]["quantity"], 0.5)
+
+    def test_cost_supports_kilo_and_litres(self):
+        main.save_ingredient_prices({
+            "farine":{"name":"Farine","price":10,"unit":"kg"},
+            "lait":{"name":"Lait","price":2,"unit":"L"},
+        })
+        r = self.recipe(ingredients=[
+            {"name":"Farine","quantity":1,"unit":"Kilo"},
+            {"name":"Lait","quantity":500,"unit":"ml"},
+        ])
+        total, known, count = main.compute_recipe_cost(r, 2)
+        self.assertAlmostEqual(total, 22.0)
+        self.assertEqual((known, count), (2, 2))
+
+    def test_plan_old_name_migrates_to_id_and_survives_rename(self):
+        r = self.recipe("stable-id", name="Ancien nom")
+        main.save_recipes([r])
+        Path(main.WEEKLY_PLAN_FILE).write_text(json.dumps({
+            "Lundi":{"Dîner — Plat":{"recipe_name":"Ancien nom","persons":4}}
+        }, ensure_ascii=False), encoding="utf-8")
+        plan = main.load_weekly_plan()
+        self.assertEqual(plan["Lundi"]["Dîner — Plat"]["recipe_id"], "stable-id")
+        r["name"] = "Nouveau nom"
+        main.save_recipes([r])
+        plan2 = main.load_weekly_plan()
+        self.assertEqual(plan2["Lundi"]["Dîner — Plat"]["recipe_name"], "Nouveau nom")
+
+    def test_menu_old_name_migrates_to_id(self):
+        r = self.recipe("stable-id", name="Recette A")
+        main.save_recipes([r])
+        Path(main.MENUS_FILE).write_text(json.dumps([
+            {"name":"Menu","items":[{"recipe_name":"Recette A","persons":2}]}
+        ], ensure_ascii=False), encoding="utf-8")
+        menus = main.load_menus()
+        self.assertEqual(menus[0]["items"][0]["recipe_id"], "stable-id")
+
+    def test_parser_extended_forms(self):
+        p = main.parse_ingredient_line("2 x 400 g tomates")
+        self.assertAlmostEqual(p["quantity"], 800)
+        self.assertEqual(main.canonical_unit(p["unit"]), "gr")
+        p = main.parse_ingredient_line("1 c. à soupe de sucre")
+        self.assertAlmostEqual(p["quantity"], 1)
+        self.assertEqual(main.canonical_unit(p["unit"]), "cuillère à soupe")
+        p = main.parse_ingredient_line("sel")
+        self.assertEqual(p["unit"], "au goût")
+        p = main.parse_ingredient_line("1 1/2 kg de farine")
+        self.assertAlmostEqual(p["quantity"], 1.5)
+        self.assertEqual(main.canonical_unit(p["unit"]), "kg")
+
+    def test_shared_backup_includes_cook_log_photo(self):
+        (Path(main.IMAGES_DIR) / "cook.jpg").write_bytes(b"cook-photo")
+        r = self.recipe(cook_log=[{"date":"2026-01-01","photo":"cook.jpg"}])
+        main.save_recipes([r])
+        main.save_ingredients(["Farine"])
+        out = self.base / "shared.zip"
+        main.build_shared_backup_zip(str(out))
+        with zipfile.ZipFile(out, "r") as z:
+            self.assertIn("images/cook.jpg", z.namelist())
+
+
+    def test_cart_selection_uses_recipe_id(self):
+        from types import SimpleNamespace
+        r1 = self.recipe("id-a", name="Même nom", ingredients=[{"name":"Farine","quantity":100,"unit":"Gr"}])
+        r2 = self.recipe("id-b", name="Même nom", ingredients=[{"name":"Farine","quantity":250,"unit":"Gr"}])
+        dummy = SimpleNamespace(
+            app=SimpleNamespace(recipes=[r1, r2]),
+            _recipe_cart_persons={"id-b": 2},
+            manual_items=[],
+            current_items=[],
+            last_chosen_recipes=[],
+        )
+        main.AllRecipesWindow._rebuild_cart_from_recipe_selection(dummy)
+        self.assertEqual(len(dummy.current_items), 1)
+        self.assertAlmostEqual(float(dummy.current_items[0]["quantity"]), 500)
+
+    def test_full_restore_rolls_back_on_write_failure(self):
+        main.save_recipes([self.recipe("old", "Avant")])
+        main.save_pantry({"farine":{"name":"Farine","quantity":1,"unit":"Kilo"}})
+        archive = self.base / "rollback.zip"
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("recipes.json", json.dumps([self.recipe("new", "Après")], ensure_ascii=False))
+            z.writestr("pantry.json", json.dumps({"lait":{"name":"Lait","quantity":2,"unit":"Litre"}}, ensure_ascii=False))
+        original = main._atomic_write_json
+        calls = {"n": 0}
+        def flaky(path, data):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise OSError("simulated disk failure")
+            return original(path, data)
+        main._atomic_write_json = flaky
+        try:
+            with self.assertRaises(OSError):
+                main.restore_from_zip(str(archive), merge=False)
+        finally:
+            main._atomic_write_json = original
+        self.assertEqual(main.load_recipes()[0]["id"], "old")
+        self.assertIn("farine", main.load_pantry())
+
+    def test_qr_payload_utf8_and_multi_part_roundtrip(self):
+        r = self.recipe(name="Crème brûlée 🍮", ingredients=[
+            {"name":"Crème fraîche","quantity":12.5,"unit":"cl"},
+            {"name":"Sucre","quantity":25,"unit":"Gr"},
+        ])
+        r["description"] = "É" * 2200
+        payload = main._recipe_to_mobile_qr_payload(r, 4)
+        parts = main._split_mobile_qr_parts(payload, max_chunk_bytes=800)
+        self.assertGreater(len(parts), 1)
+        parsed = [main._parse_multi_qr_fragment(x) for x in parts]
+        self.assertTrue(all(x is not None for x in parsed))
+        assembled = "".join(x["chunk"] for x in sorted(parsed, key=lambda x: x["part_index"]))
+        self.assertEqual(assembled, payload)
+        prefill = main._compact_mobile_qr_to_prefill(payload)
+        self.assertEqual(prefill["name"], "Crème brûlée 🍮")
+
+    def test_full_restore_replace_clears_absent_files(self):
+        main.save_pantry({"farine":{"name":"Farine","quantity":1,"unit":"Kilo"}})
+        archive = self.base / "replace.zip"
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("recipes.json", json.dumps([self.recipe()], ensure_ascii=False))
+        main.restore_from_zip(str(archive), merge=False)
+        self.assertEqual(main.load_pantry(), {})
+        self.assertEqual(len(main.load_recipes()), 1)
+
+    def test_invalid_restore_does_not_change_existing_data(self):
+        main.save_recipes([self.recipe("old", "Avant")])
+        archive = self.base / "bad.zip"
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("recipes.json", '{"not":"a list"}')
+        with self.assertRaises(Exception):
+            main.restore_from_zip(str(archive), merge=False)
+        self.assertEqual(main.load_recipes()[0]["id"], "old")
+
+class StaticRegressionTests(unittest.TestCase):
+    def test_dead_helpers_removed(self):
+        src = Path(main.__file__).read_text(encoding="utf-8")
+        for name in ("def _safe_sha256(", "def _run_async(", "def _ui_tooltip(",
+                     "def convert_to_grams_equivalent(", "def open_recent_selected(",
+                     "def open_wishlist_selected(", "def _merge_item_into_current("):
+            self.assertNotIn(name, src)
+
+    def test_no_extractall(self):
+        self.assertNotIn(".extractall(", Path(main.__file__).read_text(encoding="utf-8"))
+
+    def test_translation_key_coverage(self):
+        fr = set(main.FRENCH_STRINGS)
+        for lang in ("en","es","de"):
+            self.assertEqual(fr, set(main.TRANSLATIONS[lang]))
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

@@ -5,24 +5,37 @@ cuisine, créée avec Python + Tkinter, avec une identité visuelle chaleureuse
 (palette terracotta/crème) plutôt que le gris par défaut de Windows, et un
 thème sombre disponible en un clic.
 
+## Organisation de la documentation
+- `LISEZ-MOI.txt` : guide livré avec l’exécutable Windows.
+- `DEMARRAGE_RAPIDE.md` et `COMMENT_CREER_INSTALLATEUR.md` : guides de construction et d’installation.
+- `docs/history/` : archives des audits et corrections historiques, conservées pour référence.
+
 ## Contenu du dossier
-- `main.py` / `main.pyw` : le code de l'application (identiques, `.pyw` évite
-  la fenêtre noire de la console)
-- `ingredients_par_defaut.json` : liste d'environ 1000 ingrédients de cuisine
+- `main.py` : le code principal de l'application
+- `main.pyw` : le petit lanceur Windows sans console, qui importe `main.py` ;
+  ces deux fichiers doivent rester ensemble pour le lancement avec Python
+- `windows_printing.py` : contrôleur d’impression Windows utilisé par les quatre
+  boutons Imprimer (il est inclus automatiquement dans l’exécutable PyInstaller)
+- `i18n_desktop.json` : tous les textes de l'interface dans les 4 langues
+  (français, anglais, espagnol, allemand) — sans lui, l'application démarre
+  quand même grâce à un petit noyau français minimal de secours, mais la
+  plupart des textes et les langues autres que le français ne s'affichent
+  pas correctement
+- `ingredients_par_defaut.json` : liste d'1030 ingrédients de cuisine
   courants fournie avec l'application (voir ci-dessous)
 - `valeurs_nutritionnelles.json` : base de valeurs nutritionnelles estimées
   (kcal, protéines, glucides, lipides) fournie avec l'application, pour les
-  ~1000 ingrédients courants — voir la section "Coût et valeurs
+  1030 ingrédients courants — voir la section "Coût et valeurs
   nutritionnelles" plus bas
 - `ingredient_allergenes.json` : base des allergènes présents dans les
-  ~1000 ingrédients courants, fournie avec l'application (voir la section
+  1030 ingrédients courants, fournie avec l'application (voir la section
   "Détection automatique des allergènes" plus bas)
 - `ingredient_substitutions.json` : base d'une trentaine de substitutions
   culinaires courantes fournie avec l'application (voir "🔄 Gérer les
   substitutions" plus bas)
 - `ingredient_translations_en.json` / `ingredient_translations_es.json` /
   `ingredient_translations_de.json` : traduction anglaise / espagnole /
-  allemande des ~1000 ingrédients courants, fournies avec l'application,
+  allemande des 1030 ingrédients courants, fournies avec l'application,
   pour l'affichage multilingue (voir "🌐 Changer de langue" plus bas)
 - `ingredient_substitutions_en.json` / `ingredient_substitutions_es.json` /
   `ingredient_substitutions_de.json` : traduction anglaise / espagnole /
@@ -44,6 +57,10 @@ thème sombre disponible en un clic.
   (voir "🔤 Vérifier les doublons")
 - `weekly_plan.json` : créé automatiquement, contient votre planning de la
   semaine
+- `weekly_plan_history.json` : créé automatiquement, contient l'historique
+  de vos anciens plannings
+- `weekly_plan_templates.json` : créé automatiquement si vous enregistrez
+  un modèle de planning réutilisable
 - `menus.json` : créé automatiquement, contient vos menus enregistrés
 - `saved_shopping_lists.json` : créé automatiquement si vous enregistrez une
   liste de courses pour plus tard
@@ -61,20 +78,18 @@ thème sombre disponible en un clic.
 - `images/` : créé automatiquement, contient les photos de vos recettes et
   de votre journal de cuisine
 
-> ⚠️ Important : gardez `ingredients_par_defaut.json`, `valeurs_nutritionnelles.json`,
+> ⚠️ Important : gardez `i18n_desktop.json`, `ingredients_par_defaut.json`, `valeurs_nutritionnelles.json`,
 > `ingredient_allergenes.json`, `ingredient_substitutions.json`,
 > `ingredient_translations_en.json`, `ingredient_translations_es.json`,
 > `ingredient_translations_de.json`, `ingredient_substitutions_en.json`,
 > `ingredient_substitutions_es.json`, `ingredient_substitutions_de.json`
 > **et** les quatre fichiers `flag_*.png` dans le même dossier que `main.py`
-> (et à côté du `.exe` si vous en générez un). Les quatre premiers
-> permettent de pré-remplir la liste des ~1000 ingrédients courants,
-> l'estimation des valeurs nutritionnelles, la détection automatique des
-> allergènes et les suggestions de substituts culinaires ; les six
-> suivants fournissent les traductions anglaise, espagnole et allemande
-> des ingrédients et des substituts ; les quatre derniers sont les icônes
-> du menu déroulant de langue. Sans eux, l'application fonctionne quand
-> même mais avec un contenu en moins (voir "🌐 Changer de langue" plus bas).
+> (et à côté du `.exe` si vous en générez un). `i18n_desktop.json` fournit
+> les textes de l'interface ; les autres JSON fournissent les bases et leurs
+> traductions ; les quatre PNG fournissent les drapeaux. Une ressource
+> manquante peut dégrader l'affichage ou rendre des données indisponibles.
+> Les données personnelles, elles, peuvent se trouver dans un autre dossier :
+> consultez l'écran Diagnostic pour connaître leur emplacement exact.
 
 ## 1. Installer les dépendances
 
@@ -87,13 +102,16 @@ une photo. Ouvrez une invite de commandes dans le dossier du projet et
 tapez :
 
 ```
-pip install pillow reportlab openpyxl qrcode pytesseract pyttsx3
+python -m pip install -r requirements.txt
 ```
 
+- **tkinterdnd2** : active le glisser-déposer des photos
+- **PyInstaller** : sert à construire le fichier `.exe`
 - **pillow** : permet d'afficher les photos des recettes et les QR codes
 - **reportlab** : permet d'exporter la liste de courses / une recette en PDF
 - **openpyxl** : permet d'exporter la liste de courses en Excel (.xlsx)
 - **qrcode** : permet d'exporter une recette sous forme de QR code
+- **pyzbar** : permet de lire/importer les QR codes de recette générés par l'application mobile
 - **pytesseract** : permet d'importer une recette depuis une photo (OCR) —
   voir l'encadré ci-dessous, une étape supplémentaire est nécessaire
 - **pyttsx3** : permet la lecture à voix haute de la description en "Mode
@@ -222,7 +240,7 @@ français), au lieu de toujours démarrer en français. Ensuite, votre
 choix — qu'il vienne de cette détection ou d'une sélection manuelle — est
 toujours respecté et n'est plus jamais écrasé automatiquement.
 
-Les ~1000 ingrédients courants de la liste par défaut (fichiers
+Les 1030 ingrédients courants de la liste par défaut (fichiers
 `ingredient_translations_en.json`, `ingredient_translations_es.json` et
 `ingredient_translations_de.json`) s'affichent eux aussi dans la langue
 choisie — dans les recettes, le garde-manger, les listes de courses et
@@ -351,7 +369,7 @@ Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
     glucides, lipides) — laissez vide si vous ne les connaissez pas ;
   - le **prix** (voir "💰 Gérer les prix" plus bas).
   Ce que vous renseignez ici est prioritaire sur les bases fournies avec
-  l'application (~1000 ingrédients) : par exemple, si vous corrigez la valeur
+  l'application (1030 ingrédients) : par exemple, si vous corrigez la valeur
   calorique d'un ingrédient courant, c'est votre valeur qui sera utilisée
   partout. Le bouton "🗑️ Supprimer cet ingrédient" est aussi disponible
   directement dans cette fenêtre lors d'une modification ;
@@ -361,7 +379,7 @@ Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
   > "Tomate" existe déjà) et vous invite à utiliser directement l'ingrédient
   > existant plutôt que d'en créer un doublon — pour que chaque ingrédient
   > n'apparaisse toujours qu'une seule fois dans la liste ;
-- "📚 Charger les ~1000 ingrédients courants" ajoute d'un coup tous les
+- "📚 Charger les 1030 ingrédients courants" ajoute d'un coup tous les
   ingrédients de la liste fournie avec l'application qui ne sont pas déjà
   présents (aucun doublon, aucune suppression) ;
 - "🔤 Vérifier les doublons / fautes de frappe" analyse toute votre liste
@@ -384,10 +402,10 @@ Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
   analyse, aujourd'hui et lors de toutes les analyses suivantes.
 
 > Au tout premier lancement de l'application (avant toute création de
-> recette), la liste des ~1000 ingrédients les plus utilisés en cuisine est
+> recette), la liste des 1030 ingrédients les plus utilisés en cuisine est
 > automatiquement chargée, pour que les menus déroulants soient tout de suite
 > bien fournis. Si vous avez déjà utilisé l'application avant cette mise à
-> jour, utilisez simplement le bouton "📚 Charger les ~1000 ingrédients
+> jour, utilisez simplement le bouton "📚 Charger les 1030 ingrédients
 > courants" pour les ajouter à votre liste existante.
 
 **🔎 Recherche par ingrédient**
@@ -425,7 +443,7 @@ automatiquement dans "Voir une recette précise", dans les exports PDF
 recettes". De la même façon, les **valeurs nutritionnelles estimées**
 (calories, protéines, glucides, lipides) s'affichent partout, calculées à
 partir de la base `valeurs_nutritionnelles.json` fournie avec l'application
-(environ 1000 ingrédients) — sans rien à configurer de votre côté pour la
+(1030 ingrédients) — sans rien à configurer de votre côté pour la
 nutrition, contrairement au coût.
 
 **🔄 Gérer les substitutions (dans "Gérer les ingrédients")**
@@ -477,7 +495,7 @@ prix pour un ingrédient à la pièce, cela fonctionne normalement pour le coût
 > précise — à prendre comme un ordre de grandeur utile, pas une valeur
 > médicale exacte.
 
-**⚖️ Comparer deux recettes**
+**⚖️ Comparer deux ou trois recettes**
 Choisissez une recette A et une recette B dans les deux menus déroulants,
 puis "⚖️ Comparer" : un tableau côte à côte affiche leur catégorie, favori,
 note, difficulté, temps de préparation/cuisson/total, nombre de fois
@@ -516,18 +534,18 @@ nutritionnelles pour cet ingrédient.
 **📷 Importer une recette depuis une photo**
 Prenez en photo (ou scannez) une recette manuscrite, une carte de recette ou
 une page de livre de cuisine, puis choisissez cette image via
-"📁 Choisir une photo". Cliquez sur "🔍 Extraire le texte" : le texte visible
-sur la photo est reconnu automatiquement (reconnaissance optique de
-caractères, OCR) et s'affiche dans une zone modifiable, à relire et corriger
-avant de créer la recette avec "➡️ Créer la recette avec ce texte" — cela
-ouvre le formulaire "Ajouter une recette" avec ce texte dans la description
-et la photo déjà attachée.
+"➕ Ajouter des photos". Vous pouvez corriger leur ordre, les tourner avec les
+boutons gauche/droite, puis cliquer sur "🔎 Extraire le texte de toutes les
+photos". L'application applique l'orientation du téléphone, adapte la taille
+pour Tesseract et reconnaît séparément les cases des fiches en grille lorsque
+c'est nécessaire. Le texte reste affiché dans une zone modifiable.
 
-> Contrairement à l'import depuis un lien, une photo n'a pas de structure
-> ingrédients/étapes qu'on puisse deviner automatiquement : le texte extrait
-> est un bloc brut, à vous de le relire et de répartir vous-même le nom, les
-> ingrédients et les étapes dans le formulaire. C'est aussi plus rapide que
-> de tout retaper à la main depuis une recette papier.
+Le bouton "➡️ Créer la recette avec ce texte" analyse ensuite le résultat pour
+préremplir le nom, la durée, le nombre de personnes, les ingrédients et les
+étapes. Les quantités lues sur la fiche sont converties en quantités par
+personne, conformément au fonctionnement interne de l'application. L'OCR peut
+toutefois confondre un chiffre, une fraction ou une lettre : relisez toujours
+le formulaire final avant d'enregistrer.
 
 Cette fonctionnalité nécessite le module `pytesseract` **et** le programme
 externe **Tesseract OCR** installé séparément sur votre PC (voir la section
@@ -593,7 +611,7 @@ nécessaire : vous pouvez attacher **plusieurs photos** à une même recette
 photo ajoutée apparaît dans une galerie avec un bouton "🗑 Retirer" pour
 l'enlever avant d'enregistrer.
 
-Une zone **Description** (jusqu'à 2056 caractères, avec un compteur affiché en
+Une zone **Description** (jusqu'à 12 000 caractères, avec un compteur affiché en
 dessous) permet de noter les étapes de préparation, des astuces, ou toute
 autre information utile sur la recette. Une seconde zone **Notes
 personnelles** (jusqu'à 500 caractères) est prévue pour vos propres
@@ -767,7 +785,7 @@ de la sélection actuelle.
 > courses, planning de la semaine et menus.
 
 > Le classement par rayon repose sur la reconnaissance du nom de
-> l'ingrédient. Il fonctionne très bien avec les ~1000 ingrédients fournis et
+> l'ingrédient. Il fonctionne très bien avec les 1030 ingrédients fournis et
 > la plupart des noms courants, mais un ingrédient au nom très inhabituel
 > pourra atterrir dans la catégorie "Autre" plutôt que dans le bon rayon.
 
@@ -851,13 +869,18 @@ met à jour immédiatement, sans avoir à retaper le nombre ni recliquer sur
   revenir à l'écran normal, ou sur **F11** pour basculer en plein écran
   natif (masque complètement la barre des tâches)
   si vous le souhaitez.
-- "📱 QR Code" génère un QR code contenant le nom et les ingrédients de la
-  recette (adaptés au nombre de personnes affiché), à scanner avec
-  l'appareil photo d'un téléphone pour l'emporter sans imprimer ni
-  transférer de fichier. Le bouton "💾 Enregistrer en image (PNG)" permet de
-  le sauvegarder. Pour les recettes très longues, le contenu encodé est
-  automatiquement résumé (nom + ingrédients uniquement) afin de rester
-  facilement scannable.
+- "📱 QR Code" génère désormais exactement le **format compact v1 utilisé par
+  l'application mobile** : nom, nombre de personnes, difficulté, temps,
+  allergènes, description, notes personnelles et ingrédients. Les QR du bureau
+  sont donc directement importables par l'application mobile. Une recette
+  longue n'est plus tronquée : elle est répartie automatiquement en plusieurs
+  QR (`MRQ1`) à scanner successivement, avec la même somme de contrôle que sur
+  mobile. Le bouton d'enregistrement sauvegarde chaque partie en vrai PNG.
+- Depuis l'accueil, **"📱 Importer une recette depuis un QR mobile"** permet le
+  sens inverse. Choisissez le PNG ou la capture d'écran du QR enregistré par le
+  téléphone. Si la recette mobile utilise plusieurs QR, sélectionnez toutes les
+  images en une seule fois ; elles sont réassemblées et vérifiées avant
+  d'ouvrir le formulaire de recette prérempli.
 - "⏲️ Minuteurs" ouvre une fenêtre où vous pouvez régler et démarrer
   **plusieurs minuteurs indépendants**, empilés les uns sous les autres —
   pratique pour chronométrer plusieurs étapes en même temps (ex. un pour les
@@ -1132,12 +1155,14 @@ y compris pour les recettes dont le contenu déborde sur plusieurs pages
 prise en compte automatiquement.
 
 Toutes les recettes sont sauvegardées dans `recipes.json`, et les photos dans
-le dossier `images/`. Gardez toujours `main.py`, `recipes.json`,
-`ingredients.json` et `images/` ensemble si vous déplacez ou sauvegardez le
-projet — ou utilisez simplement l'export en .zip qui regroupe tout.
+le dossier `images/`, dans le dossier de données indiqué par Diagnostic.
+Pour transférer vos données, utilisez l'export en `.zip` de l'application ;
+copier uniquement le dossier du programme ne suffit pas si les données
+sont enregistrées dans le profil utilisateur.
 
-> À propos des boutons "🖨️ Imprimer" : l'application tente d'abord d'envoyer
-> le document directement à votre imprimante par défaut. Si votre système ne
+> À propos des boutons "🖨️ Imprimer" : sous Windows, l'application ouvre la
+> boîte d'imprimante du système puis transmet le document au pilote choisi.
+> Elle ne dépend pas de la commande d'impression du lecteur PDF par défaut. Si votre système ne
 > le permet pas (cas fréquent selon le lecteur PDF installé), le PDF
 > s'ouvre alors automatiquement dans votre lecteur habituel : il ne reste
 > qu'à faire **Ctrl+P** (ou cliquer sur son bouton Imprimer) pour lancer
@@ -1146,46 +1171,27 @@ projet — ou utilisez simplement l'export en .zip qui regroupe tout.
 
 ## 4. Transformer l'application en vrai fichier .exe Windows
 
-Le plus simple est d'utiliser le script `Construire_le_exe.bat` fourni (voir
-`DEMARRAGE_RAPIDE.md`) : il fait tout automatiquement, y compris copier
-`ingredients_par_defaut.json` et tous les autres fichiers de données et de
-traduction au bon endroit. Si vous préférez le faire à la main, sur un PC
-Windows, dans le dossier du projet :
+Sur un PC Windows, lancez `Construire_le_exe.bat` depuis le dossier complet
+et décompressé du projet (voir `DEMARRAGE_RAPIDE.md`). Ce script installe
+`requirements.txt`, construit `MesRecettes.exe` avec son icône et les options
+nécessaires au glisser-déposer, à la lecture vocale et aux QR codes, puis
+copie les ressources dans `dist/`.
 
-```
-pip install pyinstaller pillow reportlab openpyxl qrcode pytesseract pyttsx3
-pyinstaller --onefile --windowed --name "MesRecettes" main.py
-```
+Gardez le dossier `dist/` entier : il contient notamment `i18n_desktop.json`,
+les bases JSON, leurs traductions, les drapeaux et `LISEZ-MOI.txt`. Ne copiez
+pas seulement l'exécutable. Il fonctionne sans installation séparée de
+Python ; Tesseract OCR reste nécessaire pour l'import photo.
 
-Le fichier `MesRecettes.exe` apparaît dans le dossier `dist/`. **Copiez dans
-ce même dossier `dist/`, à côté du `.exe`, tous les fichiers listés dans
-l'avertissement en haut de ce document** (`ingredients_par_defaut.json`,
-`valeurs_nutritionnelles.json`, `ingredient_allergenes.json`,
-`ingredient_substitutions.json`, `ingredient_translations_en.json`,
-`ingredient_translations_es.json`, `ingredient_translations_de.json`,
-`ingredient_substitutions_en.json`, `ingredient_substitutions_es.json`,
-`ingredient_substitutions_de.json`, `flag_fr.png`, `flag_uk.png`,
-`flag_es.png`, `flag_de.png`) — sans le premier d'entre eux juste à côté,
-la liste des ~1000 ingrédients courants ne pourra pas se charger ; les
-autres manquants se traduisent simplement par une fonctionnalité en
-moins (pas de plantage).
-Déplacez ensuite le dossier `dist/` entier où vous voulez (Bureau, clé USB,
-autre PC...) ; l'application créera automatiquement à côté du `.exe`, au
-même endroit, `recipes.json`, `ingredients.json`, `images/` et les autres
-fichiers de données au fur et à mesure de son utilisation.
+Les données personnelles sont créées à côté de l'exécutable si le dossier
+est accessible en écriture. Sinon, l'application utilise
+`%LocalAppData%\MesRecettesMesCourses\`. Diagnostic affiche le dossier
+réellement utilisé. Les ressources fournies restent lues à côté de l'exécutable.
 
-> **Compatible Microsoft Store / MSIX** : si vous empaquetez ce `.exe` au
-> format MSIX (par exemple pour le publier sur le Microsoft Store), le
-> dossier d'installation devient en lecture seule pour l'application.
-> L'application détecte automatiquement ce cas et bascule alors ses
-> données personnelles (recettes, garde-manger, réglages, planning...)
-> vers `%LocalAppData%\MesRecettesMesCourses\` à la place — sans aucune
-> configuration nécessaire de votre part. Les fichiers fournis avec
-> l'application (bases d'ingrédients, traductions, drapeaux) restent
-> toujours lus à côté de l'exécutable, jamais modifiés. Pensez aussi à
-> cocher la capacité **"Internet (Client)"** dans les paramètres du
-> paquet MSIX, sans quoi l'import de recette depuis un lien internet ne
-> fonctionnera pas.
+Pour créer un installateur classique ou préparer une capture MSIX, suivez
+`COMMENT_CREER_INSTALLATEUR.md`, qui distingue les deux scripts `.iss`.
+La génération de l'exécutable ne valide pas à elle seule le paquet Microsoft
+Store : testez l'installation, la mise à jour et l'import Internet dans le
+paquet final avant sa soumission.
 
 ## 5. Idées d'amélioration possibles
 - Multi-profils (plusieurs membres du foyer, chacun avec ses favoris/notes)

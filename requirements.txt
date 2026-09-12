@@ -1,0 +1,10 @@
+Pillow==12.3.0
+reportlab==4.4.9
+openpyxl==3.1.5
+qrcode==8.2
+pyzbar==0.1.9
+pytesseract==0.3.13
+pyttsx3==2.99
+tkinterdnd2==0.6.3
+PyInstaller==6.16.0
+pypdfium2==5.3.0

@@ -1,91 +1,88 @@
 # Créer l'installateur avec Inno Setup
 
-## Étape 1 — Installer Inno Setup (si ce n'est pas déjà fait)
+Ce guide correspond à la version **1.6.12 / build 60** du projet.
 
-Téléchargez-le gratuitement sur https://jrsoftware.org/isdl.php (choisissez
-la version "innosetup-x.x.x.exe", pas la version "-unicode" séparée, la
-version actuelle les inclut déjà). Installez-le normalement.
+## 1. Préparer l'exécutable Windows
 
-## Étape 2 — Préparer le dossier
+Décompressez l'archive complète dans un dossier. Gardez ensemble `main.py`,
+`main.pyw`, `windows_printing.py`, `requirements.txt`, `Construire_le_exe.bat`,
+`hook-tkinterdnd2.py`, `icone_application.ico`, les fichiers JSON et les PNG.
 
-Vous devez avoir, dans le **même dossier** :
-- `main.pyw`, `icone_application.ico`, et tous les fichiers `.json`/`.png`
-  (le contenu de l'archive que je vous ai donnée)
-- Le dossier `dist` généré par `Construire_le_exe.bat` (contient déjà
-  `MesRecettes.exe` et une copie des fichiers de données — c'est normal,
-  Inno Setup ira les chercher là)
-- Le fichier `installateur.iss` que je viens de créer
+Sur votre PC Windows, lancez d'abord `Construire_le_exe.bat`. Il construit
+`dist\MesRecettes.exe` et copie les ressources nécessaires dans `dist`,
+notamment `i18n_desktop.json`, les bases et traductions, les drapeaux et
+`LISEZ-MOI.txt`. Testez cet exécutable avant de créer l'installateur.
 
-Donc l'ordre est important : **lancez d'abord `Construire_le_exe.bat`**
-(pour que le dossier `dist` existe avec la bonne icône dedans), **puis**
-Inno Setup.
+Installez ensuite [Inno Setup depuis son site officiel](https://jrsoftware.org/isdl.php)
+si vous ne l'avez pas déjà.
 
-## Étape 3 — Ouvrir et compiler le script
+## 2. Choisir le bon script
 
-1. Double-cliquez sur `installateur.iss` — ça devrait ouvrir directement
-   l'éditeur de scripts Inno Setup (IDE Inno Setup)
-2. Cliquez sur **Build → Compile** dans le menu (ou appuyez sur `Ctrl+F9`,
-   ou cliquez sur le bouton avec l'icône d'engrenage/lecture verte dans
-   la barre d'outils)
-3. Une fenêtre de progression s'affiche, puis se ferme si tout s'est
-   bien passé
+| Usage | Script à compiler | Fichier produit dans `installateur\` |
+| --- | --- | --- |
+| Installation Windows classique | `installateur.iss` | `MesRecettesMesCourses_Installateur.exe` |
+| Installation à capturer avec MSIX Packaging Tool pour le Store | `installateur_store_capture.iss` | `MesRecettesMesCourses_StoreCapture.exe` |
 
-## Étape 4 — Récupérer l'installateur
+La variante de capture utilise `Uninstallable=no` : elle ne crée pas de
+désinstalleur Win32. Utilisez-la pour la capture MSIX, pas comme installateur
+classique à distribuer directement. Le script standard conserve le mécanisme
+de désinstallation d'Inno Setup.
 
-Le fichier généré se trouve dans le sous-dossier **`installateur`**
-(créé automatiquement à côté de votre script), sous le nom
-`MesRecettesMesCourses_Installateur.exe` — c'est ce fichier que vous
-distribuez aux utilisateurs (ou que vous utilisez ensuite comme source
-pour le MSIX Packaging Tool).
+Les deux scripts créent **un seul raccourci de l'application, dans le menu
+Démarrer**, et aucun raccourci automatique sur le Bureau. Celui-ci utilise
+l'icône intégrée à `MesRecettes.exe`. Ce choix du projet ne constitue pas une
+interdiction générale des raccourcis Bureau par Microsoft.
 
-## Ce que fait ce script précisément
+Ils utilisent `PrivilegesRequired=lowest` et `DefaultDirName={autopf}\{#MyAppName}`.
+En mode d'installation non administrateur, Inno Setup résout `{autopf}` vers
+le dossier de programmes de l'utilisateur. Voir les
+[constantes automatiques Inno Setup](https://jrsoftware.org/ishelp/topic_consts.htm).
 
-- Utilise **votre icône corrigée** pour l'installateur lui-même
-- Installe dans le dossier utilisateur (pas besoin des droits
-  administrateur — plus simple pour la plupart des gens)
-- Crée un raccourci dans le menu Démarrer, et un sur le Bureau (avec une
-  case à cocher pour le désactiver si l'utilisateur préfère)
-- Les raccourcis créés **héritent automatiquement** de l'icône intégrée
-  dans `MesRecettes.exe` — donc si vous avez bien reconstruit l'exe avec
-  la correction précédente, les raccourcis seront corrects sans réglage
-  supplémentaire ici
-- Propose de lancer l'application juste après l'installation
+## 3. Compiler
 
-## ⚠️ Corrections suite au refus Microsoft Store (10.1.1.11 / 10.1.1.1)
+1. Ouvrez le script choisi dans Inno Setup.
+2. Choisissez **Build → Compile**.
+3. Si la compilation réussit, récupérez le fichier correspondant dans
+   le sous-dossier `installateur` du projet.
 
-Deux choses ont été corrigées dans ce script suite à un refus de
-soumission :
+L'installateur copie l'exécutable et les ressources, crée le raccourci du
+menu Démarrer et propose de lancer l'application après l'installation.
+Tesseract OCR reste une installation séparée pour l'import photo.
 
-1. **Nom aligné sur la fiche Store** : `#define MyAppName` est passé de
-   "Mes Recettes, Mes Courses" à **"Mes Recettes, Mes Courses"**, pour
-   correspondre exactement au nom du produit dans Partner Center.
-   Si vous préférez plutôt renommer votre fiche Store pour qu'elle
-   corresponde à "Mes Recettes, Mes Courses", faites-le dans Partner
-   Center et dites-le-moi pour que je remette l'ancien nom ici à la
-   place — les deux doivent juste être identiques, peu importe lequel.
+## 4. Nom et numéros de version
 
-2. **Un seul raccourci désormais** (menu Démarrer uniquement) — en
-   créer un second sur le Bureau, même avec le même nom et la même
-   icône, provoquait deux entrées distinctes dans le menu Démarrer de
-   Windows, rejetées comme des "tuiles en double". Les utilisateurs
-   peuvent toujours épingler l'application au Bureau ou à la barre des
-   tâches depuis le menu Démarrer une fois installée.
+Les deux scripts contiennent actuellement :
 
-**Pensez aussi à incrémenter le numéro de version** (`#define
-MyAppVersion "1.0"` → par exemple `"1.0.1"`) avant de recompiler, sinon
-Partner Center refusera d'accepter le nouveau paquet.
+```ini
+#define MyAppName "Mes Recettes, Mes Courses"
+#define MyAppVersion "1.6.12"
+#define MyAppPublisher "Majogari"
+```
 
-## Si vous voulez changer le numéro de version
+Le nom affiché doit être cohérent avec la fiche du produit. Ce guide ne
+prétend pas reconstituer un ancien renommage ni vérifier la fiche actuellement
+en ligne dans Partner Center.
 
-Modifiez la ligne `#define MyAppVersion "1.0"` tout en haut du fichier
-`.iss` avant de compiler, pour que ça corresponde à ce que vous avez
-indiqué dans Partner Center.
+`MyAppVersion` est la version de l'installateur Inno Setup. La version du
+paquet MSIX est définie séparément lors de sa création : modifier le `.iss`
+ne modifie pas automatiquement un MSIX déjà créé.
 
-## Un détail à vérifier
+Pour une mise à jour, conservez l'identité de l'application publiée et
+choisissez une version de paquet supérieure à celle distribuée aux utilisateurs
+visés. `1.6.13.0` n'est utilisable comme nouvelle version que si cette condition
+est satisfaite. Consultez les
+[exigences et règles de version Microsoft](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements).
 
-Ce script recrée une version simplifiée de ce qu'on avait probablement
-construit ensemble lors d'une session précédente (dont je n'ai plus le
-détail exact) — il couvre l'essentiel (installation, raccourcis,
-icônes), mais si votre version précédente avait des réglages
-particuliers dont vous vous souvenez (page de licence personnalisée,
-lien de don, langue supplémentaire...), dites-le-moi et je les ajoute.
+## 5. Vérifier avant la soumission
+
+La compilation réussie de l'installateur ne garantit pas la certification.
+Installez le MSIX final sur Windows et testez le lancement, les quatre langues,
+les données conservées lors d'une mise à jour, les sauvegardes et restaurations,
+les imports et les exports. Contrôlez le nom, l'icône et les entrées du menu Démarrer.
+
+Exécutez également le Windows App Certification Kit recommandé dans les
+[exigences Microsoft](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements).
+
+Pour corriger ultérieurement le programme, mettez à jour les sources et les
+versions, reconstruisez `dist`, puis l'installateur et enfin le MSIX. Ne
+réutilisez pas un ancien exécutable sous prétexte que la documentation a changé.
