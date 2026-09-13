@@ -5,7 +5,7 @@
 ; ============================================================
 
 #define MyAppName "Mes Recettes, Mes Courses"
-#define MyAppVersion "1.6.21"
+#define MyAppVersion "1.6.24"
 #define MyAppPublisher "Majogari"
 #define MyAppExeName "Mes Recettes, Mes Courses.exe"
 

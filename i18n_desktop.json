@@ -1073,7 +1073,8 @@
     "print_preparing": "Préparation et envoi à l’imprimante…",
     "print_cancelling": "Annulation demandée… Attente de la réponse du pilote.",
     "print_page_progress": "Page {done} sur {total} transmise…",
-    "cookingmode_timer_number": "Minuteur {number}"
+    "cookingmode_timer_number": "Minuteur {number}",
+    "cookingmode_close_running": "Des minuteurs sont en cours. Fermer le mode cuisine et les arrêter ?"
   },
   "translations": {
     "en": {
@@ -2150,7 +2151,8 @@
       "print_preparing": "Preparing and sending to the printer…",
       "print_cancelling": "Cancellation requested… Waiting for the printer driver.",
       "print_page_progress": "Page {done} of {total} submitted…",
-      "cookingmode_timer_number": "Timer {number}"
+      "cookingmode_timer_number": "Timer {number}",
+      "cookingmode_close_running": "Timers are running. Close cooking mode and stop them?"
     },
     "es": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -3226,7 +3228,8 @@
       "print_preparing": "Preparando y enviando a la impresora…",
       "print_cancelling": "Cancelación solicitada… Esperando al controlador.",
       "print_page_progress": "Página {done} de {total} enviada…",
-      "cookingmode_timer_number": "Temporizador {number}"
+      "cookingmode_timer_number": "Temporizador {number}",
+      "cookingmode_close_running": "Hay temporizadores en marcha. ¿Cerrar el modo cocina y detenerlos?"
     },
     "de": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -4302,7 +4305,8 @@
       "print_preparing": "Druck wird vorbereitet und gesendet…",
       "print_cancelling": "Abbruch angefordert… Warten auf den Druckertreiber.",
       "print_page_progress": "Seite {done} von {total} übermittelt…",
-      "cookingmode_timer_number": "Timer {number}"
+      "cookingmode_timer_number": "Timer {number}",
+      "cookingmode_close_running": "Timer laufen noch. Kochmodus schließen und die Timer stoppen?"
     }
   }
 }

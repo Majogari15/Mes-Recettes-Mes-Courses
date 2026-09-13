@@ -2,6 +2,10 @@
 import ast
 import json
 import math
+import re
+import threading
+from tkinter import font as tkfont
+from unittest.mock import patch
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -17,11 +21,14 @@ class CookingModeTests(unittest.TestCase):
         except tk.TclError as exc:
             self.skipTest(str(exc))
         self.root.withdraw()
+        confirm = patch.object(messagebox, "askyesno", return_value=True)
+        confirm.start()
+        self.addCleanup(confirm.stop)
         self.errors = []
         self.root.report_callback_exception = lambda *args: self.errors.append(args)
         self.clock = SimpleNamespace(value=100.0)
         strings = json.loads((ROOT/'i18n_desktop.json').read_text(encoding='utf-8'))['fr']
-        self.env = dict(tk=tk, ttk=ttk, messagebox=messagebox, math=math,
+        self.env = dict(tk=tk, ttk=ttk, messagebox=messagebox, math=math, re=re, threading=threading, tkfont=tkfont,
             time=SimpleNamespace(monotonic=lambda: self.clock.value),
             t=lambda key, **kw: strings.get(key, key).format(**kw), sf=lambda v:v, gs=lambda v:v,
             COLOR_CARD='#ffffff', COLOR_BORDER='#cccccc', COLOR_ACCENT_DARK='#a05020', COLOR_ERROR='#ff0000',
@@ -69,6 +76,8 @@ class CookingModeTests(unittest.TestCase):
         for panel in (w.ingredients_panel,w.steps_panel):
             self.assertLessEqual(panel.winfo_width(),w.canvas.winfo_width())
             for label in panel.winfo_children():
+                if not isinstance(label, (tk.Label, tk.Checkbutton)):
+                    continue
                 self.assertLessEqual(int(float(label.cget('wraplength'))),panel.winfo_width())
         w.geometry('1400x850');self.root.update()
         self.assertEqual(int(w.steps_panel.grid_info()['column']),1)
