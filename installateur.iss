@@ -5,13 +5,13 @@
 ; ============================================================
 
 #define MyAppName "Mes Recettes, Mes Courses"
-#define MyAppVersion "1.6.12"
+#define MyAppVersion "1.6.21"
 #define MyAppPublisher "Majogari"
-#define MyAppExeName "MesRecettes.exe"
+#define MyAppExeName "Mes Recettes, Mes Courses.exe"
 
-#ifexist "dist\MesRecettes.exe"
+#ifexist "dist\Mes Recettes, Mes Courses.exe"
 #else
-#error "dist\MesRecettes.exe est absent. Lancez Construire_le_exe.bat avant de compiler l'installateur."
+#error "dist\Mes Recettes, Mes Courses.exe est absent. Lancez Construire_le_exe.bat avant de compiler l'installateur."
 #endif
 #ifexist "dist\i18n_desktop.json"
 #else
@@ -48,7 +48,7 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 [Files]
 ; L'exécutable et tous les fichiers de données, copiés depuis le
 ; dossier "dist" généré par Construire_le_exe.bat.
-Source: "dist\MesRecettes.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\Mes Recettes, Mes Courses.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\i18n_desktop.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\ingredients_par_defaut.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\valeurs_nutritionnelles.json"; DestDir: "{app}"; Flags: ignoreversion
@@ -74,7 +74,7 @@ Source: "dist\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; ou à la barre des tâches directement depuis le menu Démarrer une fois
 ; installée, sans avoir besoin d'un second raccourci créé d'office.
 ; Pas de "IconFilename" précisé volontairement : il hérite
-; automatiquement de l'icône intégrée dans MesRecettes.exe (celle
+; automatiquement de l'icône intégrée dans Mes Recettes, Mes Courses.exe (celle
 ; corrigée via --icon dans Construire_le_exe.bat).
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 

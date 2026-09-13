@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul
+cd /d "%~dp0"
 echo ================================================
 echo   Construction de Mes Recettes, Mes Courses (.exe)
 echo ================================================
@@ -14,7 +15,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Etape 1/3 : Installation des dependances necessaires...
+echo Etape 1/5 : Installation des dependances necessaires...
 echo   (pillow, reportlab, openpyxl, qrcode, pyzbar, pytesseract, pyttsx3, tkinterdnd2, pyinstaller, pypdfium2)
 python -m pip install --upgrade pip >nul
 python -m pip install -r requirements.txt
@@ -28,11 +29,25 @@ rem Supprime les resultats precedents pour eviter qu'un ancien fichier
 rem reste dans l'installeur si une ressource n'est plus produite.
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
+if exist dist (
+    echo [ERREUR] Impossible de nettoyer dist. Fermez l'application et relancez.
+    pause
+    exit /b 1
+)
+
+echo Etape 2/5 : Preparation des ressources Tcl/Tk...
+python build_tk_support.py prepare
+if errorlevel 1 (
+    echo [ERREUR] Preparation Tcl/Tk impossible. Aucun executable n'a ete produit.
+    pause
+    exit /b 1
+)
 
 echo.
-echo Etape 2/3 : Construction de l'executable (peut prendre 1 a 2 minutes)...
-python -m PyInstaller --onefile --windowed --name "MesRecettes" ^
+echo Etape 3/5 : Construction de l'executable (peut prendre 1 a 2 minutes)...
+python -m PyInstaller --clean --noconfirm --onefile --windowed --name "Mes Recettes, Mes Courses" ^
     --icon="icone_application.ico" ^
+    --add-data="build/tk_bundle;." ^
     --hidden-import=pyttsx3.drivers ^
     --hidden-import=pyttsx3.drivers.sapi5 ^
     --additional-hooks-dir=. ^
@@ -49,17 +64,23 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist "dist\MesRecettes.exe" (
-    echo [ERREUR] Le fichier dist\MesRecettes.exe n'a pas ete cree.
+if not exist "dist\Mes Recettes, Mes Courses.exe" (
+    echo [ERREUR] Le fichier dist\Mes Recettes, Mes Courses.exe n'a pas ete cree.
     pause
     exit /b 1
 )
 
 echo.
-echo [OK] tkinterdnd2 est inclus via hook-tkinterdnd2.py :
-echo      --additional-hooks-dir=.
+echo Etape 4/5 : Verification des ressources et du lancement de l'interface...
+python build_tk_support.py verify "dist\Mes Recettes, Mes Courses.exe"
+if errorlevel 1 (
+    del /q "dist\Mes Recettes, Mes Courses.exe"
+    echo [ERREUR] Executable refuse : le controle Tcl/Tk a echoue.
+    pause
+    exit /b 1
+)
 echo.
-echo Etape 3/3 : Copie des fichiers necessaires a cote de l'executable...
+echo Etape 5/5 : Copie des fichiers necessaires a cote de l'executable...
 copy /Y i18n_desktop.json dist\i18n_desktop.json >nul
 copy /Y ingredients_par_defaut.json dist\ingredients_par_defaut.json >nul
 copy /Y valeurs_nutritionnelles.json dist\valeurs_nutritionnelles.json >nul
@@ -77,7 +98,12 @@ copy /Y flag_es.png dist\flag_es.png >nul
 copy /Y flag_de.png dist\flag_de.png >nul
 copy /Y LISEZ-MOI.txt dist\LISEZ-MOI.txt >nul
 
-for %%F in (MesRecettes.exe i18n_desktop.json ingredients_par_defaut.json valeurs_nutritionnelles.json ingredient_allergenes.json ingredient_substitutions.json ingredient_substitutions_en.json ingredient_substitutions_es.json ingredient_substitutions_de.json ingredient_translations_en.json ingredient_translations_es.json ingredient_translations_de.json flag_fr.png flag_uk.png flag_es.png flag_de.png LISEZ-MOI.txt) do (
+if not exist "dist\Mes Recettes, Mes Courses.exe" (
+    echo [ERREUR] Ressource manquante dans dist : Mes Recettes, Mes Courses.exe
+    pause
+    exit /b 1
+)
+for %%F in (i18n_desktop.json ingredients_par_defaut.json valeurs_nutritionnelles.json ingredient_allergenes.json ingredient_substitutions.json ingredient_substitutions_en.json ingredient_substitutions_es.json ingredient_substitutions_de.json ingredient_translations_en.json ingredient_translations_es.json ingredient_translations_de.json flag_fr.png flag_uk.png flag_es.png flag_de.png LISEZ-MOI.txt) do (
     if not exist "dist\%%F" (
         echo [ERREUR] Ressource manquante dans dist : %%F
         pause
@@ -89,7 +115,7 @@ echo.
 echo ================================================
 echo   Termine !
 echo   Votre application se trouve dans :
-echo   dist\MesRecettes.exe
+echo   dist\Mes Recettes, Mes Courses.exe
 echo ================================================
 echo.
 echo Vous pouvez deplacer le dossier "dist" entier ailleurs

@@ -1072,7 +1072,8 @@
     "print_native_failed": "L’impression Windows n’a pas abouti :\n{error}\n\nPDF conservé : {path}\n\nVoulez-vous ouvrir ce PDF pour l’imprimer manuellement ? Vérifiez la file d’impression avant de relancer : des pages peuvent déjà avoir été envoyées.",
     "print_preparing": "Préparation et envoi à l’imprimante…",
     "print_cancelling": "Annulation demandée… Attente de la réponse du pilote.",
-    "print_page_progress": "Page {done} sur {total} transmise…"
+    "print_page_progress": "Page {done} sur {total} transmise…",
+    "cookingmode_timer_number": "Minuteur {number}"
   },
   "translations": {
     "en": {
@@ -2148,7 +2149,8 @@
       "print_native_failed": "Windows printing did not complete:\n{error}\n\nPDF saved at: {path}\n\nOpen this PDF to print manually? Check the print queue before retrying: some pages may already have been sent.",
       "print_preparing": "Preparing and sending to the printer…",
       "print_cancelling": "Cancellation requested… Waiting for the printer driver.",
-      "print_page_progress": "Page {done} of {total} submitted…"
+      "print_page_progress": "Page {done} of {total} submitted…",
+      "cookingmode_timer_number": "Timer {number}"
     },
     "es": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -3223,7 +3225,8 @@
       "print_native_failed": "La impresión de Windows no se ha completado:\n{error}\n\nPDF guardado: {path}\n\n¿Abrir el PDF para imprimirlo manualmente? Compruebe la cola de impresión antes de reintentar: puede que algunas páginas ya se hayan enviado.",
       "print_preparing": "Preparando y enviando a la impresora…",
       "print_cancelling": "Cancelación solicitada… Esperando al controlador.",
-      "print_page_progress": "Página {done} de {total} enviada…"
+      "print_page_progress": "Página {done} de {total} enviada…",
+      "cookingmode_timer_number": "Temporizador {number}"
     },
     "de": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -4298,7 +4301,8 @@
       "print_native_failed": "Der Windows-Druck wurde nicht abgeschlossen:\n{error}\n\nPDF gespeichert: {path}\n\nPDF zum manuellen Drucken öffnen? Prüfen Sie vor einem neuen Versuch die Druckwarteschlange: Einige Seiten könnten bereits gesendet worden sein.",
       "print_preparing": "Druck wird vorbereitet und gesendet…",
       "print_cancelling": "Abbruch angefordert… Warten auf den Druckertreiber.",
-      "print_page_progress": "Seite {done} von {total} übermittelt…"
+      "print_page_progress": "Seite {done} von {total} übermittelt…",
+      "cookingmode_timer_number": "Timer {number}"
     }
   }
 }

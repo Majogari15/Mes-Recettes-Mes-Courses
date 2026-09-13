@@ -1173,7 +1173,7 @@ sont enregistrées dans le profil utilisateur.
 
 Sur un PC Windows, lancez `Construire_le_exe.bat` depuis le dossier complet
 et décompressé du projet (voir `DEMARRAGE_RAPIDE.md`). Ce script installe
-`requirements.txt`, construit `MesRecettes.exe` avec son icône et les options
+`requirements.txt`, construit `Mes Recettes, Mes Courses.exe` avec son icône et les options
 nécessaires au glisser-déposer, à la lecture vocale et aux QR codes, puis
 copie les ressources dans `dist/`.
 

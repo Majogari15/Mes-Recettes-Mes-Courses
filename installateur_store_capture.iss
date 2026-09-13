@@ -5,13 +5,13 @@
 ; ============================================================
 
 #define MyAppName "Mes Recettes, Mes Courses"
-#define MyAppVersion "1.6.12"
+#define MyAppVersion "1.6.21"
 #define MyAppPublisher "Majogari"
-#define MyAppExeName "MesRecettes.exe"
+#define MyAppExeName "Mes Recettes, Mes Courses.exe"
 
-#ifexist "dist\MesRecettes.exe"
+#ifexist "dist\Mes Recettes, Mes Courses.exe"
 #else
-#error "dist\MesRecettes.exe est absent. Lancez Construire_le_exe.bat avant de compiler l'installateur."
+#error "dist\Mes Recettes, Mes Courses.exe est absent. Lancez Construire_le_exe.bat avant de compiler l'installateur."
 #endif
 #ifexist "dist\i18n_desktop.json"
 #else
@@ -50,7 +50,7 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 [Files]
 ; L'exécutable et tous les fichiers de données, copiés depuis le
 ; dossier "dist" généré par Construire_le_exe.bat.
-Source: "dist\MesRecettes.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\Mes Recettes, Mes Courses.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\i18n_desktop.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\ingredients_par_defaut.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\valeurs_nutritionnelles.json"; DestDir: "{app}"; Flags: ignoreversion
@@ -68,18 +68,9 @@ Source: "dist\flag_es.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\flag_de.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
 
-[Icons]
-; Un seul raccourci (menu Démarrer) — pas de second raccourci Bureau :
-; en créer deux, même avec la même icône, provoquait deux entrées
-; distinctes dans le menu Démarrer de Windows (refus Microsoft
-; 10.1.1.11). Les utilisateurs peuvent épingler l'application au Bureau
-; ou à la barre des tâches directement depuis le menu Démarrer une fois
-; installée, sans avoir besoin d'un second raccourci créé d'office.
-; Pas de "IconFilename" précisé volontairement : il hérite
-; automatiquement de l'icône intégrée dans MesRecettes.exe (celle
-; corrigée via --icon dans Construire_le_exe.bat).
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+; Aucun raccourci n’est créé par l’installateur de capture.
+; Le MSIX crée automatiquement une seule entrée depuis [Applications].
 
 [Run]
-; Propose de lancer l'application juste après l'installation.
+; Comportement d’origine : lancement normal détecté par MSIX Packaging Tool.
 Filename: "{app}\{#MyAppExeName}"; Description: "Lancer {#MyAppName}"; Flags: nowait postinstall skipifsilent

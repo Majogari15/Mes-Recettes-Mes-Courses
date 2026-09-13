@@ -18,6 +18,7 @@ import io
 import random
 import queue
 import threading
+import time
 import webbrowser
 import tempfile
 import unicodedata
@@ -39,8 +40,8 @@ from pathlib import Path
 # Convention alignée sur celle déjà en place côté application mobile
 # (APP_VERSION dans app.js) : un simple entier incrémenté à chaque
 # livraison.
-PRODUCT_VERSION = "1.6.12"
-APP_BUILD = 60
+PRODUCT_VERSION = "1.6.21"
+APP_BUILD = 68
 APP_VERSION = APP_BUILD
 DATA_SCHEMA_VERSION = 2
 
@@ -13599,12 +13600,66 @@ class CookingModeWindow(tk.Toplevel):
         scrollbar = ttk.Scrollbar(outer, orient="vertical", command=self.canvas.yview)
         self.content = tk.Frame(self.canvas, bg="white")
         self.content.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.create_window((0, 0), window=self.content, anchor="n")
+        self._content_id = self.canvas.create_window((0, 0), window=self.content, anchor="nw")
+        self.canvas.bind("<Configure>", self._resize_content)
         self.canvas.configure(yscrollcommand=scrollbar.set)
-        self.canvas.pack(side="left", fill="both", expand=True, padx=60)
+        self.canvas.pack(side="left", fill="both", expand=True, padx=16)
         scrollbar.pack(side="right", fill="y")
 
+        self.timer_rows = []
+        self._timer_number = 0
+        timer_heading = tk.Frame(self.content, bg="white")
+        timer_heading.pack(fill="x", pady=(6, 4))
+        tk.Label(timer_heading, text=t("timers_title"), bg="white",
+                 font=("Segoe UI", sf(18), "bold")).pack(side="left")
+        ttk.Button(timer_heading, text="+", width=3, command=self.add_timer).pack(side="left", padx=12)
+        self.timer_frame = tk.Frame(self.content, bg="white")
+        self.timer_frame.pack(fill="x")
+        self.recipe_content = tk.Frame(self.content, bg="white")
+        self.recipe_content.pack(fill="x")
+        self.add_timer()
         self._render()
+
+    def add_timer(self):
+        self._timer_number += 1
+        row = TimerRow(self.timer_frame, self,
+                       t("cookingmode_timer_number", number=self._timer_number), 10)
+        row.pack(fill="x", pady=4)
+        self.timer_rows.append(row)
+
+    def remove_timer(self, row):
+        if row not in self.timer_rows:
+            return
+        if len(self.timer_rows) == 1:
+            row.reset()
+            return
+        row.cancel()
+        self.timer_rows.remove(row)
+        row.destroy()
+
+    def _resize_content(self, event):
+        self.canvas.itemconfigure(self._content_id, width=max(1, event.width))
+        self._layout_recipe(event.width)
+
+    def _layout_recipe(self, width):
+        if not hasattr(self, "ingredients_panel"):
+            return
+        wide = width >= gs(1000)
+        if getattr(self, "_wide_recipe", None) == wide:
+            return
+        self._wide_recipe = wide
+        self.ingredients_panel.grid_forget()
+        self.steps_panel.grid_forget()
+        self.recipe_columns.columnconfigure(0, weight=2 if wide else 1, uniform="recipe")
+        self.recipe_columns.columnconfigure(1, weight=3 if wide else 0, uniform="recipe" if wide else "")
+        self.ingredients_panel.grid(row=0, column=0, sticky="new", padx=(0, 24 if wide else 0))
+        self.steps_panel.grid(row=0 if wide else 1, column=1 if wide else 0, sticky="new")
+
+    @staticmethod
+    def _wrap_panel(event):
+        for label in event.widget.winfo_children():
+            if isinstance(label, tk.Label):
+                label.configure(wraplength=max(1, event.width - 12))
 
     def mark_as_cooked(self):
         try:
@@ -13718,6 +13773,8 @@ class CookingModeWindow(tk.Toplevel):
 
     def _on_close(self):
         self.stop_speech()
+        for row in self.timer_rows:
+            row.cancel()
         self.destroy()
 
     def _toggle_fullscreen(self):
@@ -13737,12 +13794,12 @@ class CookingModeWindow(tk.Toplevel):
         self._render()
 
     def _render(self):
-        for child in self.content.winfo_children():
+        for child in self.recipe_content.winfo_children():
             child.destroy()
 
         recipe = self.recipe
         star = "⭐ " if recipe.get("favorite") else ""
-        tk.Label(self.content, text=f"{star}{recipe['name']}", font=("Segoe UI", sf(34), "bold"),
+        tk.Label(self.recipe_content, text=f"{star}{recipe['name']}", font=("Segoe UI", sf(34), "bold"),
                  bg="white", wraplength=1000, justify="center").pack(pady=(10, 5))
 
         info_bits = []
@@ -13753,10 +13810,19 @@ class CookingModeWindow(tk.Toplevel):
         if recipe.get("difficulty"):
             info_bits.append(t("cookingmode_difficulty_label", value=translate_difficulty_name(recipe['difficulty'])))
         if info_bits:
-            tk.Label(self.content, text="   |   ".join(info_bits), font=("Segoe UI", sf(16)),
+            tk.Label(self.recipe_content, text="   |   ".join(info_bits), font=("Segoe UI", sf(16)),
                      bg="white", fg="#555").pack(pady=(0, 20))
 
-        tk.Label(self.content, text=t("cookingmode_ingredients_heading"), font=("Segoe UI", sf(22), "bold"),
+        self.recipe_content.bind("<Configure>", self._wrap_panel)
+        self.recipe_columns = tk.Frame(self.recipe_content, bg="white")
+        self.recipe_columns.pack(fill="x", pady=(0, 30))
+        self.ingredients_panel = tk.Frame(self.recipe_columns, bg="white")
+        self.steps_panel = tk.Frame(self.recipe_columns, bg="white")
+        self.ingredients_panel.bind("<Configure>", self._wrap_panel)
+        self.steps_panel.bind("<Configure>", self._wrap_panel)
+        self._wide_recipe = None
+
+        tk.Label(self.ingredients_panel, text=t("cookingmode_ingredients_heading"), font=("Segoe UI", sf(22), "bold"),
                  bg="white").pack(pady=(10, 8), anchor="w", fill="x")
         for ing in recipe["ingredients"]:
             qty = ingredient_quantity_for_persons(ing, self.persons)
@@ -13766,25 +13832,25 @@ class CookingModeWindow(tk.Toplevel):
             else:
                 quantity_display = qty
                 unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
-            tk.Label(self.content, text=f"•  {translate_ingredient_name(ing['name']).capitalize()} : {quantity_display}{unit}",
+            tk.Label(self.ingredients_panel, text=f"•  {translate_ingredient_name(ing['name']).capitalize()} : {quantity_display}{unit}",
                      font=("Segoe UI", sf(18)), bg="white", anchor="w", justify="left",
                      wraplength=1000).pack(fill="x", pady=3, anchor="w")
 
         description = recipe.get("description", "").strip()
         if description:
-            tk.Label(self.content, text=t("cookingmode_preparation_heading"), font=("Segoe UI", sf(22), "bold"),
-                     bg="white").pack(pady=(25, 8), anchor="w", fill="x")
-            tk.Label(self.content, text=description, font=("Segoe UI", sf(16)), bg="white",
+            tk.Label(self.steps_panel, text=t("cookingmode_preparation_heading"), font=("Segoe UI", sf(22), "bold"),
+                     bg="white").pack(pady=(10, 8), anchor="w", fill="x")
+            tk.Label(self.steps_panel, text=description, font=("Segoe UI", sf(16)), bg="white",
                      justify="left", anchor="w", wraplength=1000).pack(fill="x", anchor="w")
 
         personal_notes = recipe.get("personal_notes", "").strip()
         if personal_notes:
-            tk.Label(self.content, text=t("cookingmode_personal_notes_heading"), font=("Segoe UI", sf(20), "bold"),
+            tk.Label(self.steps_panel, text=t("cookingmode_personal_notes_heading"), font=("Segoe UI", sf(20), "bold"),
                      bg="white", fg="#555").pack(pady=(20, 8), anchor="w", fill="x")
-            tk.Label(self.content, text=personal_notes, font=("Segoe UI", sf(14)), bg="white",
+            tk.Label(self.steps_panel, text=personal_notes, font=("Segoe UI", sf(14)), bg="white",
                      fg="#555", justify="left", anchor="w", wraplength=1000).pack(fill="x", anchor="w")
 
-        tk.Label(self.content, text="", bg="white").pack(pady=30)  # marge basse
+        self._layout_recipe(self.canvas.winfo_width())
 
 
 class IngredientSearchWindow(tk.Toplevel):
@@ -13911,6 +13977,8 @@ class TimerRow(tk.Frame):
         self.timers_window = timers_window
         self.remaining_seconds = max(0, int(minutes) * 60)
         self.running = False
+        self._started = False
+        self._deadline = None
         self.finished = False
         self._after_id = None
         self._flash_after_id = None
@@ -13950,6 +14018,7 @@ class TimerRow(tk.Frame):
         self.display_label.bind("<Button-1>", lambda e: self._stop_flash())
 
         self._refresh_display()
+        self.bind("<Destroy>", lambda e: self.cancel() if e.widget is self else None, add="+")
 
     def _format_time(self):
         mins, secs = divmod(max(0, self.remaining_seconds), 60)
@@ -13963,17 +14032,22 @@ class TimerRow(tk.Frame):
             self._stop_flash()
         if self.running:
             return
-        if self.remaining_seconds <= 0:
+        if not self._started or self.remaining_seconds <= 0:
             try:
                 minutes = int(self.minutes_entry.get().strip() or 0)
                 seconds = int(self.seconds_entry.get().strip() or 0)
             except ValueError:
                 messagebox.showerror(t("common_error"), t("timerrow_error_invalid_duration"))
                 return
-            self.remaining_seconds = max(0, minutes * 60 + seconds)
+            if minutes < 0 or seconds < 0:
+                messagebox.showerror(t("common_error"), t("timerrow_error_invalid_duration"), parent=self.winfo_toplevel())
+                return
+            self.remaining_seconds = minutes * 60 + seconds
             if self.remaining_seconds <= 0:
                 messagebox.showinfo(t("common_info"), t("timerrow_set_duration_first"))
                 return
+        self._started = True
+        self._deadline = time.monotonic() + self.remaining_seconds
         self.running = True
         self.minutes_entry.config(state="disabled")
         self.seconds_entry.config(state="disabled")
@@ -13982,16 +14056,20 @@ class TimerRow(tk.Frame):
         self._tick()
 
     def _tick(self):
+        self._after_id = None
         if not self.running:
             return
+        self.remaining_seconds = max(0, math.ceil(self._deadline - time.monotonic()))
+        self._refresh_display()
         if self.remaining_seconds <= 0:
             self._on_finished()
             return
-        self.remaining_seconds -= 1
-        self._refresh_display()
-        self._after_id = self.after(1000, self._tick)
+        self._after_id = self.after(200, self._tick)
 
     def pause(self):
+        if self.running:
+            self.remaining_seconds = max(0, math.ceil(self._deadline - time.monotonic()))
+            self._refresh_display()
         self.running = False
         if self._after_id is not None:
             try:
@@ -14003,6 +14081,7 @@ class TimerRow(tk.Frame):
         self.pause_button.config(state="disabled")
 
     def reset(self):
+        self._started = False
         self.running = False
         if self._after_id is not None:
             try:
@@ -14078,6 +14157,8 @@ class TimerRow(tk.Frame):
     def cancel(self):
         """Arrête tout minuterie/clignotement en cours (appelé à la
         fermeture de la fenêtre ou à la suppression de cette ligne)."""
+        self.running = False
+        self.finished = False
         if self._after_id is not None:
             try:
                 self.after_cancel(self._after_id)
@@ -14088,6 +14169,7 @@ class TimerRow(tk.Frame):
                 self.after_cancel(self._flash_after_id)
             except Exception as exc:
                 log_internal_error("suppressed_exception", exc)
+
 
 
 class CookLogEntryDialog(tk.Toplevel):

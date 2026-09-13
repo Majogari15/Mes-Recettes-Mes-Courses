@@ -3,7 +3,7 @@
 ====================================================
 
 Cette version inclut Python et les modules nécessaires à l'application.
-Double-cliquez sur MesRecettes.exe pour la lancer. L'import depuis une
+Double-cliquez sur Mes Recettes, Mes Courses.exe pour la lancer. L'import depuis une
 photo nécessite toutefois Tesseract OCR installé séparément (section 2).
 
 Au tout premier lancement, une fenêtre affiche une clause de responsabilité
@@ -20,7 +20,7 @@ sont rangées dans le dossier `docs/history` du dossier source.
 1. FICHIERS À GARDER ENSEMBLE
 --------------------------------------------------
 
-Ce dossier contient, à côté de MesRecettes.exe, plusieurs fichiers
+Ce dossier contient, à côté de Mes Recettes, Mes Courses.exe, plusieurs fichiers
 indispensables à son bon fonctionnement :
 
   - i18n_desktop.json
@@ -64,7 +64,7 @@ indispensables à son bon fonctionnement :
   - LISEZ-MOI.txt
       Ce fichier.
 
->>> IMPORTANT : ne déplacez JAMAIS MesRecettes.exe tout seul. Déplacez
+>>> IMPORTANT : ne déplacez JAMAIS Mes Recettes, Mes Courses.exe tout seul. Déplacez
 >>> toujours le dossier ENTIER (avec tous ces fichiers dedans), sur une clé
 >>> USB, un autre PC, ou ailleurs sur votre disque. Sans ces fichiers juste
 >>> à côté de l'exécutable, certaines fonctionnalités ne pourront pas
@@ -105,7 +105,7 @@ plutôt que de copier chaque fichier à la main.
 --------------------------------------------------
 
 Toutes les fonctionnalités de l'application sont incluses dans
-MesRecettes.exe, SAUF une : l'import de recette depuis une PHOTO
+Mes Recettes, Mes Courses.exe, SAUF une : l'import de recette depuis une PHOTO
 (reconnaissance de texte / OCR).
 
 Cette fonctionnalité s'appuie sur un programme externe appelé
@@ -115,7 +115,7 @@ pas inclus dans l'exécutable, et ce n'est pas un simple programme Python) :
   Windows : téléchargez l'installateur depuis
             https://github.com/UB-Mannheim/tesseract/wiki
             (cochez la langue française si elle est proposée),
-            installez-le, puis redémarrez MesRecettes.exe.
+            installez-le, puis redémarrez Mes Recettes, Mes Courses.exe.
 
 Sans Tesseract OCR installé, le bouton "📷 Importer une recette depuis une
 photo" reste accessible mais vous indiquera clairement ce qu'il manque
@@ -218,7 +218,7 @@ petites explications.
 - Une fonctionnalité indique qu'un fichier manque, ou le contenu d'une
   autre langue que le français ne s'affiche pas : vérifiez que tous les
   fichiers .json et .png listés en section 1 sont bien présents à côté de
-  MesRecettes.exe.
+  Mes Recettes, Mes Courses.exe.
 
 - Rien ne se passe en double-cliquant : essayez de lancer l'exécutable
   depuis une invite de commandes (cmd) pour voir si un message d'erreur

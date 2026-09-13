@@ -1,3 +1,27 @@
+# Build 66 — 1.6.19
+
+Retour au lancement normal de l’application pendant la capture MSIX ; suppression conservée du seul raccourci supplémentaire.
+
+# Build 65 — 1.6.18
+
+Le mode de capture MSIX reste ouvert afin d’être détecté par la page Manage First Launch.
+
+# Build 64 — 1.6.17
+
+Ajout du mode de détection MSIX sans chargement ni écriture de données utilisateur.
+
+# Build 63 — 1.6.16
+
+Le lancement automatique après capture est supprimé pour éviter d’embarquer la langue ou des réglages de la machine de fabrication.
+
+# Build 62 — 1.6.15
+
+Suppression du raccourci Inno Setup dans l’installateur de capture Store afin que le menu Démarrer ne contienne qu’une seule entrée MSIX.
+
+# Build 61 — 1.6.14
+
+Correction de la collecte Tcl/Tk (y compris zipfs) et contrôle bloquant des ressources et du démarrage de l’interface après construction du .exe.
+
 ## Build 60 — impression Windows directe
 
 - Le bouton Imprimer ouvre la boîte d’impression classique Windows et envoie le PDF page par page au pilote sélectionné.
@@ -531,3 +555,6 @@ Cette version conserve la refonte UI, les sauvegardes/QR compatibles mobile et t
 - Test du parseur de dates de garde-manger et compatibilité des anciennes entrées sans date.
 
 L'application mobile n'a pas été modifiée dans ce lot.
+# Build 67 — 1.6.20
+
+Nom du fichier exécutable aligné sur « Mes Recettes, Mes Courses » pour éviter que MSIX Packaging Tool génère `DisplayName="MesRecettes"`.

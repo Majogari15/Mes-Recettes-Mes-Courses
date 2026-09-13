@@ -1,5 +1,57 @@
 # Version actuelle
 
+## Build 67 — nom d’exécutable aligné sur le nom du produit
+
+- Version produit : **1.6.20** ; version MSIX : **1.6.20.0**.
+- L’exécutable généré s’appelle désormais `Mes Recettes, Mes Courses.exe`.
+- MSIX Packaging Tool reprend ainsi automatiquement le bon nom dans `VisualElements`, sans correction manuelle du manifeste.
+
+## Build 66 — retour au lancement normal
+
+- Version produit : **1.6.19** ; version MSIX : **1.6.19.0**.
+- Retour au lancement normal après installation, comme dans la version qui fonctionnait.
+- Seule modification de capture : suppression du raccourci Inno Setup supplémentaire ; le MSIX garde une seule entrée.
+
+
+## Build 65 — première tâche MSIX persistante
+
+- Version produit : **1.6.18** ; version MSIX : **1.6.18.0**.
+- Le mode `--msix-capture` reste ouvert jusqu’à sa fermeture manuelle. MSIX Packaging Tool peut donc le détecter dans « Manage First Launch ».
+
+
+## Build 64 — détection MSIX sans réglages
+
+- Version produit : **1.6.17** ; version MSIX : **1.6.17.0**.
+- Le mode de capture `--msix-capture` permet à MSIX Packaging Tool de détecter l’application dans « Manage First Launch » sans enregistrer de préférence.
+
+
+## Build 63 — capture sans préférences personnelles
+
+- Version produit : **1.6.16** ; version MSIX : **1.6.16.0**.
+- L’installateur Store ne lance plus automatiquement l’application après installation. Aucun `settings.json` personnel n’est ainsi capturé.
+- Le premier lancement choisit la langue du système ; sur un Windows français, l’application démarre en français.
+
+
+## Build 62 — une seule entrée du menu Démarrer
+
+- Version produit : **1.6.15** ; version MSIX à renseigner : **1.6.15.0**.
+- L’installateur utilisé pour la capture Store ne crée plus de raccourci. Le MSIX fournit automatiquement l’unique entrée de l’application.
+- Cette suppression évite le doublon causé par le raccourci Inno Setup capturé sous `VFS\Programs` et l’extension `desktop7:Shortcut`.
+- Recréer le package depuis le nouvel installateur et vérifier qu’il ne contient aucun fichier `.lnk` avant soumission.
+
+
+## Build 61 — ressources Tcl/Tk dans l’exécutable
+
+- Version produit : **1.6.14** ; version MSIX à renseigner : **1.6.14.0**.
+- Copie explicite des ressources Tcl/Tk avec prise en charge des chemins virtuels zipfs de Tcl 9.
+- Vérification du contenu de l’exécutable et test automatique de démarrage Tcl/Tk avant de valider la construction.
+- L’exécutable est supprimé si ce contrôle échoue.
+- Reconstruire le programme et l’installateur sur le PC, puis créer et tester le MSIX dans Hyper-V.
+- Validation locale : tests de copie depuis un vrai zipfs Tcl 9, contrôles d’archives PyInstaller complètes/incomplètes/altérées, et rejet du véritable exécutable fourni dans le MSIX 1.6.13.0.
+- La compilation et le lancement Windows restent à effectuer sur votre PC ; le script les contrôle automatiquement pour Tcl/Tk.
+
+# Versions précédentes
+
 ## Build 60 — impression Windows directe
 
 - Le bouton Imprimer ouvre la boîte d’impression classique Windows et envoie le PDF page par page au pilote sélectionné.

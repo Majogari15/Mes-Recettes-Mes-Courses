@@ -32,7 +32,7 @@ icône à double-cliquer) :
 3. Laissez faire — le script installe tout ce qu'il faut et construit
    l'exécutable automatiquement. La durée dépend du PC et des téléchargements.
 4. Une fois terminé, votre application se trouve dans le dossier `dist`,
-   sous le nom **`MesRecettes.exe`**, accompagnée automatiquement de tous
+   sous le nom **`Mes Recettes, Mes Courses.exe`**, accompagnée automatiquement de tous
    les fichiers nécessaires à son fonctionnement (`i18n_desktop.json`,
    `ingredients_par_defaut.json`,
    `valeurs_nutritionnelles.json`, `ingredient_allergenes.json`,
@@ -75,7 +75,7 @@ icône à double-cliquer) :
   fonctionnalités, pour ceux qui utilisent `main.pyw` avec Python
 - `LISEZ-MOI.txt` : le même type de guide mais **spécifique à la version
   `.exe`** (sans rien sur Python/pip) — ce fichier n'a d'utilité qu'une
-  fois copié aux côtés de `MesRecettes.exe` après construction (le script
+  fois copié aux côtés de `Mes Recettes, Mes Courses.exe` après construction (le script
   de l'Option B s'en charge automatiquement)
 
 Au premier lancement, l'application utilise un dossier de données accessible
