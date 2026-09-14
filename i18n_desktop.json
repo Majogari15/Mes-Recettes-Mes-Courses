@@ -1074,7 +1074,21 @@
     "print_cancelling": "Annulation demandée… Attente de la réponse du pilote.",
     "print_page_progress": "Page {done} sur {total} transmise…",
     "cookingmode_timer_number": "Minuteur {number}",
-    "cookingmode_close_running": "Des minuteurs sont en cours. Fermer le mode cuisine et les arrêter ?"
+    "cookingmode_close_running": "Des minuteurs sont en cours. Fermer le mode cuisine et les arrêter ?",
+    "importurl_warning_heading": "À vérifier avant de confirmer :",
+    "importurl_warning_persons": "Nombre de personnes non renseigné : 4 proposé. Les quantités totales du site sont conservées.",
+    "importurl_warning_alternative": "Alternative à choisir ou à vérifier : {line}",
+    "importurl_warning_steps": "Étapes non renseignées.",
+    "importurl_warning_prep": "Temps de préparation non renseigné.",
+    "importurl_warning_cook": "Temps de cuisson non renseigné.",
+    "nutrition_incomplete_notice": "Calcul incomplet : ces valeurs concernent uniquement les ingrédients calculables, pas la recette entière. Les mesures en pots ou pièces sans poids connu ne sont pas converties.",
+    "importurl_http_error": "Le site a répondu avec une erreur HTTP {code}. Essayez d’ouvrir le lien dans votre navigateur.",
+    "importurl_timeout_error": "Le site n’a pas répondu dans le délai prévu. Réessayez plus tard ou ouvrez le lien dans votre navigateur.",
+    "importurl_network_error": "Connexion au site impossible : {detail}",
+    "importurl_range_note": "Quantité indiquée sur le site pour {persons} personnes : {line}. La borne basse est utilisée dans la liste ; ajustez-la si nécessaire.",
+    "importurl_warning_range": "Plage conservée dans les notes ; borne basse utilisée : {line}",
+    "importurl_rest_note": "Temps de repos indiqué par la source : {value}",
+    "importurl_yield_note": "Rendement indiqué par la source : {value}. Ce nombre ne désigne pas des personnes."
   },
   "translations": {
     "en": {
@@ -2152,7 +2166,21 @@
       "print_cancelling": "Cancellation requested… Waiting for the printer driver.",
       "print_page_progress": "Page {done} of {total} submitted…",
       "cookingmode_timer_number": "Timer {number}",
-      "cookingmode_close_running": "Timers are running. Close cooking mode and stop them?"
+      "cookingmode_close_running": "Timers are running. Close cooking mode and stop them?",
+      "importurl_warning_heading": "Check before confirming:",
+      "importurl_warning_persons": "Serving count missing: 4 suggested. The site’s total quantities are preserved.",
+      "importurl_warning_alternative": "Choose or check this alternative: {line}",
+      "importurl_warning_steps": "Instructions not provided.",
+      "importurl_warning_prep": "Preparation time not provided.",
+      "importurl_warning_cook": "Cooking time not provided.",
+      "nutrition_incomplete_notice": "Incomplete calculation: these values cover only ingredients that can be calculated, not the whole recipe. Pots or pieces with no known weight are not converted.",
+      "importurl_http_error": "The site returned HTTP error {code}. Try opening the link in your browser.",
+      "importurl_timeout_error": "The site did not respond in time. Try again later or open the link in your browser.",
+      "importurl_network_error": "Unable to connect to the site: {detail}",
+      "importurl_range_note": "Quantity on the site for {persons} servings: {line}. The list uses the lower value; adjust it if needed.",
+      "importurl_warning_range": "Range preserved in notes; lower value used: {line}",
+      "importurl_rest_note": "Rest time stated by the source: {value}",
+      "importurl_yield_note": "Yield stated by the source: {value}. This number does not refer to people."
     },
     "es": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -3229,7 +3257,21 @@
       "print_cancelling": "Cancelación solicitada… Esperando al controlador.",
       "print_page_progress": "Página {done} de {total} enviada…",
       "cookingmode_timer_number": "Temporizador {number}",
-      "cookingmode_close_running": "Hay temporizadores en marcha. ¿Cerrar el modo cocina y detenerlos?"
+      "cookingmode_close_running": "Hay temporizadores en marcha. ¿Cerrar el modo cocina y detenerlos?",
+      "importurl_warning_heading": "Revisa antes de confirmar:",
+      "importurl_warning_persons": "Número de personas no indicado: se proponen 4. Se conservan las cantidades totales del sitio.",
+      "importurl_warning_alternative": "Elige o revisa esta alternativa: {line}",
+      "importurl_warning_steps": "Pasos no indicados.",
+      "importurl_warning_prep": "Tiempo de preparación no indicado.",
+      "importurl_warning_cook": "Tiempo de cocción no indicado.",
+      "nutrition_incomplete_notice": "Cálculo incompleto: estos valores corresponden solo a los ingredientes calculables, no a toda la receta. No se convierten vasos o piezas sin peso conocido.",
+      "importurl_http_error": "El sitio devolvió el error HTTP {code}. Prueba a abrir el enlace en el navegador.",
+      "importurl_timeout_error": "El sitio no respondió a tiempo. Inténtalo más tarde o abre el enlace en el navegador.",
+      "importurl_network_error": "No se pudo conectar al sitio: {detail}",
+      "importurl_range_note": "Cantidad del sitio para {persons} personas: {line}. La lista usa el valor inferior; ajústalo si es necesario.",
+      "importurl_warning_range": "Intervalo conservado en las notas; se usa el valor inferior: {line}",
+      "importurl_rest_note": "Tiempo de reposo indicado por la fuente: {value}",
+      "importurl_yield_note": "Rendimiento indicado por la fuente: {value}. Esta cifra no representa personas."
     },
     "de": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -4306,7 +4348,21 @@
       "print_cancelling": "Abbruch angefordert… Warten auf den Druckertreiber.",
       "print_page_progress": "Seite {done} von {total} übermittelt…",
       "cookingmode_timer_number": "Timer {number}",
-      "cookingmode_close_running": "Timer laufen noch. Kochmodus schließen und die Timer stoppen?"
+      "cookingmode_close_running": "Timer laufen noch. Kochmodus schließen und die Timer stoppen?",
+      "importurl_warning_heading": "Vor dem Bestätigen prüfen:",
+      "importurl_warning_persons": "Personenzahl fehlt: 4 vorgeschlagen. Die Gesamtmengen der Website bleiben erhalten.",
+      "importurl_warning_alternative": "Alternative auswählen oder prüfen: {line}",
+      "importurl_warning_steps": "Zubereitungsschritte fehlen.",
+      "importurl_warning_prep": "Vorbereitungszeit fehlt.",
+      "importurl_warning_cook": "Garzeit fehlt.",
+      "nutrition_incomplete_notice": "Unvollständige Berechnung: Diese Werte gelten nur für berechenbare Zutaten, nicht für das gesamte Rezept. Becher oder Stücke ohne bekanntes Gewicht werden nicht umgerechnet.",
+      "importurl_http_error": "Die Website meldet HTTP-Fehler {code}. Öffnen Sie den Link im Browser.",
+      "importurl_timeout_error": "Die Website hat nicht rechtzeitig geantwortet. Versuchen Sie es später erneut oder öffnen Sie den Link im Browser.",
+      "importurl_network_error": "Verbindung zur Website nicht möglich: {detail}",
+      "importurl_range_note": "Menge auf der Website für {persons} Personen: {line}. Die Liste verwendet den unteren Wert; bei Bedarf anpassen.",
+      "importurl_warning_range": "Bereich in den Notizen erhalten; unterer Wert verwendet: {line}",
+      "importurl_rest_note": "Von der Quelle angegebene Ruhezeit: {value}",
+      "importurl_yield_note": "Von der Quelle angegebene Ausbeute: {value}. Diese Zahl bezeichnet keine Personen."
     }
   }
 }

@@ -24,6 +24,7 @@ import tempfile
 import unicodedata
 import urllib.error
 import urllib.parse
+from html.parser import HTMLParser
 import urllib.request
 import uuid
 import zipfile
@@ -40,8 +41,8 @@ from pathlib import Path
 # Convention alignée sur celle déjà en place côté application mobile
 # (APP_VERSION dans app.js) : un simple entier incrémenté à chaque
 # livraison.
-PRODUCT_VERSION = "1.6.24"
-APP_BUILD = 71
+PRODUCT_VERSION = "1.6.28"
+APP_BUILD = 75
 APP_VERSION = APP_BUILD
 DATA_SCHEMA_VERSION = 2
 
@@ -305,6 +306,9 @@ try:
     from reportlab.lib.units import cm
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen import canvas as pdf_canvas
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import reportlab
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
@@ -1080,16 +1084,19 @@ CATEGORY_TRANSLATIONS = {
 
 DIFFICULTY_TRANSLATIONS = {
     "en": {
+        "très facile": "Very easy",
         "facile": "Easy",
         "moyen": "Medium",
         "difficile": "Hard",
     },
     "es": {
+        "très facile": "Muy fácil",
         "facile": "Fácil",
         "moyen": "Medio",
         "difficile": "Difícil",
     },
     "de": {
+        "très facile": "Sehr einfach",
         "facile": "Einfach",
         "moyen": "Mittel",
         "difficile": "Schwer",
@@ -1233,6 +1240,9 @@ UNIT_TRANSLATIONS = {
         "pièce": "piece",
         "cuillère à soupe": "tbsp",
         "cuillère à café": "tsp",
+        "pincée": "pinch", "cuillerée": "spoonful", "filet": "drizzle", "poignée": "handful",
+        "pot de yaourt": "yogurt pot", "sachet": "sachet",
+        "disque": "disc", "tour de moulin": "turn of the mill", "grosse poignée": "large handful",
         "autre": "other",
         "boîte": "can",
         "paquet": "pack",
@@ -1246,6 +1256,9 @@ UNIT_TRANSLATIONS = {
         "pièce": "unidad",
         "cuillère à soupe": "cucharada",
         "cuillère à café": "cucharadita",
+        "pincée": "pizca", "cuillerée": "cucharada (tamaño sin especificar)", "filet": "chorrito", "poignée": "puñado",
+        "pot de yaourt": "vaso de yogur", "sachet": "sobre",
+        "disque": "disco", "tour de moulin": "vuelta de molinillo", "grosse poignée": "puñado grande",
         "autre": "otro",
         "boîte": "lata",
         "paquet": "paquete",
@@ -1259,6 +1272,9 @@ UNIT_TRANSLATIONS = {
         "pièce": "Stück",
         "cuillère à soupe": "EL",
         "cuillère à café": "TL",
+        "pincée": "Prise", "cuillerée": "Löffel (Größe nicht angegeben)", "filet": "Schuss", "poignée": "Handvoll",
+        "pot de yaourt": "Joghurtbecher", "sachet": "Beutel",
+        "disque": "Teigkreis", "tour de moulin": "Mühlenumdrehung", "grosse poignée": "große Handvoll",
         "autre": "andere",
         "boîte": "Dose",
         "paquet": "Packung",
@@ -1427,7 +1443,7 @@ def recipe_matches_search(recipe, search_key):
 
 
 RECIPE_SORT_OPTIONS = ["Nom (A-Z)", "Temps de préparation", "Temps total", "Difficulté", "Note", "Ajoutées récemment", "Plus cuisinées", "Dernière cuisson"]
-_DIFFICULTY_ORDER = {"Facile": 1, "Moyen": 2, "Difficile": 3}
+_DIFFICULTY_ORDER = {"Très facile": 0.5, "Facile": 1, "Moyen": 2, "Difficile": 3}
 
 
 def find_similar_recipes(recipe, all_recipes, limit=5):
@@ -2492,7 +2508,22 @@ def get_ingredient_allergens(name):
     override = get_ingredient_override(name)
     if override and "allergens" in override:
         return override["allergens"]
-    return _lookup_ingredient_data(load_ingredient_allergens(), name) or []
+    data = load_ingredient_allergens()
+    found = _lookup_ingredient_data(data, name)
+    if found is not None:
+        return found
+    # Only spelling/plural variants, never approximate food substitutions.
+    key = ingredient_sort_key(name).replace('œ', 'oe')
+    matches = [value for stored, value in data.items()
+               if ingredient_sort_key(stored).replace('œ', 'oe').rstrip('s') == key.rstrip('s')]
+    if matches and all(value == matches[0] for value in matches):
+        return matches[0]
+    # A preparation suffix does not change the underlying food. Keep every
+    # other qualifier (notably "sans gluten" and "sans lactose") intact.
+    base = re.sub(r"(?:\s*,?\s+(?:fondu[es]*|rape[es]*|tamise[es]*|battu[es]*|hache[es]*|concasse[es]*))+$", '', key)
+    if base != key:
+        return get_ingredient_allergens(base)
+    return []
 
 
 def compute_recipe_allergens(ingredients):
@@ -3031,8 +3062,21 @@ PANTRY_STAPLES = [
 ]
 
 
+def _pdf_font_name(name):
+    mapping = {'Helvetica': ('RecipeSans', 'Vera.ttf'),
+               'Helvetica-Bold': ('RecipeSansBold', 'VeraBd.ttf'),
+               'Helvetica-Oblique': ('RecipeSansItalic', 'VeraIt.ttf')}
+    if name not in mapping:
+        return name
+    registered, filename = mapping[name]
+    if registered not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(registered, os.path.join(os.path.dirname(reportlab.__file__), 'fonts', filename)))
+    return registered
+
+
 def _pdf_wrap_lines(c, text, max_width, font_name="Helvetica", font_size=10):
     """Retourne des lignes qui tiennent toutes dans ``max_width``."""
+    font_name = _pdf_font_name(font_name)
     text = str(text or "")
     words = text.split()
     if not words:
@@ -3058,6 +3102,8 @@ def _pdf_new_page(c, height):
 def _pdf_draw_wrapped(c, text, x, y, max_width, height, *, font_name="Helvetica",
                       font_size=10, line_height=0.48 * cm, bottom=2 * cm,
                       color=None, keep_together=False):
+    text = str(text or "").replace("⚠", "").replace("\ufe0f", "").strip()
+    font_name = _pdf_font_name(font_name)
     lines = _pdf_wrap_lines(c, text, max_width, font_name, font_size)
     needed = len(lines) * line_height
     page_capacity = (height - 2 * cm) - bottom
@@ -3176,6 +3222,8 @@ def draw_recipe_content(c, recipe, persons, width, height):
                            carbs=f"{nutrition['carbs_g']:.0f}", fat=f"{nutrition['fat_g']:.0f}")
             y = _pdf_draw_wrapped(c, nutri_text, left, y, usable, height,
                                   font_name="Helvetica-Oblique", font_size=9)
+            if nutri_known < nutri_total:
+                y = _pdf_draw_wrapped(c, t("nutrition_incomplete_notice"), left, y, usable, height, font_size=9)
 
     def draw_section(title, body, y):
         if not str(body or "").strip():
@@ -3605,6 +3653,22 @@ def find_recipe_by_name(recipes, name):
 _FRACTION_MAP = {"½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3}
 
 _UNIT_ALIASES = {
+    "sachet": "sachet", "sachets": "sachet",
+    "filet": "filet", "filets": "filet",
+    "rouleau": "rouleau", "rouleaux": "rouleau",
+    "poignée": "poignée", "poignées": "poignée",
+    "cuillerée": "cuillerée", "cuillerées": "cuillerée",
+    "cuillerée à soupe": "cuillère à soupe", "cuillerées à soupe": "cuillère à soupe",
+    "cuillerée à café": "cuillère à café", "cuillerées à café": "cuillère à café",
+    "disque": "disque", "disques": "disque",
+    "tour de moulin": "tour de moulin", "tours de moulin": "tour de moulin",
+    "grosse poignée": "grosse poignée", "grosses poignées": "grosse poignée",
+    "pot-mesure": "pot de yaourt", "sachet-mesure": "sachet",
+    "dl": "dl", "décilitre": "dl", "décilitres": "dl",
+    "cc": "cuillère à café", "cuil a café": "cuillère à café",
+    "cuil à soupe": "cuillère à soupe", "cuil a soupe": "cuillère à soupe",
+    "unité": "pièce", "unités": "pièce",
+    "pincée": "pincée", "pincées": "pincée",
     "g": "Gr", "gr": "Gr", "gramme": "Gr", "grammes": "Gr",
     "kg": "Kilo", "kilo": "Kilo", "kilos": "Kilo",
     "kilogramme": "Kilo", "kilogrammes": "Kilo",
@@ -3741,6 +3805,9 @@ def parse_ingredient_line(line):
     else:
         unit = unit or "pièce"
 
+    if unit == "dl":
+        qty *= 100
+        unit = "ml"
     return {"name": name.capitalize(), "quantity": qty, "unit": unit}
 
 
@@ -4405,13 +4472,11 @@ def parse_iso8601_duration_minutes(duration):
     """Convertit une durée ISO 8601 (ex. 'PT1H30M') en nombre de minutes."""
     if not duration:
         return None
-    match = re.search(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", str(duration))
+    match = re.fullmatch(r"P(?:(\d+)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?", str(duration).strip(), re.I)
     if not match:
         return None
-    hours = int(match.group(1) or 0)
-    minutes = int(match.group(2) or 0)
-    seconds = int(match.group(3) or 0)
-    total = hours * 60 + minutes + (1 if seconds >= 30 else 0)
+    days, hours, minutes, seconds = (float(v or 0) for v in match.groups())
+    total = int(days * 1440 + hours * 60 + minutes + seconds / 60 + 0.5)
     return total if total > 0 else None
 
 
@@ -4440,6 +4505,208 @@ def _find_recipe_jsonld(data):
     return None
 
 
+def _parse_url_ingredient(line):
+    line = re.sub(r"\b(sachet|pincée|cuillerée|filet|rouleau)\(s\)", r"\1", line, flags=re.I)
+    line = re.sub(r"^(?:une?|a|an)\s+", "1 ", line.strip(), flags=re.I)
+    # A fish/meat fillet is the food itself, unlike a drizzle of oil.
+    food_fillet = re.match(r"^(\d+(?:[.,]\d+)?)\s+(filets?\s+(?:de |d['’]).+)$", line, re.I)
+    if food_fillet and not re.search(r"\b(?:huile|vinaigre|jus|miel|crème|sauce)\b", food_fillet.group(2), re.I):
+        return {'name': food_fillet.group(2).capitalize(), 'quantity': float(food_fillet.group(1).replace(',', '.')), 'unit': 'pièce'}
+    # Yogurt pots are volumes of unknown capacity, not weights.
+    normalized = re.sub(
+        r"\bpots?\s+de\s+yaourts?(?:\s+vides?)?\s+(?:de\s+|d['’])",
+        "pot-mesure ", line, flags=re.I)
+    normalized = re.sub(r"\bsachets?\s+(?:de\s+|d['’])?", "sachet-mesure ", normalized, flags=re.I)
+    # An unnamed amount keeps its measure without inventing a count.
+    tokens = normalized.split()
+    unit, end = _match_unit_tokens(tokens, 0)
+    if unit and len(tokens) > end:
+        name = re.sub(r"^(?:de |d['’])", "", ' '.join(tokens[end:]), flags=re.I)
+        return {'name': name.capitalize(), 'quantity': None, 'unit': unit}
+    measured = parse_ingredient_line(normalized)
+    if not measured:
+        return None
+    # Explicit weight per sachet: retain the food name and use the stated mass.
+    if measured['unit'] == 'sachet':
+        weight = re.search(r"\s*\((\d+(?:[.,]\d+)?)\s*g\)\s*$", measured['name'], re.I)
+        if weight:
+            measured['quantity'] *= float(weight.group(1).replace(',', '.'))
+            measured['name'] = measured['name'][:weight.start()].strip()
+            measured['unit'] = 'Gr'
+    return measured
+
+
+class _RecipePageMetadata(HTMLParser):
+    """Read labelled recipe metadata only, excluding scripts and navigation."""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack = []
+        self.in_header = False
+        self.await_note = False
+        self.await_rest = False
+        self.values = {'difficulty': [], 'notes': [], 'category': [], 'rest': []}
+        self.ingredients = []
+        self.ingredient_depth = None
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'h1':
+            self.in_header = True
+        classes = attrs.get('class', '').lower()
+        prop = attrs.get('itemprop', '')
+        kind = None
+        if prop == 'recipeCategory' or 'recipe-course' in classes:
+            kind = 'category'
+        elif prop == 'restTime' or any(x in classes for x in ('recipe-rest-time', 'recipe-custom-time', 'recipe-rest_time', 'recipe-custom_time')):
+            kind = 'rest'
+        elif prop == 'difficulty' or 'recipe-difficulty' in classes or 'recipe-primary__item' in classes:
+            kind = 'difficulty'
+        elif 'recipe-note' in classes or 'recipe-author-note' in classes:
+            kind = 'notes'
+        elif self.await_note and tag in ('p', 'div', 'blockquote'):
+            kind = 'notes'
+            self.await_note = False
+        if self.ingredient_depth is None and (prop == 'recipeIngredient' or
+                any(c in classes.split() for c in ('wprm-recipe-ingredient', 'recipe-ingredient'))):
+            self.ingredients.append([attrs['content']] if attrs.get('content') else [])
+            if tag not in ('meta', 'img', 'input', 'br', 'hr', 'link', 'source', 'wbr'):
+                self.ingredient_depth = len(self.stack)
+        if tag not in ('meta','img','input','br','hr','link','source','wbr'):
+            self.stack.append((tag, kind))
+        if kind and attrs.get('content'):
+            self.values[kind].append(attrs['content'])
+
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack)-1, -1, -1):
+            if self.stack[i][0] == tag:
+                del self.stack[i:]
+                if self.ingredient_depth is not None and len(self.stack) <= self.ingredient_depth:
+                    self.ingredient_depth = None
+                break
+
+    def handle_data(self, data):
+        if any(tag in ('script','style','nav','aside','footer') for tag, _ in self.stack):
+            return
+        if self.ingredient_depth is not None:
+            self.ingredients[-1].append(data)
+        key = ingredient_sort_key(data.strip()).strip(' :')
+        rest_label = re.fullmatch(r'(?:temps de )?repos\b\s*:?\s*(.*)', data.strip(), re.I)
+        if rest_label:
+            value = rest_label.group(1).strip()
+            if value:
+                self.values['rest'].append(value)
+            else:
+                self.await_rest = True
+            return
+        if self.await_rest and data.strip():
+            if re.fullmatch(r'\d+(?:[.,]\d+)?\s*(?:h(?:eures?)?|min(?:utes?)?|jours?)(?:\s*\d+\s*(?:min(?:utes?)?)?)?', data.strip(), re.I):
+                self.values['rest'].append(data.strip())
+            self.await_rest = False
+        if key == 'ingredients':
+            self.in_header = False
+        if self.in_header and key in ('tres facile', 'facile', 'moyen', 'difficile'):
+            self.values['difficulty'].append(data)
+        if key in ("note de l'auteur", "note de l’auteur"):
+            self.await_note = True
+            return
+        active = {kind for _, kind in self.stack if kind}
+        if self.await_note and data.strip() and key not in ('«', '»'):
+            if 'notes' not in active:
+                self.values['notes'].append(data)
+            self.await_note = False
+        for kind in active:
+            self.values[kind].append(data)
+
+
+def _url_recipe_metadata(data, page, clean):
+    parser = _RecipePageMetadata()
+    parser.feed(page)
+    raw_category = clean(data.get('recipeCategory') or parser.values['category'] or data.get('name'))
+    category_key = ingredient_sort_key(raw_category)
+    categories = {
+        r'petits?[- ]dejeuners?|breakfast': 'Petit-déjeuner',
+        r'quiches?|cakes? sales?|tartes? salees?|dejeuners?|diners?|main courses?|plats?': 'Plat',
+        r'desserts?|gateaux?|cookies?|biscuits?|patisseries?': 'Dessert',
+        r'entrees?': 'Entrée', r'boissons?': 'Boisson', r'sauces?': 'Sauce',
+        r'aperitifs?|aperos?': 'Apéro',
+    }
+    category = next((value for pattern, value in categories.items()
+                     if re.search(r'\b(?:'+pattern+r')\b', category_key)), 'Autre')
+    raw_difficulty = clean(data.get('difficulty') or parser.values['difficulty'])
+    diff_key = ingredient_sort_key(raw_difficulty)
+    difficulties = [('tres facile','Très facile'), ('very easy','Très facile'), ('facile','Facile'),
+                    ('easy','Facile'), ('moyen','Moyen'), ('difficile','Difficile')]
+    difficulty = next((value for key, value in difficulties if re.search(r'\b'+re.escape(key)+r'\b', diff_key)), '')
+    notes = clean(data.get('recipeNotes') or parser.values['notes'])
+    rest = clean(data.get('restTime') or parser.values['rest'])
+    if rest:
+        minutes = parse_iso8601_duration_minutes(rest)
+        notes = '\n\n'.join(x for x in (notes, t('importurl_rest_note', value=f'{minutes} min' if minutes is not None else rest)) if x)
+    return category, difficulty, notes
+
+
+def _url_ingredient_parts(line):
+    """Split explicit additions, never alternatives or parenthesized text."""
+    if re.fullmatch(r"sel\s+(?:et|&)\s+poivre(?:\s+au\s+go[ûu]t)?", line, re.I):
+        return ['sel', 'poivre']
+    parts, start, depth = [], 0, 0
+    for match in re.finditer(r"[()]|\s+(?:\+|et)\s+(?=\d|[½¼¾⅓⅔])", line, re.I):
+        token = match.group()
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            parts.append(line[start:match.start()].strip())
+            start = match.end()
+    parts.append(line[start:].strip())
+    return [part for part in parts if part]
+
+
+def _url_ingredient_heading(line):
+    # Exact headings only: do not discard real ingredients such as pâte brisée.
+    key = ingredient_sort_key(line).strip(" :")
+    return key in {"pate", "garniture", "pour la pate", "pour la garniture",
+                   "ingredients", "pour la sauce", "pour le decor", "decoration"}
+
+
+def _url_instruction_texts(value, clean):
+    if isinstance(value, str):
+        text = clean(value)
+        return [text] if text else []
+    if isinstance(value, list):
+        return [text for item in value for text in _url_instruction_texts(item, clean)]
+    if isinstance(value, dict):
+        children = value.get("itemListElement")
+        if children:
+            return _url_instruction_texts(children, clean)
+        return _url_instruction_texts(value.get("text") or value.get("name") or "", clean)
+    return []
+
+
+def _url_clean_steps(steps):
+    cooking, notes = [], []
+    supplementary = False
+    action = re.compile(r"^(?:vous\s+|pr[ée]chauff|faites|m[ée]lang|ajout|vers|coupez|[ée]pluch|mette|enfourn)", re.I)
+    for text in steps:
+        text = re.sub(r"^\s*\d+[.)]\s+", "", text).strip()
+        if re.match(r"^(?:variantes?|FAQ|questions fr[ée]quentes|conseils|astuces)\s*(?::|[\r\n]|$)", text, re.I):
+            supplementary = True
+        if supplementary:
+            notes.append(text)
+            continue
+        paragraphs = [x.strip() for x in re.split(r"[\r\n]+", text) if x.strip()]
+        # Only move a separated introduction before a clearly recognized action.
+        if not cooking and len(paragraphs) > 1 and not action.match(paragraphs[0]):
+            action_at = next((i for i, x in enumerate(paragraphs) if action.match(x)), None)
+            if action_at is not None:
+                notes.extend(paragraphs[:action_at])
+                text = "\n".join(paragraphs[action_at:])
+        if text:
+            cooking.append(text)
+    return cooking, notes
+
+
 def fetch_recipe_from_url(url):
     """Télécharge une page de recette et tente d'en extraire le contenu à
     partir des données structurées Schema.org (JSON-LD), un format utilisé
@@ -4456,10 +4723,16 @@ def fetch_recipe_from_url(url):
             raw = _read_response_limited(response, MAX_WEB_PAGE_BYTES)
             charset = response.headers.get_content_charset() or "utf-8"
             page_html = raw.decode(charset, errors="replace")
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(t("importurl_http_error", code=e.code)) from e
+    except TimeoutError as e:
+        raise RuntimeError(t("importurl_timeout_error")) from e
     except urllib.error.URLError as e:
-        raise RuntimeError(f"Impossible d'accéder à cette adresse : {e}")
+        if isinstance(e.reason, TimeoutError):
+            raise RuntimeError(t("importurl_timeout_error")) from e
+        raise RuntimeError(t("importurl_network_error", detail=str(e.reason))) from e
     except Exception as e:
-        raise RuntimeError(f"Erreur lors du téléchargement de la page : {e}")
+        raise RuntimeError(f"Erreur lors du téléchargement de la page : {e}") from e
 
     scripts = re.findall(
         r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
@@ -4471,7 +4744,12 @@ def fetch_recipe_from_url(url):
         try:
             parsed = json.loads(script.strip())
         except (json.JSONDecodeError, ValueError):
-            continue
+            # Some publishers put literal newlines in JSON strings (750g).
+            # Relax only control-character handling; never evaluate site code.
+            try:
+                parsed = json.loads(script.strip(), strict=False)
+            except (json.JSONDecodeError, ValueError):
+                continue
         found = _find_recipe_jsonld(parsed)
         if found:
             recipe_data = found
@@ -4496,18 +4774,27 @@ def fetch_recipe_from_url(url):
             if decoded == cleaned:
                 break
             cleaned = decoded
+        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
         cleaned = cleaned.replace("\xa0", " ")
         return re.sub(r"[ \t]+", " ", cleaned).strip()
 
+    warnings = []
+    category, difficulty, source_notes = _url_recipe_metadata(recipe_data, page_html, clean_text)
     name = clean_text(recipe_data.get("name", "")) or "Recette importée"
 
     # Nombre de portions indiqué par le site.
     # L'application stocke ensuite les quantités d'ingrédients par personne.
     yield_value = recipe_data.get("recipeYield")
     source_persons = None
+    yield_note = ''
     if yield_value:
-        if isinstance(yield_value, list):
-            yield_value = yield_value[0] if yield_value else None
+        yields = yield_value if isinstance(yield_value, list) else [yield_value]
+        # Prefer explicit people when a publisher supplies both servings and pieces.
+        people = next((v for v in yields if re.search(r'\b(?:personnes?|people|servings?|portions?|pers\.?)(?:\b|$)', str(v), re.I)), None)
+        pieces = next((v for v in yields if re.search(r'\b(?:cookies?|biscuits?|pièces?|pieces?|crêpes?|muffins?|pancakes?)\b', str(v), re.I)), None)
+        yield_value = people if people is not None else (None if pieces is not None else yields[0])
+        if pieces is not None:
+            yield_note = t('importurl_yield_note', value=clean_text(pieces))
         match = re.search(r"\d+(?:[.,]\d+)?", str(yield_value or ""))
         if match:
             try:
@@ -4519,39 +4806,61 @@ def fetch_recipe_from_url(url):
 
     raw_ingredients = recipe_data.get("recipeIngredient") or recipe_data.get("ingredients") or []
     if isinstance(raw_ingredients, str):
-        raw_ingredients = [raw_ingredients]
+        raw_ingredients = raw_ingredients.splitlines()
+    # Supplement only explicitly marked ingredient rows, never prose/reviews.
+    ingredient_page = _RecipePageMetadata()
+    ingredient_page.feed(page_html)
+    raw_ingredients = list(raw_ingredients)
+    def ingredient_key(text):
+        parsed = _parse_url_ingredient(clean_text(text))
+        return ingredient_sort_key(parsed['name']).replace('œ', 'oe').rstrip('s') if parsed else ''
+    known_ingredient_keys = {ingredient_key(line) for line in raw_ingredients}
+    for fragments in ingredient_page.ingredients:
+        line = clean_text(' '.join(fragments))
+        key = ingredient_key(line)
+        if key and key not in known_ingredient_keys and not _url_ingredient_heading(line):
+            raw_ingredients.append(line)
+            known_ingredient_keys.add(key)
     ingredients = []
+    # If portions are absent, keep totals consistent with the editable default.
+    persons = source_persons or 4
+    if not source_persons:
+        warnings.append({"key": "importurl_warning_persons"})
+    range_notes = []
     for line in raw_ingredients:
-        parsed_ing = parse_ingredient_line(clean_text(line))
-        if parsed_ing:
-            # Schema.org exprime les quantités pour la recette complète.
-            # Notre format interne les conserve par personne afin que tous les
-            # écrans puissent les multiplier par le nombre de convives choisi.
-            if source_persons:
-                try:
-                    parsed_ing["quantity"] = float(parsed_ing["quantity"]) / source_persons
-                except (TypeError, ValueError, ZeroDivisionError):
-                    pass
-            ingredients.append(parsed_ing)
+        line = clean_text(line)
+        if re.match(r"^\d+(?:[.,]\d+)?\s*(?:[-–—]|à)\s*\d+(?:[.,]\d+)?\b", line):
+            note = t("importurl_range_note", line=line, persons=persons)
+            range_notes.append(note)
+            warnings.append({"key": "importurl_warning_range", "line": line})
+        if not line or _url_ingredient_heading(line):
+            continue
+        if re.search(r"\bou\b", line, re.I):
+            warnings.append({"key": "importurl_warning_alternative", "line": line})
+        for part in _url_ingredient_parts(line):
+            parsed_ing = _parse_url_ingredient(part)
+            if parsed_ing:
+                if parsed_ing["unit"] == "au goût" or parsed_ing["quantity"] is None:
+                    parsed_ing["quantity"] = None
+                else:
+                    parsed_ing["quantity"] = float(parsed_ing["quantity"]) / persons
+                ingredients.append(parsed_ing)
 
-    instructions = recipe_data.get("recipeInstructions") or []
-    steps = []
-    if isinstance(instructions, str):
-        steps = [clean_text(instructions)]
-    elif isinstance(instructions, list):
-        for item in instructions:
-            if isinstance(item, dict):
-                text = item.get("text") or item.get("name") or ""
-                steps.append(clean_text(text))
-            else:
-                steps.append(clean_text(item))
-    steps = [clean_text(s) for s in steps if s]
-    description = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(steps))
+    steps = _url_instruction_texts(recipe_data.get("recipeInstructions"), clean_text)
+    steps, extra_notes = _url_clean_steps(steps)
+    source_notes = "\n\n".join(part for part in [source_notes, yield_note, *range_notes, *extra_notes] if part)
+    description = "\n".join(f"{i + 1}. {text}" for i, text in enumerate(steps))
+    if not steps:
+        warnings.append({"key": "importurl_warning_steps"})
 
     prep_time = parse_iso8601_duration_minutes(recipe_data.get("prepTime"))
     cook_time = parse_iso8601_duration_minutes(recipe_data.get("cookTime"))
 
-    default_persons = source_persons
+    if not prep_time:
+        warnings.append({"key": "importurl_warning_prep"})
+    if not cook_time:
+        warnings.append({"key": "importurl_warning_cook"})
+    default_persons = persons
 
     if not ingredients:
         raise RuntimeError(
@@ -4573,6 +4882,7 @@ def fetch_recipe_from_url(url):
         "name": name[:100],
         "description": description[:12000],
         "ingredients": ingredients,
+        "allergens": compute_recipe_allergens(ingredients),
         "prep_time": str(prep_time) if prep_time else "",
         "cook_time": str(cook_time) if cook_time else "",
         "default_persons": (
@@ -4583,7 +4893,11 @@ def fetch_recipe_from_url(url):
         "image_sources": image_sources,
         "temporary_image_sources": list(image_sources),
         "source_url": url,
+        "category": category,
+        "difficulty": difficulty,
+        "personal_notes": source_notes,
         "quantity_basis": "per_person",
+        "import_warnings": warnings,
     }
 
 
@@ -7077,7 +7391,7 @@ class RecipeFormWindow(tk.Toplevel):
     existante."""
 
     CATEGORY_OPTIONS = ["Petit-déjeuner", "Entrée", "Plat", "Dessert", "Apéro", "Boisson", "Sauce", "Autre"]
-    DIFFICULTY_OPTIONS = ["Facile", "Moyen", "Difficile"]
+    DIFFICULTY_OPTIONS = ["Très facile", "Facile", "Moyen", "Difficile"]
     MAX_DESC_LEN = 12000
     MAX_NOTES_LEN = 500
 
@@ -7190,7 +7504,7 @@ class RecipeFormWindow(tk.Toplevel):
         self.category_combo = ttk.Combobox(row1_left, values=[translate_category_name(c) for c in self.CATEGORY_OPTIONS],
                                             state="readonly", width=20)
         self.category_combo.set(
-            translate_category_name(self.existing_recipe.get("category", "Plat") if self.editing else "Plat")
+            translate_category_name(self.existing_recipe.get("category", "Plat") if self.editing else (self.prefill or {}).get("category", "Plat"))
         )
         self.category_combo.pack()
 
@@ -7218,7 +7532,7 @@ class RecipeFormWindow(tk.Toplevel):
         if self.editing:
             difficulty_value = self.existing_recipe.get("difficulty", "Facile")
         elif self.prefill:
-            difficulty_value = self.prefill.get("difficulty", "Facile") or "Facile"
+            difficulty_value = self.prefill.get("difficulty", "")
         else:
             difficulty_value = "Facile"
         self.difficulty_combo.set(translate_difficulty_name(difficulty_value))
@@ -8085,7 +8399,7 @@ class RecipeFormWindow(tk.Toplevel):
         self.after_idle(update_wraplength)
         self.after(150, update_wraplength)
 
-    UNIT_OPTIONS = ["Gr", "Kilo", "ml", "cl", "Litre", "pièce", "cuillère à soupe", "cuillère à café", "autre"]
+    UNIT_OPTIONS = ["Gr", "Kilo", "ml", "cl", "Litre", "pièce", "cuillère à soupe", "cuillère à café", "pincée", "pot de yaourt", "sachet", "disque", "tour de moulin", "grosse poignée", "poignée", "filet", "rouleau", "cuillerée", "autre"]
 
     @staticmethod
     def _map_unit_for_edit(unit):
@@ -13298,6 +13612,9 @@ class OneRecipeWindow(tk.Toplevel):
                 )
             )
 
+        if nutri_known < nutri_total:
+            self.result_text.insert(tk.END, "\n" + t("nutrition_incomplete_notice") + "\n")
+
         description = recipe.get("description", "").strip()
         if description:
             self.description_result_text.insert(tk.END, t("onerecipe_description_heading", text=description))
@@ -17441,6 +17758,12 @@ class ImportFromUrlWindow(tk.Toplevel):
             t("importurl_preview_ingredients_for_persons", count=len(ingredients), persons=preview_persons),
             "",
         ]
+        warnings = recipe_data.get("import_warnings") or []
+        if warnings:
+            lines += [t("importurl_warning_heading")]
+            for warning in warnings:
+                lines.append("• " + t(warning["key"], **{k: v for k, v in warning.items() if k != "key"}))
+            lines.append("")
         for ing in ingredients[:12]:
             try:
                 displayed_quantity = ingredient_quantity_for_persons(ing, preview_persons)
@@ -17448,12 +17771,14 @@ class ImportFromUrlWindow(tk.Toplevel):
                 displayed_quantity = ing.get("quantity", "")
             if displayed_quantity is None:
                 displayed_quantity = t("quantity_unspecified")
-                unit_display = ""
+                unit_display = f" {translate_unit_name(ing.get('unit', ''))}" if ing.get('unit') not in ('', 'au goût', None) else ""
             else:
                 unit_display = f" {translate_unit_name(ing.get('unit', ''))}" if ing.get("unit") else ""
             lines.append(f"• {displayed_quantity}{unit_display} {translate_ingredient_name(ing.get('name', ''))}".strip())
         if len(ingredients) > 12:
             lines.append(t("importurl_preview_more", count=len(ingredients)-12))
+        if recipe_data.get('personal_notes'):
+            lines += ['', recipe_data['personal_notes']]
         desc = (recipe_data.get("description") or "").strip()
         if desc:
             lines += ["", t("importurl_preview_description"), desc[:700] + ("…" if len(desc) > 700 else "")]

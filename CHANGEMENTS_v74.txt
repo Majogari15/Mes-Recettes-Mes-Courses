@@ -1,0 +1,8 @@
+Version 1.6.27 — build 74
+Catégories : quiches, déjeuners, dîners, gâteaux et desserts au pluriel reconnus.
+Mesures : sachet sans « de », disque, tour de moulin, grosse poignée, pincée sans quantité reconnues.
+Plages : texte source et nombre de personnes conservés dans les notes ; borne basse utilisée dans les quantités, avec signalement dans l’aperçu.
+Étapes : numérotation redondante retirée ; introductions séparées, variantes et FAQ transférées dans les notes lorsque leurs limites sont identifiables.
+Messages distincts pour HTTP, délai dépassé et connexion impossible, dans les quatre langues.
+Validation : 15 tests ciblés réussis ; réanalyse des cinq pages enregistrées pendant l’audit. Interface Windows et cinq sites inaccessibles restant à tester sur le PC utilisateur.
+Réimporter les recettes pour appliquer ces changements.

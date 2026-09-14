@@ -1,5 +1,10 @@
 # Version actuelle
 
+## Build 75 — import des recettes
+
+- Version produit : **1.6.28** ; version MSIX : **1.6.28.0**.
+- Voir `CHANGEMENTS_v75.txt` pour les corrections et les limites des tests.
+
 ## Build 67 — nom d’exécutable aligné sur le nom du produit
 
 - Version produit : **1.6.20** ; version MSIX : **1.6.20.0**.

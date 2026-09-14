@@ -1,3 +1,7 @@
+# Build 75 — 1.6.28
+
+Import : unités, ingrédients balisés manquants, variantes orthographiques des allergènes, rendement en pièces, repos, catégories et notes. Détails et validation dans CHANGEMENTS_v75.txt.
+
 # Build 66 — 1.6.19
 
 Retour au lancement normal de l’application pendant la capture MSIX ; suppression conservée du seul raccourci supplémentaire.

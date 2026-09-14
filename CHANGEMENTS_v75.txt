@@ -1,0 +1,25 @@
+Version 1.6.28 — build 75
+
+CORRECTIONS
+- Sachet, pincée, cuillerée, filet d'huile et rouleau conservés comme unités ; singulier/pluriel, « un/une » et sachet(s) reconnus.
+- Cuillerées à café et à soupe reconnues. Une cuillerée sans précision ne reçoit pas une contenance arbitraire.
+- Mesure sans quantité conservée avec une quantité indéterminée. Un filet de poisson reste un ingrédient compté en pièces.
+- Les lignes d'ingrédients explicitement balisées dans la page complètent les données JSON-LD ; rapprochement des noms normalisés pour éviter les doublons simples. Les ingrédients présents uniquement dans du texte libre ne sont pas inventés.
+- « Sel et poivre » séparés ; les quantités inconnues restent inconnues.
+- Détection des allergènes améliorée pour œuf/oeuf/œufs, les pluriels et les suffixes de préparation comme « beurre fondu ». La base existante et les corrections personnelles restent prioritaires. Les ingrédients inconnus ne reçoivent pas d'allergènes supposés. La composition d'un produit dépendant d'une marque n'est pas déduite.
+- « 20 cookies » n'est plus interprété comme 20 personnes. Le rendement original est conservé dans les notes. Si le site n'indique aucun nombre de personnes, l'application conserve son défaut éditable de 4, affiche l'avertissement existant et préserve les quantités totales. À ajuster lors de l'import selon le nombre de convives souhaité.
+- Repos explicitement indiqué dans restTime ou dans les balises/libellés reconnus conservé dans les notes et visible dans l'aperçu. Aucune durée de repos n'est déduite de la différence entre le temps total et les autres temps. Pas de nouveau champ de repos ni d'ajout au calcul des filtres de durée.
+- Catégorie recherchée dans les balises de catégorie/course, puis dans le titre si elle est absente.
+- Notes d'auteur conservées avec leurs fragments de texte et mises en évidence dans l'aperçu d'import.
+- Nouveaux textes traduits en français, anglais, espagnol et allemand.
+
+VALIDATION
+- Suite unittest : 208 tests, 193 réussis, 15 ignorés ; aucun échec.
+- Dix nouveaux tests automatisés avec sous-cas pour les mesures, les quantités, les personnes/cookies, les ingrédients, les allergènes, les notes, les durées et les traductions.
+- Les fixtures HTML sont synthétiques : aucune validation des quatre pages web actuelles ni des PDF précédemment évoqués, non présents dans cette archive.
+- Les tests conditionnels ignorés et la sortie complète figurent dans TESTS_v75.txt.
+- Interface Windows, génération EXE/MSIX et installation non exécutées dans cet environnement Linux.
+
+UTILISATION
+Décompresser l'archive et utiliser les lanceurs habituels. Pour une application Windows compilée, reconstruire avec Construire_le_exe.bat.
+Réimporter les recettes concernées : les recettes déjà enregistrées ne sont pas modifiées automatiquement.

@@ -54,6 +54,8 @@ python -m PyInstaller --clean --noconfirm --onefile --windowed --name "Mes Recet
     --hidden-import=tkinterdnd2 ^
     --hidden-import=windows_printing ^
     --hidden-import=pypdfium2_raw ^
+    --collect-data=reportlab ^
+    --hidden-import=reportlab.pdfbase.ttfonts ^
     --collect-all=pyzbar ^
     --collect-all=pypdfium2 ^
     --collect-all=pypdfium2_raw ^

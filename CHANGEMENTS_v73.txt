@@ -1,0 +1,5 @@
+Version 1.6.26 — build 73
+Import : mesures en pots conservées, sachets séparés des noms et poids explicites utilisés ; catégorie et difficulté reprises lorsqu’elles sont identifiables ; notes auteur récupérées depuis des champs dédiés ou libellés reconnus.
+PDF : police incorporée (également prévue dans la construction EXE), message explicite lorsque les valeurs nutritionnelles ne couvrent pas toute la recette.
+Vérifications : 24 tests ciblés réussis, PDF de contrôle rendu et inspecté. Import Marmiton reproduit avec une page de test utilisant les ingrédients fournis ; accès direct au site toujours en dépassement de délai ici. Pas de validation native Windows/EXE dans cet environnement.
+Les recettes déjà enregistrées ne sont pas réécrites. Réimporter pour appliquer les améliorations d’import.

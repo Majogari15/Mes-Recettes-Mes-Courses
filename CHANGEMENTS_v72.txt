@@ -1,0 +1,3 @@
+Version 1.6.25 — build 72
+Import par lien : unités dl (converties en ml), cc, cuil à soupe, unité et pincée ; exclusion de titres de sections ; séparation des ajouts chiffrés hors parenthèses ; avertissement pour les alternatives et informations absentes ; prise en charge des étapes imbriquées et des sauts de ligne littéraux dans les données JSON.
+24 tests ciblés réussis. Six imports en ligne aboutis avec photo : deux Hervé Cuisine, deux Journal des Femmes, deux 750g. Deux liens Marmiton en dépassement de délai dans cet environnement. Interface Windows non testée ici.
