@@ -100,6 +100,21 @@ copy /Y flag_es.png dist\flag_es.png >nul
 copy /Y flag_de.png dist\flag_de.png >nul
 copy /Y LISEZ-MOI.txt dist\LISEZ-MOI.txt >nul
 
+rem Tesseract OCR portable (optionnel) : si un dossier "tesseract-ocr"
+rem (contenant tesseract.exe et son sous-dossier tessdata) est present a
+rem cote de ce script, il est copie dans dist pour que l'import de recette
+rem depuis une photo fonctionne sans que l'utilisateur installe quoi que ce
+rem soit separement. Absent, l'application se comporte comme avant (Tesseract
+rem doit alors etre installe a part - voir LISEZ-MOI.md).
+if exist tesseract-ocr (
+    echo   Dossier tesseract-ocr detecte : copie pour un import photo autonome...
+    xcopy /Y /E /I /Q tesseract-ocr dist\tesseract-ocr >nul
+) else (
+    echo   [INFO] Pas de dossier "tesseract-ocr" a cote de ce script : l'import
+    echo   de recette depuis une photo necessitera Tesseract OCR installe a
+    echo   part par l'utilisateur ^(voir la section OCR de LISEZ-MOI.md^).
+)
+
 if not exist "dist\Mes Recettes, Mes Courses.exe" (
     echo [ERREUR] Ressource manquante dans dist : Mes Recettes, Mes Courses.exe
     pause
@@ -124,5 +139,13 @@ echo Vous pouvez deplacer le dossier "dist" entier ailleurs
 echo (cle USB, autre PC, Bureau...) : il contient tout ce qu'il
 echo faut pour fonctionner, sans avoir besoin d'installer Python.
 echo Gardez simplement tous les fichiers de ce dossier ensemble.
+echo.
+if exist dist\tesseract-ocr (
+    echo Tesseract OCR est inclus dans dist\tesseract-ocr : l'import de
+    echo recette depuis une photo fonctionnera sans rien installer de plus.
+) else (
+    echo Rappel : l'import de recette depuis une photo necessite Tesseract
+    echo OCR, installe separement ^(voir la section OCR de LISEZ-MOI.md^).
+)
 echo.
 pause

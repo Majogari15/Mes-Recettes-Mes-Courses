@@ -47,4 +47,27 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(r['ingredients'][0]['quantity']*r['default_persons'],200)
         self.assertEqual(len(r['import_warnings']),4)
 
+    def fetch_html(self, html_body):
+        response=io.BytesIO(html_body.encode())
+        response.headers=Message()
+        with patch.object(main.urllib.request,'urlopen',return_value=response):
+            return main.fetch_recipe_from_url('https://example.com/recipe')
+
+    def test_microdata_fallback_when_no_jsonld(self):
+        r=self.fetch_html("""
+            <div itemscope itemtype="http://schema.org/Recipe">
+              <h1 itemprop="name">Tarte microdonnees</h1>
+              <li itemprop="recipeIngredient">200 g de farine</li>
+              <li itemprop="recipeIngredient">3 pommes</li>
+              <li itemprop="recipeInstructions">Melanger.</li>
+              <span itemprop="recipeYield">4 personnes</span>
+            </div>
+        """)
+        self.assertEqual(r['name'],'Tarte microdonnees')
+        self.assertEqual(r['ingredients'][0]['name'],'Farine')
+
+    def test_no_recipe_and_no_microdata_still_raises(self):
+        with self.assertRaises(RuntimeError):
+            self.fetch_html('<html><body><p>Pas une recette</p></body></html>')
+
 if __name__=='__main__':unittest.main()

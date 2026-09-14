@@ -65,6 +65,12 @@ Source: "dist\flag_uk.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\flag_es.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\flag_de.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
+; Tesseract OCR portable (optionnel) : copié par Construire_le_exe.bat dans
+; dist\tesseract-ocr uniquement si un dossier "tesseract-ocr" a été fourni
+; avant la construction. "skipifsourcedoesntexist" évite toute erreur de
+; compilation quand ce dossier est absent (comportement inchangé : Tesseract
+; doit alors être installé à part, comme avant).
+Source: "dist\tesseract-ocr\*"; DestDir: "{app}\tesseract-ocr"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
 [Icons]
 ; Un seul raccourci (menu Démarrer) — pas de second raccourci Bureau :

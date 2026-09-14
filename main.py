@@ -525,6 +525,15 @@ def detect_tesseract(required_lang=None):
     except Exception:
         pass
 
+    # Copie portable livrée à côté de l'application (dossier "tesseract-ocr",
+    # ajoutée par Construire_le_exe.bat / installateur.iss quand elle est
+    # fournie) : essayée en priorité sur une installation système, pour que
+    # l'import de recette depuis une photo fonctionne sans rien installer
+    # séparément. Absente, elle est simplement ignorée et le reste de la
+    # détection (installation système, PATH) continue de fonctionner comme
+    # avant.
+    candidates.append(os.path.join(BASE_DIR, "tesseract-ocr", "tesseract.exe"))
+
     if os.name == "nt":
         candidates.extend([
             r"C:\Program Files\Tesseract-OCR\tesseract.exe",
@@ -4596,6 +4605,116 @@ def _find_recipe_jsonld(data):
     return None
 
 
+_MICRODATA_VOID_TAGS = ('meta', 'img', 'input', 'br', 'hr', 'link', 'source', 'wbr')
+
+
+class _MicrodataRecipeParser(HTMLParser):
+    """Repli pour les sites (souvent plus anciens) qui décrivent leur recette
+    avec l'attribut HTML ``itemprop``/``itemscope`` (microdonnées Schema.org)
+    plutôt qu'avec un bloc JSON-LD. Reconstruit un dictionnaire de même forme
+    que celui retourné par ``_find_recipe_jsonld``, pour être traité ensuite
+    exactement de la même façon."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack = []
+        self.scope_depth = None
+        self.scope_closed = False
+        self.active_props = []  # [(prop, depth, [texte...])]
+        self.values = {}
+
+    def _record(self, prop, value):
+        if value is None:
+            return
+        self.values.setdefault(prop, []).append(value)
+
+    def handle_starttag(self, tag, attrs):
+        if self.scope_closed:
+            return
+        attrs = dict(attrs)
+        is_void = tag in _MICRODATA_VOID_TAGS
+        if self.scope_depth is None:
+            item_type = attrs.get('itemtype', '')
+            if 'itemscope' in attrs and 'recipe' in item_type.lower():
+                self.scope_depth = len(self.stack)
+        elif len(self.stack) < self.scope_depth:
+            self.scope_closed = True
+            return
+
+        prop = attrs.get('itemprop')
+        if prop and self.scope_depth is not None:
+            if 'content' in attrs:
+                self._record(prop, attrs['content'])
+            elif tag == 'img':
+                self._record(prop, attrs.get('src'))
+            elif tag == 'time' and attrs.get('datetime'):
+                self._record(prop, attrs['datetime'])
+            elif not is_void:
+                self.active_props.append((prop, len(self.stack), []))
+
+        if not is_void:
+            self.stack.append(tag)
+
+    def handle_data(self, data):
+        for _, _, buffer in self.active_props:
+            buffer.append(data)
+
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack) - 1, -1, -1):
+            if self.stack[i] == tag:
+                del self.stack[i:]
+                break
+        else:
+            return
+        remaining = []
+        for prop, depth, buffer in self.active_props:
+            if depth >= len(self.stack):
+                text = "".join(buffer).strip()
+                if text:
+                    self._record(prop, text)
+            else:
+                remaining.append((prop, depth, buffer))
+        self.active_props = remaining
+        if self.scope_depth is not None and len(self.stack) <= self.scope_depth:
+            self.scope_closed = True
+
+
+def _extract_microdata_recipe(page_html):
+    """Retourne un dictionnaire façon JSON-LD si la page décrit une recette
+    en microdonnées (``itemscope``/``itemprop``), ou ``None`` sinon."""
+    parser = _MicrodataRecipeParser()
+    try:
+        parser.feed(page_html)
+    except Exception:
+        return None
+    if parser.scope_depth is None:
+        return None
+    values = parser.values
+
+    def first(prop):
+        found = values.get(prop)
+        return found[0] if found else None
+
+    def many(prop):
+        return values.get(prop) or []
+
+    ingredients = many('recipeIngredient') or many('ingredients')
+    if not ingredients:
+        return None
+
+    return {
+        'name': first('name') or '',
+        'description': first('description') or '',
+        'recipeIngredient': ingredients,
+        'recipeInstructions': many('recipeInstructions'),
+        'image': first('image'),
+        'prepTime': first('prepTime'),
+        'cookTime': first('cookTime'),
+        'recipeYield': first('recipeYield'),
+        'recipeCategory': first('recipeCategory'),
+    }
+
+
 def _parse_url_ingredient(line):
     line = re.sub(r"\b(sachet|pincée|cuillerée|filet|rouleau)\(s\)", r"\1", line, flags=re.I)
     line = re.sub(r"^(?:une?|a|an)\s+", "1 ", line.strip(), flags=re.I)
@@ -4845,6 +4964,12 @@ def fetch_recipe_from_url(url):
         if found:
             recipe_data = found
             break
+
+    if recipe_data is None:
+        # Certains sites (souvent plus anciens) décrivent leur recette avec
+        # des attributs itemprop/itemscope en HTML plutôt qu'avec un bloc
+        # JSON-LD : ce repli évite de rejeter la page à tort.
+        recipe_data = _extract_microdata_recipe(page_html)
 
     if recipe_data is None:
         raise RuntimeError(

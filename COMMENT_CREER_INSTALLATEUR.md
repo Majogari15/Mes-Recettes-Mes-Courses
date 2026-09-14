@@ -61,7 +61,13 @@ le dossier de programmes de l'utilisateur. Voir les
 
 L'installateur copie l'exécutable et les ressources, crée le raccourci du
 menu Démarrer et propose de lancer l'application après l'installation.
-Tesseract OCR reste une installation séparée pour l'import photo.
+Tesseract OCR reste une installation séparée pour l'import photo, sauf si
+un dossier `tesseract-ocr` portable a été placé à côté de
+`Construire_le_exe.bat` avant l'étape 1 : il se retrouve alors dans
+`dist\tesseract-ocr` et les deux scripts `.iss` l'incluent automatiquement
+dans l'installateur (ligne `Source: "dist\tesseract-ocr\*"`, ignorée sans
+erreur s'il est absent) — l'import photo fonctionne alors sans rien
+installer de plus une fois l'application installée.
 
 ## 4. Nom et numéros de version
 

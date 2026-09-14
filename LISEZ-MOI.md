@@ -149,6 +149,17 @@ internet, eux, fonctionnent toujours sans dépendance supplémentaire.
 > langue actuellement sélectionnée dans l'interface n'est pas installé,
 > l'extraction échoue avec un message d'erreur plutôt qu'un résultat
 > incorrect.
+>
+> **Exécutable `.exe` sans rien installer séparément** : si un dossier
+> `tesseract-ocr` (contenant `tesseract.exe` et son sous-dossier `tessdata`
+> avec les langues voulues, par exemple récupérés depuis une installation
+> Windows existante ou une version portable du lien ci-dessus) est placé à
+> côté de ce dossier avant de lancer `Construire_le_exe.bat`, il est copié
+> automatiquement dans `dist\tesseract-ocr` et l'application le détecte en
+> priorité — l'import de recette depuis une photo fonctionne alors sans
+> aucune installation séparée de Tesseract, y compris avec le `.exe`. Sans
+> ce dossier, rien ne change : Tesseract doit être installé à part comme
+> décrit ci-dessus.
 
 ## 2. Lancer l'application
 
@@ -1180,7 +1191,10 @@ copie les ressources dans `dist/`.
 Gardez le dossier `dist/` entier : il contient notamment `i18n_desktop.json`,
 les bases JSON, leurs traductions, les drapeaux et `LISEZ-MOI.txt`. Ne copiez
 pas seulement l'exécutable. Il fonctionne sans installation séparée de
-Python ; Tesseract OCR reste nécessaire pour l'import photo.
+Python ; Tesseract OCR reste nécessaire pour l'import photo, **sauf** si un
+dossier `tesseract-ocr` portable a été fourni avant la construction (voir
+la section OCR plus haut) : il est alors copié dans `dist/tesseract-ocr` et
+l'import de recette depuis une photo fonctionne sans rien installer de plus.
 
 Les données personnelles sont créées à côté de l'exécutable si le dossier
 est accessible en écriture. Sinon, l'application utilise

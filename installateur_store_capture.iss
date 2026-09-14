@@ -67,6 +67,8 @@ Source: "dist\flag_uk.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\flag_es.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\flag_de.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
+; Tesseract OCR portable (optionnel, voir installateur.iss).
+Source: "dist\tesseract-ocr\*"; DestDir: "{app}\tesseract-ocr"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
 ; Aucun raccourci n’est créé par l’installateur de capture.
 ; Le MSIX crée automatiquement une seule entrée depuis [Applications].

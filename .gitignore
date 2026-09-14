@@ -26,6 +26,12 @@ build/
 dist/
 *.spec
 
+# --- Copie portable de Tesseract OCR (optionnelle), fournie localement par
+# le développeur pour être embarquée dans dist/ par Construire_le_exe.bat
+# (voir la section OCR de LISEZ-MOI.md) : trop volumineuse et spécifique à
+# la machine pour être versionnée.
+/tesseract-ocr/
+
 # --- Fichiers système ---
 .DS_Store
 Thumbs.db

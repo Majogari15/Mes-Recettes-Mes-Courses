@@ -44,7 +44,11 @@ icône à double-cliquer) :
    Le fichier **`LISEZ-MOI.txt`** à l'intérieur explique tout ce qu'il faut
    savoir pour utiliser cette version `.exe` (sans aucune référence à
    Python, puisque vous n'en aurez plus besoin). Tesseract OCR reste
-   nécessaire pour l'import photo, même avec le `.exe`.
+   nécessaire pour l'import photo, même avec le `.exe` — **sauf** si vous
+   placez un dossier `tesseract-ocr` portable à côté de ce script avant
+   l'étape 2 : il sera alors inclus automatiquement dans `dist` et
+   l'import photo fonctionnera sans rien installer de plus (voir la
+   section OCR de `LISEZ-MOI.md`).
 
 > Ce script doit être exécuté sur Windows (pas depuis ce chat) : téléchargez
 > le dossier, puis lancez `Construire_le_exe.bat` sur votre propre PC.
