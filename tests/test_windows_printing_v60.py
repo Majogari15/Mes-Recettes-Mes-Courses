@@ -156,7 +156,7 @@ class IntegrationTests(unittest.TestCase):
             window.assert_not_called();info.assert_not_called();open_pdf.assert_not_called()
 
     def test_error_does_not_open_pdf_without_user_choice(self):
-        with patch.object(main.messagebox,'askyesno',return_value=False), \
+        with patch.object(main,'ask_yes_no',return_value=False), \
              patch.object(main.os,'startfile',create=True) as open_pdf:
             main._report_native_print_error(None,'example.pdf',wp.PrintDependencyError('missing'))
             open_pdf.assert_not_called()

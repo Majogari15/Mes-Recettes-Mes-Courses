@@ -67,6 +67,42 @@ def install_tk_exception_logger(root):
             log_internal_error("suppressed_exception", exc)
     root.report_callback_exception = handler
 
+
+def install_select_all_bindings(root):
+    """Fait fonctionner Ctrl+A comme « tout sélectionner » dans les champs
+    de saisie, partout dans l'application.
+
+    Par défaut, Tk lie Ctrl+A au déplacement du curseur en début de ligne
+    (raccourci historique façon Emacs) aussi bien dans les ``Entry``/
+    ``ttk.Entry`` que dans les ``Text`` : un utilisateur Windows habitué à
+    Ctrl+A pour tout sélectionner ne peut donc pas remplacer facilement le
+    contenu d'un champ. ``bind_class`` s'applique une fois pour toutes les
+    instances (présentes et futures) de chaque classe de widget.
+    """
+    def _select_all_entry(event):
+        widget = event.widget
+        try:
+            widget.select_range(0, tk.END)
+            widget.icursor(tk.END)
+        except tk.TclError:
+            pass
+        return "break"
+
+    def _select_all_text(event):
+        widget = event.widget
+        try:
+            widget.tag_add("sel", "1.0", "end-1c")
+            widget.mark_set("insert", "end-1c")
+            widget.see("insert")
+        except tk.TclError:
+            pass
+        return "break"
+
+    for bindtag in ("Entry", "TEntry", "TCombobox"):
+        root.bind_class(bindtag, "<Control-a>", _select_all_entry)
+    root.bind_class("Text", "<Control-a>", _select_all_text)
+
+
 def parse_positive_number(value, *, allow_zero=False):
     """Parse un nombre utilisateur et refuse NaN/Inf ainsi que les valeurs invalides."""
     number = float(str(value).strip().replace(",", "."))
@@ -654,13 +690,68 @@ def format_backup_preview(summary):
     )
 
 
+def ask_yes_no(title, message, parent=None, **kwargs):
+    """Remplace ``messagebox.askyesno`` par une boîte de dialogue dont les
+    boutons sont toujours traduits (« Oui » / « Non », etc.).
+
+    La boîte système de ``messagebox`` affiche des boutons dans la langue
+    d'affichage de Windows (ou en anglais par défaut sous Linux/macOS),
+    indépendamment de la langue choisie dans l'application : un utilisateur
+    ayant sélectionné le français pouvait ainsi se retrouver avec des
+    boutons "Yes"/"No" au milieu d'un message français. Cette fonction a la
+    même signature et le même comportement bloquant (retourne True/False)
+    que ``messagebox.askyesno``, mais construit ses propres boutons via
+    ``t("common_yes")``/``t("common_no")``.
+    """
+    root = parent if parent is not None else tk._default_root
+    dialog = tk.Toplevel(root)
+    dialog.title(title)
+    dialog.resizable(False, False)
+    if root is not None:
+        dialog.transient(root)
+    result = {"value": False}
+
+    def _answer(value):
+        result["value"] = value
+        dialog.destroy()
+
+    body = ttk.Frame(dialog, padding=20)
+    body.pack(fill="both", expand=True)
+    ttk.Label(body, text=message, wraplength=420, justify="left").pack(anchor="w")
+
+    btn_frame = ttk.Frame(dialog, padding=(20, 0, 20, 16))
+    btn_frame.pack(fill="x")
+    no_btn = ttk.Button(btn_frame, text=t("common_no"), command=lambda: _answer(False))
+    no_btn.pack(side="right", padx=(8, 0))
+    yes_btn = ttk.Button(btn_frame, text=t("common_yes"), command=lambda: _answer(True))
+    yes_btn.pack(side="right")
+
+    dialog.protocol("WM_DELETE_WINDOW", lambda: _answer(False))
+    dialog.bind("<Return>", lambda e: _answer(True))
+    dialog.bind("<Escape>", lambda e: _answer(False))
+
+    dialog.update_idletasks()
+    try:
+        if root is not None and root.winfo_viewable():
+            x = root.winfo_rootx() + (root.winfo_width() - dialog.winfo_width()) // 2
+            y = root.winfo_rooty() + (root.winfo_height() - dialog.winfo_height()) // 3
+            dialog.geometry(f"+{max(0, x)}+{max(0, y)}")
+    except tk.TclError:
+        pass
+
+    dialog.grab_set()
+    yes_btn.focus_set()
+    dialog.wait_window()
+    return result["value"]
+
+
 def confirm_backup_preview(parent, zip_path):
     try:
         summary = inspect_backup_archive(zip_path)
     except Exception as e:
         messagebox.showerror(t("common_error"), t("importexport_preview_failed", error=e), parent=parent)
         return False
-    return messagebox.askyesno(
+    return ask_yes_no(
         t("importexport_preview_title"), format_backup_preview(summary), parent=parent
     )
 
@@ -735,7 +826,7 @@ def _report_native_print_error(parent, path, error):
         )
     else:
         detail = str(error)
-    if messagebox.askyesno(t("print_title"), t("print_native_failed", error=detail, path=path), parent=parent):
+    if ask_yes_no(t("print_title"), t("print_native_failed", error=detail, path=path), parent=parent):
         try:
             os.startfile(path)
         except OSError as exc:
@@ -6429,6 +6520,7 @@ class App(APP_TK_BASE):
         apply_palette(self.dark_mode)
         configure_app_style(self)
         self.configure(background=COLOR_BG)
+        install_select_all_bindings(self)
 
         # ---- Clause de responsabilité : obligatoire au tout premier
         # lancement, l'application reste inutilisable tant qu'elle n'est
@@ -6485,7 +6577,7 @@ class App(APP_TK_BASE):
             return
         names = ", ".join(sorted(os.path.basename(item["path"]) for item in corrupted))
         backups = list_auto_backups()
-        if backups and messagebox.askyesno(
+        if backups and ask_yes_no(
                 t("corruptdata_title"),
                 t("corruptdata_restore_prompt", files=names), parent=self):
             try:
@@ -6553,6 +6645,18 @@ class App(APP_TK_BASE):
         set_large_text_preference(self.large_text)
         apply_font_scale(self.large_text)
         configure_app_style(self)
+        # La fenêtre principale doit être redimensionnée comme au démarrage
+        # (gs(1100) dépend de l'échelle de police) : sinon, en agrandissant
+        # le texte sans agrandir la fenêtre, la barre du haut (recherche,
+        # bouton Paramètres, sélecteur de langue) devient trop étroite pour
+        # son propre contenu et son texte se retrouve tronqué.
+        _wx, _wy, _work_w, _work_h = get_usable_screen_rect(self)
+        fit_window_to_workarea(
+            self,
+            max(gs(1100), int(_work_w * 0.97)),
+            get_usable_screen_height(self),
+            margin=14
+        )
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):
                 child.destroy()
@@ -7016,7 +7120,9 @@ class App(APP_TK_BASE):
 
     # ---------- Ajouter une recette ----------
     def open_add_recipe(self):
-        RecipeFormWindow(self, recipe_index=None)
+        win = RecipeFormWindow(self, recipe_index=None)
+        self.wait_window(win)
+        self._build_home_ui()
 
     # ---------- Voir toutes les recettes ----------
     def open_all_recipes(self):
@@ -7607,8 +7713,25 @@ class RecipeFormWindow(tk.Toplevel):
         ).pack(pady=(0, 5))
 
         # ---- Photos (galerie) ----
+        # Le bouton et les astuces sont placés avant la galerie (et non
+        # expand=True) afin de rester visibles sans défiler, même quand la
+        # galerie est vide et que l'onglet dispose de beaucoup de hauteur.
         ttk.Label(self.tab_photos, text=t("recipeform_photos_label"),
                   font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
+        ttk.Button(self.tab_photos, text=t("recipeform_add_photo_button"),
+                   command=self.choose_images).pack(pady=5)
+        self.drop_status_label = ttk.Label(
+            self.tab_photos,
+            text=t("recipeform_drop_photos_hint"),
+            style="Muted.TLabel"
+        )
+        self.drop_status_label.pack(pady=(2, 1))
+        ttk.Label(
+            self.tab_photos,
+            text=t("recipeform_paste_photo_hint"),
+            style="Muted.TLabel"
+        ).pack(pady=(0, 8))
+
         gallery_outer = ttk.Frame(self.tab_photos)
         gallery_outer.pack(fill="both", expand=True, padx=10, pady=(0, 6))
         # Grande galerie : la hauteur est ajustée en fonction de la taille des
@@ -7624,20 +7747,7 @@ class RecipeFormWindow(tk.Toplevel):
         self.gallery_canvas.configure(xscrollcommand=gallery_scrollbar.set)
         self.gallery_canvas.pack(fill="both", expand=True)
         gallery_scrollbar.pack(fill="x")
-        ttk.Button(self.tab_photos, text=t("recipeform_add_photo_button"),
-                   command=self.choose_images).pack(pady=5)
         self._refresh_gallery()
-        self.drop_status_label = ttk.Label(
-            self.tab_photos,
-            text=t("recipeform_drop_photos_hint"),
-            style="Muted.TLabel"
-        )
-        self.drop_status_label.pack(pady=(2, 1))
-        ttk.Label(
-            self.tab_photos,
-            text=t("recipeform_paste_photo_hint"),
-            style="Muted.TLabel"
-        ).pack(pady=(0, 8))
         self._enable_photo_drop()
         self.bind("<Control-v>", self._paste_photo_from_clipboard, add="+")
 
@@ -7916,7 +8026,7 @@ class RecipeFormWindow(tk.Toplevel):
         ):
             self._delete_draft()
             return
-        if messagebox.askyesno(
+        if ask_yes_no(
             t("recipeform_draft_restore_title"),
             t("recipeform_draft_restore_message", date=stamp), parent=self
         ):
@@ -8600,9 +8710,29 @@ class RecipeFormWindow(tk.Toplevel):
 
         if has_controls:
             self.add_ingredient_button.pack(pady=10)
-            # Fait défiler la fenêtre pour amener la nouvelle ligne en vue
+            # Fait défiler la fenêtre pour amener la nouvelle ligne en vue.
+            # yview_moveto(1.0) irait tout en bas de la zone de défilement
+            # PARTAGÉE par tous les onglets du formulaire (celle-ci reste
+            # haute même sur l'onglet Ingrédients, car self.canvas couvre
+            # tout le notebook) : cela amenait un grand vide sous le bouton
+            # au lieu de la ligne ajoutée. On calcule donc précisément la
+            # position du bouton (juste après la nouvelle ligne) et on ne
+            # défile que jusqu'à la faire apparaître en bas de la vue.
             self.update_idletasks()
-            self.canvas.yview_moveto(1.0)
+            try:
+                bbox = self.canvas.bbox("all")
+                total_height = bbox[3] - bbox[1] if bbox else 0
+                visible_height = self.canvas.winfo_height()
+                if total_height > visible_height:
+                    button_bottom = (
+                        self.add_ingredient_button.winfo_rooty()
+                        - self.content_frame.winfo_rooty()
+                        + self.add_ingredient_button.winfo_height()
+                    )
+                    target_top = max(0, button_bottom - visible_height)
+                    self.canvas.yview_moveto(min(1.0, target_top / total_height))
+            except (tk.TclError, ZeroDivisionError):
+                pass
 
     def add_new_ingredient_global(self):
         new_name = simpledialog.askstring(
@@ -8701,7 +8831,7 @@ class RecipeFormWindow(tk.Toplevel):
              and (not self.editing or r.get("id") != self.existing_recipe.get("id"))),
             None
         )
-        if duplicate_name and not messagebox.askyesno(
+        if duplicate_name and not ask_yes_no(
                 t("recipeform_duplicate_name_title"),
                 t("recipeform_duplicate_name_message", name=name), parent=self):
             return
@@ -8778,7 +8908,7 @@ class RecipeFormWindow(tk.Toplevel):
                 seen_keys.add(key)
         if duplicate_names:
             duplicate_display = ", ".join(translate_ingredient_name(n) for n in duplicate_names)
-            if not messagebox.askyesno(
+            if not ask_yes_no(
                 t("recipeform_duplicate_ingredient_title"),
                 t("recipeform_duplicate_ingredient_message", list=duplicate_display)
             ):
@@ -8915,7 +9045,7 @@ class RecipeFormWindow(tk.Toplevel):
         self.destroy()
 
     def delete_recipe(self):
-        if not messagebox.askyesno(
+        if not ask_yes_no(
             t("common_confirm"),
             t("recipeform_delete_confirm_message", name=self.existing_recipe['name'])
         ):
@@ -9445,7 +9575,7 @@ class ManageRecipesWindow(tk.Toplevel):
         idx = self._selected_index()
         if idx is None: return
         recipe = self.app.recipes[idx]
-        if not messagebox.askyesno(t("common_confirm"), t("managerecipes_delete_confirm_message", name=recipe['name'])): return
+        if not ask_yes_no(t("common_confirm"), t("managerecipes_delete_confirm_message", name=recipe['name'])): return
         delete_recipe_to_trash(recipe_id=recipe.get("id"), recipe_index=idx)
         self._context_index=None
         self.app.refresh_recipes(); self._populate(); self.app.show_toast(t("managerecipes_deleted_message"))
@@ -9584,7 +9714,7 @@ class TrashWindow(tk.Toplevel):
             return
         entry = self.trash[idx]
         recipe = entry["recipe"]
-        if not messagebox.askyesno(
+        if not ask_yes_no(
             t("common_confirm"),
             t("trash_delete_forever_confirm", name=recipe['name'])
         ):
@@ -9598,7 +9728,7 @@ class TrashWindow(tk.Toplevel):
         if not trash:
             messagebox.showinfo(t("common_info"), t("trash_already_empty"))
             return
-        if not messagebox.askyesno(
+        if not ask_yes_no(
             t("common_confirm"),
             t("trash_empty_confirm", count=len(trash))
         ):
@@ -9716,7 +9846,7 @@ class ManageIngredientsWindow(tk.Toplevel):
         message = t("manageing_delete_confirm_message", name=translate_ingredient_name(name))
         if usage:
             message += t("manageing_delete_usage_warning", count=usage)
-        if not messagebox.askyesno(t("common_confirm"), message):
+        if not ask_yes_no(t("common_confirm"), message):
             return
         ingredients = [n for n in load_ingredients() if n.lower() != name.lower()]
         self.app.ingredient_names = save_ingredients(ingredients)
@@ -9845,7 +9975,7 @@ class SubstitutionEditWindow(tk.Toplevel):
         self.destroy()
 
     def revert_to_default(self):
-        if messagebox.askyesno(
+        if ask_yes_no(
             t("common_confirm"),
             t("subedit_revert_confirm_message", name=self.ingredient_name)
         ):
@@ -10449,7 +10579,7 @@ class IngredientEditWindow(tk.Toplevel):
         message = t("manageing_delete_confirm_message", name=translate_ingredient_name(name))
         if usage:
             message += t("manageing_delete_usage_warning", count=usage)
-        if not messagebox.askyesno(t("common_confirm"), message):
+        if not ask_yes_no(t("common_confirm"), message):
             return
         ingredients = [n for n in load_ingredients() if n.lower() != name.lower()]
         self.app.ingredient_names = save_ingredients(ingredients)
@@ -10571,7 +10701,7 @@ class IngredientSpellCheckWindow(tk.Toplevel):
                 self.manage_window._populate()
             messagebox.showinfo(t("spellcheck_merged_title"), t("spellcheck_merged_one_message", removed=remove, kept=keep))
         else:
-            if not messagebox.askyesno(
+            if not ask_yes_no(
                 t("common_confirm"),
                 t("spellcheck_merge_multi_confirm", count=len(selected_pairs))
             ):
@@ -11658,7 +11788,7 @@ class ImportExportWindow(tk.Toplevel):
             return
         set_cloud_backup_folder(folder)
         self._refresh_cloud_label()
-        if messagebox.askyesno(
+        if ask_yes_no(
             t("importexport_cloud_configured_title"),
             t("importexport_cloud_configured_message", folder=folder)
         ):
@@ -11861,7 +11991,7 @@ class ImportExportWindow(tk.Toplevel):
             return
         if file_size > BACKUP_WARNING_SIZE:
             current_mb = round(file_size / (1024 * 1024))
-            if not messagebox.askyesno(
+            if not ask_yes_no(
                 t("common_confirm"),
                 t("importexport_large_file_warning", size=current_mb)
             ):
@@ -12276,7 +12406,7 @@ class SavedShoppingListsWindow(tk.Toplevel):
     def delete_selected(self):
         saved=self._selected()
         if saved is None:return
-        if not messagebox.askyesno(t("common_confirm"),t("savedlists_delete_confirm",name=saved.get("name","")),parent=self):return
+        if not ask_yes_no(t("common_confirm"),t("savedlists_delete_confirm",name=saved.get("name","")),parent=self):return
         all_lists=load_saved_shopping_lists(); removed=False; kept=[]
         for l in all_lists:
             if not removed and l.get("name")==saved.get("name") and l.get("created_at")==saved.get("created_at"): removed=True; continue
@@ -12542,7 +12672,7 @@ class AllRecipesWindow(tk.Toplevel):
 
     def _on_close(self):
         if getattr(self, "current_items", None):
-            if not messagebox.askyesno(
+            if not ask_yes_no(
                 t("allrecipes_close_confirm_title"),
                 t("allrecipes_close_confirm_message"),
                 icon="warning"
@@ -13447,7 +13577,7 @@ class OneRecipeWindow(tk.Toplevel):
                 self._populate()
             self._display_recipe(self.current_recipe)
             pantry = load_pantry()
-            if pantry and messagebox.askyesno(
+            if pantry and ask_yes_no(
                     t("onerecipe_pantry_decrement_title"),
                     t("onerecipe_pantry_decrement_prompt", name=target_name, persons=persons),
                     parent=self):
@@ -14094,7 +14224,7 @@ class CookingModeWindow(tk.Toplevel):
             )
             self.recipe = refreshed or current
             pantry = load_pantry()
-            if pantry and messagebox.askyesno(
+            if pantry and ask_yes_no(
                     t("onerecipe_pantry_decrement_title"),
                     t("onerecipe_pantry_decrement_prompt", name=target_name, persons=self._fmt(persons)),
                     parent=self):
@@ -14220,7 +14350,7 @@ class CookingModeWindow(tk.Toplevel):
 
     def _on_close(self):
         if any(row.running for row in self.timer_rows):
-            if not messagebox.askyesno(t("timers_title"), t("cookingmode_close_running"), parent=self):
+            if not ask_yes_no(t("timers_title"), t("cookingmode_close_running"), parent=self):
                 return
         self._close_speech()
         for row in self.timer_rows:
@@ -15560,7 +15690,7 @@ class QRCodeWindow(tk.Toplevel):
             folder, self.recipe["name"], len(self.parts)
         )
         existing_count = sum(os.path.exists(path) for path in target_paths)
-        if existing_count and not messagebox.askyesno(
+        if existing_count and not ask_yes_no(
             t("common_confirm"),
             t("qrcode_overwrite_all_confirm", count=existing_count),
             parent=self,
@@ -15963,7 +16093,7 @@ class PantryWindow(tk.Toplevel):
         entry = self._entry_by_iid.get(sel[0])
         if entry is None:
             return
-        if not messagebox.askyesno(t("common_confirm"), t("pantry_remove_confirm_message", name=entry['name'])):
+        if not ask_yes_no(t("common_confirm"), t("pantry_remove_confirm_message", name=entry['name'])):
             return
         remove_pantry_item(entry["name"])
         self._populate()
@@ -16466,7 +16596,7 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("weekhistory_select_week_first"))
             return
         entry = self.history[sel[0]]
-        if not messagebox.askyesno(
+        if not ask_yes_no(
             t("common_confirm"),
             t("weekhistory_reload_confirm_message", week=entry.get('week_start', '?'))
         ):
@@ -16485,7 +16615,7 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
             return
         entry = self.history[sel[0]]
         week_key = entry.get("week_start")
-        if not messagebox.askyesno(
+        if not ask_yes_no(
             t("common_confirm"), t("weekhistory_delete_confirm_message", week=week_key)
         ):
             return
@@ -16580,7 +16710,7 @@ class WeeklyPlanTemplatesWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("weektemplates_select_template_first"))
             return
         name = self.template_names[sel[0]]
-        if not messagebox.askyesno(
+        if not ask_yes_no(
             t("common_confirm"),
             t("weektemplates_apply_confirm_message", name=name)
         ):
@@ -16595,7 +16725,7 @@ class WeeklyPlanTemplatesWindow(tk.Toplevel):
             messagebox.showinfo(t("common_info"), t("weektemplates_select_template_first"))
             return
         name = self.template_names[sel[0]]
-        if not messagebox.askyesno(t("common_confirm"), t("weektemplates_delete_confirm_message", name=name)):
+        if not ask_yes_no(t("common_confirm"), t("weektemplates_delete_confirm_message", name=name)):
             return
         templates = load_weekly_plan_templates()
         templates.pop(name, None)
@@ -16983,7 +17113,7 @@ class WeeklyPlanWindow(tk.Toplevel):
         messagebox.showinfo(t("allrecipes_list_saved_title"), t("weekplan_saved_message"))
 
     def clear_plan(self):
-        if not messagebox.askyesno(t("common_confirm"), t("weekplan_clear_confirm_message")):
+        if not ask_yes_no(t("common_confirm"), t("weekplan_clear_confirm_message")):
             return
         for (day, slot), (combo, pers_entry) in self.widgets.items():
             combo.set(t("common_none_option"))
@@ -17207,7 +17337,7 @@ class MenuManagerWindow(tk.Toplevel):
             return
         menus = load_menus()
         name = menus[idx]["name"]
-        if not messagebox.askyesno(t("common_confirm"), t("menumanager_delete_confirm", name=name)):
+        if not ask_yes_no(t("common_confirm"), t("menumanager_delete_confirm", name=name)):
             return
         menus.pop(idx)
         save_menus(menus)
@@ -18380,7 +18510,7 @@ class ImportFromPhotoWindow(tk.Toplevel):
 
     def create_recipe(self):
         raw_text = self.text_box.get("1.0", "end-1c").strip()
-        if not raw_text and not messagebox.askyesno(
+        if not raw_text and not ask_yes_no(
             t("importphoto_no_text_title"),
             t("importphoto_no_text_confirm"),
             parent=self

@@ -24,6 +24,7 @@ class CookingModeTests(unittest.TestCase):
         confirm = patch.object(messagebox, "askyesno", return_value=True)
         confirm.start()
         self.addCleanup(confirm.stop)
+        self.ask_yes_no = lambda *a, **kw: True
         self.errors = []
         self.root.report_callback_exception = lambda *args: self.errors.append(args)
         self.clock = SimpleNamespace(value=100.0)
@@ -36,7 +37,8 @@ class CookingModeTests(unittest.TestCase):
             get_usable_screen_height=lambda win:800,
             translate_ingredient_name=lambda x:x, translate_unit_name=lambda x:x,
             ingredient_quantity_for_persons=lambda ing,p:ing['quantity']*p,
-            translate_difficulty_name=lambda x:x, log_internal_error=lambda *a:None)
+            translate_difficulty_name=lambda x:x, log_internal_error=lambda *a:None,
+            ask_yes_no=lambda *a, **kw: True)
         tree = ast.parse((ROOT/'main.py').read_text(encoding='utf-8'))
         nodes=[n for n in tree.body if isinstance(n,ast.ClassDef) and n.name in ('TimerRow','CookingModeWindow')]
         exec(compile(ast.Module(body=nodes,type_ignores=[]),'main.py','exec'),self.env)

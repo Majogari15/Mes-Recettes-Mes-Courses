@@ -26,7 +26,7 @@ class CookingAdditionsTests(unittest.TestCase):
     def test_close_cancel_keeps_timer_running(self):
         w=object.__new__(self.ns['CookingModeWindow'])
         w.timer_rows=[SimpleNamespace(running=True)];w.stop_speech=lambda:self.fail('closed despite cancellation')
-        self.ns.update(t=lambda k:k,messagebox=SimpleNamespace(askyesno=lambda *a,**kw:False))
+        self.ns.update(t=lambda k:k,messagebox=SimpleNamespace(askyesno=lambda *a,**kw:False),ask_yes_no=lambda *a,**kw:False)
         w._on_close();self.assertTrue(w.timer_rows[0].running)
 
 if __name__=='__main__':unittest.main()
