@@ -1,3 +1,11 @@
+# Build 77 — 1.6.30 (MSIX 1.6.30.0)
+
+Import multilingue : unités, ingrédients, allergènes, rendement, catégories, repos et redirections. Voir RAPPORT_IMPORT_v77.md.
+
+# Build 76 — 1.6.29 (MSIX 1.6.29.0)
+
+Corrections d’import intégrées sur main e9a6c02 ; microdonnées et Tesseract portable préservés. Voir CHANGEMENTS_v76.md.
+
 # Version actuelle
 
 ## Build 75 — import des recettes

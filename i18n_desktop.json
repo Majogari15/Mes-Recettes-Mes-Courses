@@ -1090,7 +1090,11 @@
     "importurl_range_note": "Quantité indiquée sur le site pour {persons} personnes : {line}. La borne basse est utilisée dans la liste ; ajustez-la si nécessaire.",
     "importurl_warning_range": "Plage conservée dans les notes ; borne basse utilisée : {line}",
     "importurl_rest_note": "Temps de repos indiqué par la source : {value}",
-    "importurl_yield_note": "Rendement indiqué par la source : {value}. Ce nombre ne désigne pas des personnes."
+    "importurl_yield_note": "Rendement indiqué par la source : {value}. Ce nombre ne désigne pas des personnes.",
+    "importurl_warning_missing_ingredient": "Ingrédient mentionné dans les étapes mais absent de la liste : {value}. Vérifiez la recette source avant de compléter la liste.",
+    "importurl_warning_redirect": "La page a redirigé vers : {value}. Vérifiez la recette importée.",
+    "importurl_warning_unit": "Unité à vérifier : {value}.",
+    "importurl_total_note": "Temps total indiqué par la source : {value} min."
   },
   "translations": {
     "en": {
@@ -2184,7 +2188,11 @@
       "importurl_range_note": "Quantity on the site for {persons} servings: {line}. The list uses the lower value; adjust it if needed.",
       "importurl_warning_range": "Range preserved in notes; lower value used: {line}",
       "importurl_rest_note": "Rest time stated by the source: {value}",
-      "importurl_yield_note": "Yield stated by the source: {value}. This number does not refer to people."
+      "importurl_yield_note": "Yield stated by the source: {value}. This number does not refer to people.",
+      "importurl_warning_missing_ingredient": "Ingredient mentioned in the instructions but missing from the list: {value}. Check the source before adding it.",
+      "importurl_warning_redirect": "The page redirected to: {value}. Check the imported recipe.",
+      "importurl_warning_unit": "Check the unit: {value}.",
+      "importurl_total_note": "Total time stated by the source: {value} min."
     },
     "es": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -3277,7 +3285,11 @@
       "importurl_range_note": "Cantidad del sitio para {persons} personas: {line}. La lista usa el valor inferior; ajústalo si es necesario.",
       "importurl_warning_range": "Intervalo conservado en las notas; se usa el valor inferior: {line}",
       "importurl_rest_note": "Tiempo de reposo indicado por la fuente: {value}",
-      "importurl_yield_note": "Rendimiento indicado por la fuente: {value}. Esta cifra no representa personas."
+      "importurl_yield_note": "Rendimiento indicado por la fuente: {value}. Esta cifra no representa personas.",
+      "importurl_warning_missing_ingredient": "Ingrediente mencionado en los pasos pero ausente de la lista: {value}. Compruebe la receta original antes de añadirlo.",
+      "importurl_warning_redirect": "La página redirigió a: {value}. Comprueba la receta importada.",
+      "importurl_warning_unit": "Comprueba la unidad: {value}.",
+      "importurl_total_note": "Tiempo total indicado por la fuente: {value} min."
     },
     "de": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -4370,7 +4382,11 @@
       "importurl_range_note": "Menge auf der Website für {persons} Personen: {line}. Die Liste verwendet den unteren Wert; bei Bedarf anpassen.",
       "importurl_warning_range": "Bereich in den Notizen erhalten; unterer Wert verwendet: {line}",
       "importurl_rest_note": "Von der Quelle angegebene Ruhezeit: {value}",
-      "importurl_yield_note": "Von der Quelle angegebene Ausbeute: {value}. Diese Zahl bezeichnet keine Personen."
+      "importurl_yield_note": "Von der Quelle angegebene Ausbeute: {value}. Diese Zahl bezeichnet keine Personen.",
+      "importurl_warning_missing_ingredient": "In den Schritten genannt, aber nicht in der Zutatenliste enthalten: {value}. Prüfen Sie das Originalrezept, bevor Sie die Liste ergänzen.",
+      "importurl_warning_redirect": "Die Seite wurde umgeleitet: {value}. Importiertes Rezept prüfen.",
+      "importurl_warning_unit": "Einheit prüfen: {value}.",
+      "importurl_total_note": "Gesamtzeit laut Quelle: {value} Min."
     }
   }
 }
