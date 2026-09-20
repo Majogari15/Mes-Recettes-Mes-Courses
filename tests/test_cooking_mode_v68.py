@@ -55,14 +55,20 @@ class CookingModeTests(unittest.TestCase):
         # ne soit forcé à une taille explicite : sur Windows (contrairement
         # à Xvfb+fluxbox), le gestionnaire de fenêtres applique ces requêtes
         # de façon asynchrone, si bien qu'un seul update() ne suffit pas
-        # toujours à voir le canvas atteindre sa largeur finale avant que le
-        # test ne vérifie la disposition qui en dépend. On boucle donc
-        # jusqu'à ce que la largeur reflète bien la disposition attendue.
+        # toujours à voir le canvas atteindre sa largeur finale. On boucle
+        # donc pour laisser le temps à la taille de se stabiliser, puis on
+        # appelle nous-mêmes le gestionnaire de redimensionnement avec la
+        # largeur réellement mesurée : la disposition ne doit pas dépendre
+        # du seul événement <Configure>, dont le déclenchement effectif
+        # (et son ordonnancement par rapport à winfo_width()) varie selon
+        # la plateforme.
         w = self.window
         for _ in range(timeout_updates):
             self.root.update()
             if (w.canvas.winfo_width() >= 1000) == wide:
-                return
+                break
+        w._resize_content(SimpleNamespace(width=w.canvas.winfo_width()))
+        self.root.update()
     def duration(self,row,seconds):
         row.minutes_entry.delete(0,'end');row.minutes_entry.insert(0,'0')
         row.seconds_entry.delete(0,'end');row.seconds_entry.insert(0,str(seconds))
@@ -85,9 +91,10 @@ class CookingModeTests(unittest.TestCase):
         w=self.window;row=w.timer_rows[0];row.start()
         w._adjust(1);self.root.update()
         self.assertIs(w.timer_rows[0],row);self.assertTrue(row.running)
-        self.assertEqual(int(w.steps_panel.grid_info()['column']),1)
+        diag=lambda: f"canvas={w.canvas.winfo_width()} geometry={w.geometry()} state={w.state()}"
+        self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
         w.geometry('760x850');self._wait_for_layout(wide=False)
-        self.assertEqual(int(w.steps_panel.grid_info()['row']),1)
+        self.assertEqual(int(w.steps_panel.grid_info()['row']),1,diag())
         for panel in (w.ingredients_panel,w.steps_panel):
             self.assertLessEqual(panel.winfo_width(),w.canvas.winfo_width())
             for label in panel.winfo_children():
@@ -95,7 +102,7 @@ class CookingModeTests(unittest.TestCase):
                     continue
                 self.assertLessEqual(int(float(label.cget('wraplength'))),panel.winfo_width())
         w.geometry('1400x850');self._wait_for_layout(wide=True)
-        self.assertEqual(int(w.steps_panel.grid_info()['column']),1)
+        self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
         self.assertLess(w.ingredients_panel.winfo_rootx(),w.steps_panel.winfo_rootx())
         self.assertEqual(self.errors,[])
     def test_finish_remove_and_close(self):
