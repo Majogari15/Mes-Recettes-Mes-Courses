@@ -115,6 +115,32 @@ class CoreRegressionTests(TempDataMixin, unittest.TestCase):
         self.assertAlmostEqual(total, 22.0)
         self.assertEqual((known, count), (2, 2))
 
+    def test_cart_cost_sums_known_prices_and_counts_unknown(self):
+        # compute_cart_cost partage la conversion d'unités de
+        # compute_recipe_cost, mais part de quantités déjà absolues (liste
+        # de courses sommée entre recettes), pas par personne.
+        main.save_ingredient_prices({
+            "farine": {"name": "Farine", "price": 10, "unit": "kg"},
+            "lait": {"name": "Lait", "price": 2, "unit": "L"},
+        })
+        items = [
+            {"name": "Farine", "quantity": 1000, "unit": "Gr", "rayon": "Epicerie"},
+            {"name": "Lait", "quantity": 500, "unit": "cl", "rayon": "Cremerie"},
+            {"name": "Sel", "quantity": 1, "unit": "pièce", "rayon": "Epicerie"},
+        ]
+        total, known, count = main.compute_cart_cost(items)
+        self.assertAlmostEqual(total, 20.0)  # 1 kg farine (10) + 5 L lait (10)
+        self.assertEqual((known, count), (2, 3))
+
+    def test_cart_items_sorted_by_name_ignores_rayon(self):
+        items = [
+            {"name": "Yaourt", "quantity": 1, "unit": "pièce", "rayon": "Cremerie"},
+            {"name": "Abricot", "quantity": 1, "unit": "pièce", "rayon": "Fruits"},
+            {"name": "Farine", "quantity": 1, "unit": "Gr", "rayon": "Epicerie"},
+        ]
+        order = main._cart_items_sorted_by_name(items)
+        self.assertEqual([items[i]["name"] for i in order], ["Abricot", "Farine", "Yaourt"])
+
     def test_plan_old_name_migrates_to_id_and_survives_rename(self):
         r = self.recipe("stable-id", name="Ancien nom")
         main.save_recipes([r])
@@ -266,6 +292,16 @@ class StaticRegressionTests(unittest.TestCase):
         fr = set(main.FRENCH_STRINGS)
         for lang in ("en","es","de"):
             self.assertEqual(fr, set(main.TRANSLATIONS[lang]))
+
+    def test_shopping_list_windows_show_cart_cost_and_sort_toggle(self):
+        # Les 3 fenêtres qui affichent une liste de courses calculée
+        # (Toutes les recettes, Planning, Nouveau menu) doivent toutes
+        # afficher le coût total estimé et proposer le tri par nom, en plus
+        # du regroupement par rayon.
+        for cls_name in ("AllRecipesWindow", "WeeklyPlanWindow", "MenuFormWindow"):
+            method_src = inspect.getsource(getattr(main, cls_name)._render_shopping_list)
+            self.assertIn("_render_cart_cost_summary", method_src, cls_name)
+            self.assertIn("_render_cart_sort_toggle", method_src, cls_name)
 
     def test_shared_import_dialog_accepts_txt(self):
         # L'application mobile déguise ce zip en ".txt" avant de le

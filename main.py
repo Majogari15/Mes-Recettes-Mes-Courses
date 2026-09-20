@@ -1969,12 +1969,45 @@ def set_ingredient_price(name, price, unit):
     save_ingredient_prices(prices)
 
 
-def compute_recipe_cost(recipe, persons):
-    """Retourne (coût_total_estimé, connus, total).
+def _ingredient_cost_contribution(name, quantity, unit, prices):
+    """Contribution au coût total pour une quantité ABSOLUE déjà mise à
+    l'échelle (pas par personne) d'un ingrédient, ou None si son prix est
+    inconnu ou son unité incompatible avec celle du prix enregistré.
 
     Les unités compatibles sont converties correctement : g/kg et ml/cl/L.
     Les unités discrètes (pièce, cuillères...) restent comparées exactement.
-    """
+    Partagé par compute_recipe_cost (quantités par personne mises à
+    l'échelle par l'appelant) et compute_cart_cost (quantités déjà
+    absolues, sommées entre recettes sur la liste de courses)."""
+    price_info = prices.get(str(name).strip().lower())
+    if not price_info:
+        return None
+    try:
+        qty = float(quantity)
+        price = float(price_info.get("price", 0))
+    except (TypeError, ValueError):
+        return None
+    ing_unit = str(unit or "").strip()
+    price_unit = str(price_info.get("unit", "")).strip()
+
+    # Prix au kg / litre : conversion via la base commune.
+    if price_unit.lower() == "kg":
+        converted = unit_dimension_value(qty, ing_unit)
+        if converted and converted[0] == "mass":
+            return (converted[1] / 1000.0) * price
+        return None
+    if price_unit.lower() in ("l", "litre", "litres"):
+        converted = unit_dimension_value(qty, ing_unit)
+        if converted and converted[0] == "volume":
+            return (converted[1] / 1000.0) * price
+        return None
+    if canonical_unit(price_unit) == canonical_unit(ing_unit):
+        return qty * price
+    return None
+
+
+def compute_recipe_cost(recipe, persons):
+    """Retourne (coût_total_estimé, connus, total)."""
     prices = load_ingredient_prices()
     total = 0.0
     known = 0
@@ -1985,34 +2018,69 @@ def compute_recipe_cost(recipe, persons):
         return 0.0, 0, total_count
 
     for ing in recipe.get("ingredients", []):
-        price_info = prices.get(str(ing.get("name", "")).strip().lower())
-        if not price_info:
-            continue
         try:
             qty = float(ing.get("quantity", 0)) * persons
-            price = float(price_info.get("price", 0))
         except (TypeError, ValueError):
             continue
-        ing_unit = str(ing.get("unit", "")).strip()
-        price_unit = str(price_info.get("unit", "")).strip()
-        contribution = None
-
-        # Prix au kg / litre : conversion via la base commune.
-        if price_unit.lower() == "kg":
-            converted = unit_dimension_value(qty, ing_unit)
-            if converted and converted[0] == "mass":
-                contribution = (converted[1] / 1000.0) * price
-        elif price_unit.lower() in ("l", "litre", "litres"):
-            converted = unit_dimension_value(qty, ing_unit)
-            if converted and converted[0] == "volume":
-                contribution = (converted[1] / 1000.0) * price
-        elif canonical_unit(price_unit) == canonical_unit(ing_unit):
-            contribution = qty * price
-
+        contribution = _ingredient_cost_contribution(ing.get("name", ""), qty, ing.get("unit", ""), prices)
         if contribution is not None:
             total += contribution
             known += 1
     return total, known, total_count
+
+
+def compute_cart_cost(items):
+    """Retourne (coût_total_estimé, connus, total) pour une liste de
+    courses à plat [{'name','quantity','unit',...}, ...] (quantités déjà
+    absolues, contrairement à compute_recipe_cost qui part de quantités
+    par personne)."""
+    prices = load_ingredient_prices()
+    total = 0.0
+    known = 0
+    for item in items:
+        contribution = _ingredient_cost_contribution(
+            item.get("name", ""), item.get("quantity", 0), item.get("unit", ""), prices
+        )
+        if contribution is not None:
+            total += contribution
+            known += 1
+    return total, known, len(items)
+
+
+def _cart_items_sorted_by_name(items):
+    """Indices de items triés par nom d'ingrédient, à plat (sans regroupement
+    par rayon) — utilisé par le tri « Nom » des listes de courses affichées."""
+    return sorted(range(len(items)), key=lambda i: ingredient_sort_key(items[i]["name"]))
+
+
+def _render_cart_cost_summary(parent, items):
+    """Ajoute, si au moins un ingrédient de la liste a un prix connu, une
+    ligne « Coût estimé » à parent. Partagé par les trois fenêtres qui
+    affichent une liste de courses calculée (Toutes les recettes, Planning
+    de la semaine, Nouveau menu)."""
+    cost, cost_known, cost_total = compute_cart_cost(items)
+    if not cost_known:
+        return
+    partial = "" if cost_known == cost_total else t("onerecipe_cost_partial", known=cost_known, total=cost_total)
+    ttk.Label(
+        parent, text=t("onerecipe_cost_label", cost=f"{cost:.2f}", partial=partial),
+        font=("Segoe UI", sf(9), "bold"), foreground=COLOR_ACCENT_DARK
+    ).pack(anchor="w", pady=(0, 4))
+
+
+def _render_cart_sort_toggle(parent, sort_var, on_change):
+    """Petit sélecteur « Trier : Rayon / Nom » pour une liste de courses
+    affichée. Partagé par les trois fenêtres concernées (voir
+    _render_cart_cost_summary)."""
+    frame = ttk.Frame(parent)
+    frame.pack(anchor="w", pady=(0, 8))
+    ttk.Label(frame, text=t("common_sort_by_label")).pack(side="left", padx=(0, 6))
+    ttk.Radiobutton(
+        frame, text=t("pantry_col_section"), value="rayon", variable=sort_var, command=on_change
+    ).pack(side="left")
+    ttk.Radiobutton(
+        frame, text=t("pantry_sort_name"), value="nom", variable=sort_var, command=on_change
+    ).pack(side="left", padx=(8, 0))
 
 
 # ---------------------------------------------------------------------------
@@ -8967,7 +9035,7 @@ class RecipeFormWindow(tk.Toplevel):
             entry._suggestion_popup = None
             entry._suggestion_listbox = None
 
-    def _show_suggestions(self, entry, filtered):
+    def _show_suggestions(self, entry, filtered, value_map=None):
         self._hide_suggestions(entry)
         if not filtered:
             return
@@ -8989,6 +9057,11 @@ class RecipeFormWindow(tk.Toplevel):
             sel = listbox.curselection()
             if sel:
                 value = listbox.get(sel[0])
+                # value_map sert au repli « Vouliez-vous dire... ? » : la
+                # ligne affichée est une phrase complète, pas le nom
+                # d'ingrédient à insérer tel quel.
+                if value_map:
+                    value = value_map.get(value, value)
                 entry.delete(0, tk.END)
                 entry.insert(0, value)
                 self._sync_allergens_from_ingredients()
@@ -9050,8 +9123,29 @@ class RecipeFormWindow(tk.Toplevel):
         filtered = self._filter_ingredients(full_values, typed)
         if filtered:
             self._show_suggestions(entry, filtered)
+            return
+        hint = self._did_you_mean_hint(typed)
+        if hint:
+            display_hint = translate_ingredient_name(hint)
+            label = t("recipeform_did_you_mean", name=display_hint)
+            self._show_suggestions(entry, [label], value_map={label: display_hint})
         else:
             self._hide_suggestions(entry)
+
+    def _did_you_mean_hint(self, typed):
+        """Repère un ingrédient déjà connu très proche du texte tapé (typo,
+        variante singulier/pluriel...) pour proposer de le réutiliser plutôt
+        que d'en créer un nouveau par erreur — même seuil de proximité que
+        UnknownIngredientsDialog (0.75), mais affiché en temps réel pendant
+        la frappe plutôt qu'à l'enregistrement. Ne se déclenche que quand
+        aucune suggestion normale (préfixe/sous-chaîne) ne correspond déjà."""
+        typed = typed.strip()
+        if len(typed) < 3 or resolve_ingredient_input(typed, self.ingredient_names) is not None:
+            return None
+        ranked = rank_close_ingredients(typed, self.ingredient_names)
+        if ranked and ranked[0][0] >= 0.75:
+            return ranked[0][1]
+        return None
 
     def _on_ingredient_focus_in(self, event, entry):
         full_values = getattr(entry, "full_values", [])
@@ -12984,6 +13078,7 @@ class AllRecipesWindow(tk.Toplevel):
 
         self.checks = []
         self.current_items = []       # liste plate éditable [{'name','quantity','unit','rayon'}, ...]
+        self._shopping_sort_var = tk.StringVar(value="rayon")
         self.last_chosen_recipes = []  # recettes ajoutées au panier (pour les en-têtes d'export)
         self._recipe_cart_persons = {}  # id stable -> personnes ; un second ajout remplace le précédent
         rows_frame.columnconfigure(0, weight=1)
@@ -13385,44 +13480,59 @@ class AllRecipesWindow(tk.Toplevel):
                 text=t("allrecipes_manual_items_note", count=len(self.manual_items)),
                 font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED
             ).pack(anchor="w")
+        _render_cart_cost_summary(self.result_frame, self.current_items)
+        _render_cart_sort_toggle(self.result_frame, self._shopping_sort_var, self._render_shopping_list)
 
         columns = max(1, int(getattr(self, "_shopping_columns", 1)))
-        for rayon, idxs in self._grouped_current_items():
-            section = ttk.Frame(self.result_frame)
-            section.pack(fill="x", pady=(10, 2))
-            ttk.Label(
-                section, text=translate_rayon_name(rayon),
-                font=("Segoe UI", sf(10), "bold"), foreground=COLOR_ACCENT_DARK
-            ).grid(row=0, column=0, columnspan=columns, sticky="w", pady=(2, 5))
 
-            items_frame = ttk.Frame(section)
-            items_frame.grid(row=1, column=0, columnspan=columns, sticky="ew")
+        def render_cell(parent, idx, row_no, col_no):
+            item = self.current_items[idx]
+            cell = ttk.Frame(parent, padding=(5, 3))
+            cell.grid(row=row_no, column=col_no, sticky="ew", padx=(0, 8), pady=1)
+            cell.columnconfigure(0, weight=1)
+
+            ttk.Label(
+                cell, text=f"- {translate_ingredient_name(item['name'])}",
+                anchor="w"
+            ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+            qty_entry = ttk.Entry(cell, width=7)
+            qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
+            qty_entry.grid(row=0, column=1, padx=3)
+            qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
+            qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
+            ttk.Label(
+                cell, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), anchor="w"
+            ).grid(row=0, column=2, padx=3, sticky="w")
+            ttk.Button(
+                cell, text="🗑", width=3,
+                command=lambda i=idx: self._delete_item(i)
+            ).grid(row=0, column=3, padx=(3, 0))
+
+        if self._shopping_sort_var.get() == "nom":
+            items_frame = ttk.Frame(self.result_frame)
+            items_frame.pack(fill="x", pady=(10, 2))
             for c in range(columns):
                 items_frame.columnconfigure(c, weight=1, uniform="shopping_items")
-
-            for pos, idx in enumerate(idxs):
-                item = self.current_items[idx]
+            for pos, idx in enumerate(_cart_items_sorted_by_name(self.current_items)):
                 row_no, col_no = divmod(pos, columns)
-                cell = ttk.Frame(items_frame, padding=(5, 3))
-                cell.grid(row=row_no, column=col_no, sticky="ew", padx=(0, 8), pady=1)
-                cell.columnconfigure(0, weight=1)
+                render_cell(items_frame, idx, row_no, col_no)
+        else:
+            for rayon, idxs in self._grouped_current_items():
+                section = ttk.Frame(self.result_frame)
+                section.pack(fill="x", pady=(10, 2))
+                ttk.Label(
+                    section, text=translate_rayon_name(rayon),
+                    font=("Segoe UI", sf(10), "bold"), foreground=COLOR_ACCENT_DARK
+                ).grid(row=0, column=0, columnspan=columns, sticky="w", pady=(2, 5))
 
-                ttk.Label(
-                    cell, text=f"- {translate_ingredient_name(item['name'])}",
-                    anchor="w"
-                ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
-                qty_entry = ttk.Entry(cell, width=7)
-                qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
-                qty_entry.grid(row=0, column=1, padx=3)
-                qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                ttk.Label(
-                    cell, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), anchor="w"
-                ).grid(row=0, column=2, padx=3, sticky="w")
-                ttk.Button(
-                    cell, text="🗑", width=3,
-                    command=lambda i=idx: self._delete_item(i)
-                ).grid(row=0, column=3, padx=(3, 0))
+                items_frame = ttk.Frame(section)
+                items_frame.grid(row=1, column=0, columnspan=columns, sticky="ew")
+                for c in range(columns):
+                    items_frame.columnconfigure(c, weight=1, uniform="shopping_items")
+
+                for pos, idx in enumerate(idxs):
+                    row_no, col_no = divmod(pos, columns)
+                    render_cell(items_frame, idx, row_no, col_no)
 
         tk.Frame(self.result_frame, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -17397,6 +17507,7 @@ class WeeklyPlanWindow(tk.Toplevel):
         # ---- Zone de résultat éditable : chaque ingrédient peut voir sa
         # quantité modifiée ou être retiré, sans devoir tout recalculer. ----
         self.current_items = []       # liste plate éditable [{'name','quantity','unit','rayon'}, ...]
+        self._shopping_sort_var = tk.StringVar(value="rayon")
         self.last_chosen_recipes = []  # recettes utilisées lors du dernier calcul (pour les exports)
 
         result_container = ttk.Frame(self)
@@ -17460,23 +17571,32 @@ class WeeklyPlanWindow(tk.Toplevel):
                 text=t("allrecipes_manual_items_note", count=len(self.manual_items)),
                 font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED
             ).pack(anchor="w")
+        _render_cart_cost_summary(self.result_frame, self.current_items)
+        _render_cart_sort_toggle(self.result_frame, self._shopping_sort_var, self._render_shopping_list)
 
-        for rayon, idxs in self._grouped_current_items():
-            ttk.Label(self.result_frame, text=translate_rayon_name(rayon), font=("Segoe UI", sf(10), "bold"),
-                      foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(12, 4))
-            for idx in idxs:
-                item = self.current_items[idx]
-                row = ttk.Frame(self.result_frame)
-                row.pack(fill="x", pady=1)
-                ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
-                qty_entry = ttk.Entry(row, width=8)
-                qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
-                qty_entry.pack(side="left", padx=3)
-                qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
-                ttk.Button(row, text="🗑", width=3,
-                           command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
+        def render_row(idx):
+            item = self.current_items[idx]
+            row = ttk.Frame(self.result_frame)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
+            qty_entry = ttk.Entry(row, width=8)
+            qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
+            qty_entry.pack(side="left", padx=3)
+            qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
+            qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
+            ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
+            ttk.Button(row, text="🗑", width=3,
+                       command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
+
+        if self._shopping_sort_var.get() == "nom":
+            for idx in _cart_items_sorted_by_name(self.current_items):
+                render_row(idx)
+        else:
+            for rayon, idxs in self._grouped_current_items():
+                ttk.Label(self.result_frame, text=translate_rayon_name(rayon), font=("Segoe UI", sf(10), "bold"),
+                          foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(12, 4))
+                for idx in idxs:
+                    render_row(idx)
 
         tk.Frame(self.result_frame, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -17908,6 +18028,7 @@ class MenuFormWindow(tk.Toplevel):
         # ---- Zone de résultat éditable : chaque ingrédient peut voir sa
         # quantité modifiée ou être retiré, sans devoir tout recalculer. ----
         self.current_items = []       # liste plate éditable [{'name','quantity','unit','rayon'}, ...]
+        self._shopping_sort_var = tk.StringVar(value="rayon")
         self.last_chosen_recipes = []  # recettes utilisées lors du dernier calcul (pour les exports)
 
         result_container = ttk.Frame(self)
@@ -17971,23 +18092,32 @@ class MenuFormWindow(tk.Toplevel):
                 text=t("allrecipes_manual_items_note", count=len(self.manual_items)),
                 font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED
             ).pack(anchor="w")
+        _render_cart_cost_summary(self.result_frame, self.current_items)
+        _render_cart_sort_toggle(self.result_frame, self._shopping_sort_var, self._render_shopping_list)
 
-        for rayon, idxs in self._grouped_current_items():
-            ttk.Label(self.result_frame, text=translate_rayon_name(rayon), font=("Segoe UI", sf(10), "bold"),
-                      foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(12, 4))
-            for idx in idxs:
-                item = self.current_items[idx]
-                row = ttk.Frame(self.result_frame)
-                row.pack(fill="x", pady=1)
-                ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
-                qty_entry = ttk.Entry(row, width=8)
-                qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
-                qty_entry.pack(side="left", padx=3)
-                qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-                ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
-                ttk.Button(row, text="🗑", width=3,
-                           command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
+        def render_row(idx):
+            item = self.current_items[idx]
+            row = ttk.Frame(self.result_frame)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
+            qty_entry = ttk.Entry(row, width=8)
+            qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
+            qty_entry.pack(side="left", padx=3)
+            qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
+            qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
+            ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
+            ttk.Button(row, text="🗑", width=3,
+                       command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
+
+        if self._shopping_sort_var.get() == "nom":
+            for idx in _cart_items_sorted_by_name(self.current_items):
+                render_row(idx)
+        else:
+            for rayon, idxs in self._grouped_current_items():
+                ttk.Label(self.result_frame, text=translate_rayon_name(rayon), font=("Segoe UI", sf(10), "bold"),
+                          foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(12, 4))
+                for idx in idxs:
+                    render_row(idx)
 
         tk.Frame(self.result_frame, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
