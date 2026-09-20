@@ -95,7 +95,8 @@ class CookingModeTests(unittest.TestCase):
         # perdue sur les nouveaux panneaux et doit être réappliquée.
         self._apply_width(1400)
         self.assertIs(w.timer_rows[0],row);self.assertTrue(row.running)
-        diag=lambda: f"canvas={w.canvas.winfo_width()} content_width={w.canvas.itemcget(w._content_id,'width')}"
+        def diag():
+            return f"canvas={w.canvas.winfo_width()} content_width={w.canvas.itemcget(w._content_id,'width')}"
         self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
         self._apply_width(760)
         self.assertEqual(int(w.steps_panel.grid_info()['row']),1,diag())

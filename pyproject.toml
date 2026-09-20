@@ -1,0 +1,16 @@
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+# Base par défaut de ruff (pycodestyle E/W + pyflakes F), avec des exclusions
+# pour un style délibérément dense déjà en place dans tout le projet
+# (plusieurs instructions par ligne, lignes longues) : les activer produirait
+# ~1600 signalements purement stylistiques sans rapport avec de vrais bugs.
+ignore = [
+    "E701",  # instructions multiples sur une ligne (deux-points)
+    "E702",  # instructions multiples sur une ligne (point-virgule)
+    "E501",  # ligne trop longue
+    "E401",  # imports multiples sur une ligne ("import os, sys")
+    "E402",  # import pas en tête de fichier — nécessaire dans certains tests
+             # qui font sys.path.insert(...) avant "import main"
+]

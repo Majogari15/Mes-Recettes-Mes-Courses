@@ -4,8 +4,11 @@ import json
 import unittest
 import zlib
 from email.message import Message
+from pathlib import Path
 from unittest.mock import patch
 import main
+from PIL import Image
+from test_regressions import TempDataMixin
 
 class ImportTests(unittest.TestCase):
     def fetch(self, **changes):
@@ -135,10 +138,6 @@ class ImportTests(unittest.TestCase):
         with patch.object(main.urllib.request, 'urlopen', return_value=response):
             r = main.fetch_recipe_from_url('https://example.com/recipe')
         self.assertEqual(r['name'], 'Recette deflate brut')
-
-from pathlib import Path
-from PIL import Image
-from test_regressions import TempDataMixin
 
 class RecipeImageDownloadTests(TempDataMixin, unittest.TestCase):
     def _jsonld_html(self, **changes):

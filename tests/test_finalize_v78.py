@@ -1,5 +1,4 @@
 """Cases from the seven user PDFs and the data-safety audit."""
-import copy
 import io
 import json
 import os

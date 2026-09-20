@@ -4842,7 +4842,6 @@ _URL_FOOD_ALIASES = {
  'flour': 'Farine', 'large eggs': 'Œufs', 'large egg': 'Œuf',
  'egg yolks': "Jaune d'œuf", 'egg whites': "Blanc d'œuf",
  'semi skimmed milk': 'Lait', 'queso rallado cuatro quesos': 'Fromage',
- '0% fat free greek yoghurt': 'Yaourt',
 }
 
 def _url_food_name(name):
@@ -10583,7 +10582,6 @@ class ManageSubstitutionsWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("managesub_title"))
-        screen_height = get_usable_screen_height(self)
         fit_window_to_workarea(self, gs(480), gs(700), margin=18)
         safe_minsize(self, gs(420), gs(460))
         self.resizable(True, True)
@@ -12928,7 +12926,7 @@ class SavedShoppingListsWindow(tk.Toplevel):
         self.saved_lists=[]; self._populate()
     def _populate(self):
         for iid in self.tree.get_children(): self.tree.delete(iid)
-        self.saved_lists=load_saved_shopping_lists(); self.saved_lists.sort(key=lambda l:l.get("created_at",""), reverse=True)
+        self.saved_lists=load_saved_shopping_lists(); self.saved_lists.sort(key=lambda entry:entry.get("created_at",""), reverse=True)
         for i,saved in enumerate(self.saved_lists): self.tree.insert("", "end", iid=str(i), values=(saved.get("name",""),len(saved.get("items",[])),saved.get("created_at","?")))
     def _selected(self):
         sel=self.tree.selection()
@@ -12944,15 +12942,15 @@ class SavedShoppingListsWindow(tk.Toplevel):
         name=simpledialog.askstring(t("savedlists_title"),t("savedlists_rename_prompt"),initialvalue=saved.get("name",""),parent=self)
         if not name or not name.strip():return
         all_lists=load_saved_shopping_lists()
-        for l in all_lists:
-            if l.get("name")==saved.get("name") and l.get("created_at")==saved.get("created_at"): l["name"]=name.strip(); break
+        for entry in all_lists:
+            if entry.get("name")==saved.get("name") and entry.get("created_at")==saved.get("created_at"): entry["name"]=name.strip(); break
         save_saved_shopping_lists(all_lists); self._populate()
     def duplicate_selected(self):
         import copy
         saved=self._selected()
         if saved is None:return
         all_lists=load_saved_shopping_lists(); base=saved.get("name","")+t("savedlists_duplicate_suffix")
-        existing={l.get("name","").lower() for l in all_lists}; name=base; n=2
+        existing={entry.get("name","").lower() for entry in all_lists}; name=base; n=2
         while name.lower() in existing: name=f"{base} {n}"; n+=1
         dup=copy.deepcopy(saved); dup["name"]=name; dup["created_at"]=datetime.now().strftime("%Y-%m-%d %H:%M")
         all_lists.append(dup); save_saved_shopping_lists(all_lists); self._populate()
@@ -12961,9 +12959,9 @@ class SavedShoppingListsWindow(tk.Toplevel):
         if saved is None:return
         if not ask_yes_no(t("common_confirm"),t("savedlists_delete_confirm",name=saved.get("name","")),parent=self):return
         all_lists=load_saved_shopping_lists(); removed=False; kept=[]
-        for l in all_lists:
-            if not removed and l.get("name")==saved.get("name") and l.get("created_at")==saved.get("created_at"): removed=True; continue
-            kept.append(l)
+        for entry in all_lists:
+            if not removed and entry.get("name")==saved.get("name") and entry.get("created_at")==saved.get("created_at"): removed=True; continue
+            kept.append(entry)
         save_saved_shopping_lists(kept); self._populate()
     def close(self):
         self.destroy(); self.target_window.lift(); self.target_window.focus_force()
@@ -13570,7 +13568,7 @@ class AllRecipesWindow(tk.Toplevel):
             self.focus_force()
             return
         lists = load_saved_shopping_lists()
-        lists = [l for l in lists if l["name"].lower() != name.lower()]  # remplace une liste de même nom
+        lists = [entry for entry in lists if entry["name"].lower() != name.lower()]  # remplace une liste de même nom
         lists.append({
             "name": name,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -13976,9 +13974,9 @@ class OneRecipeWindow(tk.Toplevel):
             except tk.TclError:
                 pass  # la ligne précédente a pu être détruite par un _populate entre-temps
         label = None
-        for idx, r, l in self._row_widgets:
+        for idx, r, lbl in self._row_widgets:
             if r is row:
-                label = l
+                label = lbl
                 break
         row.configure(background=COLOR_ACCENT_LIGHT)
         if label is not None:
@@ -17102,7 +17100,6 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
         self.app = app
         self.parent_window = parent_window
         self.title(t("weekhistory_title"))
-        screen_height = get_usable_screen_height(self)
         fit_window_to_workarea(self, gs(930), gs(760), margin=18)
         safe_minsize(self, gs(500), gs(500))
         self.resizable(True, True)
@@ -17220,7 +17217,6 @@ class WeeklyPlanTemplatesWindow(tk.Toplevel):
         self.app = app
         self.parent_window = parent_window
         self.title(t("weektemplates_title"))
-        screen_height = get_usable_screen_height(self)
         fit_window_to_workarea(self, gs(560), gs(700), margin=18)
         safe_minsize(self, gs(460), gs(460))
         self.resizable(True, True)
@@ -17634,7 +17630,7 @@ class WeeklyPlanWindow(tk.Toplevel):
             self.focus_force()
             return
         lists = load_saved_shopping_lists()
-        lists = [l for l in lists if l["name"].lower() != name.lower()]
+        lists = [entry for entry in lists if entry["name"].lower() != name.lower()]
         lists.append({
             "name": name,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -18155,7 +18151,7 @@ class MenuFormWindow(tk.Toplevel):
             self.focus_force()
             return
         lists = load_saved_shopping_lists()
-        lists = [l for l in lists if l["name"].lower() != name.lower()]
+        lists = [entry for entry in lists if entry["name"].lower() != name.lower()]
         lists.append({
             "name": name,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -18994,9 +18990,8 @@ class ImportFromPhotoWindow(tk.Toplevel):
                         auto_rotation = detect_ocr_rotation(prepare_image_for_ocr(image))
                         if auto_rotation:
                             image = image.rotate(-auto_rotation, expand=True)
-                    recognize = lambda candidate: pytesseract.image_to_string(
-                        candidate, lang=lang, timeout=25
-                    )
+                    def recognize(candidate):
+                        return pytesseract.image_to_string(candidate, lang=lang, timeout=25)
                     raw_text = recognize(prepare_image_for_ocr(image)).strip()
                     text_value = raw_text
                     # Le mode de segmentation 4 respecte mieux les lignes
@@ -19299,7 +19294,7 @@ class CompareRecipesWindow(tk.Toplevel):
         line(t("compare_field_difficulty"),[translate_difficulty_name(r.get('difficulty')) or '—' for r in recipes])
         def total(r):
             try:return float(r.get('prep_time') or 0)+float(r.get('cook_time') or 0)
-            except:return 0
+            except Exception:return 0
         line(t("compare_field_total_time"),[total(r) for r in recipes],best=lambda v:f"{v:.0f} min" if v else '—',lower=True)
         line(t("compare_field_cooked"),[int(r.get('times_cooked',0) or 0) for r in recipes],best=lambda v:t("compare_times_suffix",count=v))
         costs=[]; kcals=[]
@@ -19569,7 +19564,7 @@ class StatisticsWindow(tk.Toplevel):
                 w.writerow(["Recette","Catégorie","Difficulté","Note","Cuissons","Dernière cuisson","Temps total (min)","Coût/pers (€)","Calories/pers","Tags"])
                 for r in self.app.recipes:
                     try: total=float(r.get('prep_time') or 0)+float(r.get('cook_time') or 0)
-                    except: total=0
+                    except Exception: total=0
                     dates=r.get('cooked_dates') or []; last=max(dates) if dates else ''
                     persons=r.get('default_persons',1) or 1
                     cost,known,_=compute_recipe_cost(r,persons); nutrition,nknown,_=compute_recipe_nutrition(r,persons)
