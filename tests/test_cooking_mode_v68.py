@@ -88,6 +88,12 @@ class CookingModeTests(unittest.TestCase):
     def test_resize_and_persons_preserve_timers(self):
         w=self.window;row=w.timer_rows[0];row.start()
         w._adjust(1);self.root.update()
+        # _adjust() appelle _render(), qui recrée entièrement
+        # ingredients_panel/steps_panel et relance _layout_recipe() avec la
+        # vraie largeur du canvas (self.canvas.winfo_width()) plutôt que la
+        # largeur simulée — la disposition simulée par setUp() est donc
+        # perdue sur les nouveaux panneaux et doit être réappliquée.
+        self._apply_width(1400)
         self.assertIs(w.timer_rows[0],row);self.assertTrue(row.running)
         diag=lambda: f"canvas={w.canvas.winfo_width()} content_width={w.canvas.itemcget(w._content_id,'width')}"
         self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
