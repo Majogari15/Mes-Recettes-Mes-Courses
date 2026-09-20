@@ -1,6 +1,8 @@
+import gzip
 import io
 import json
 import unittest
+import zlib
 from email.message import Message
 from unittest.mock import patch
 import main
@@ -69,5 +71,63 @@ class ImportTests(unittest.TestCase):
     def test_no_recipe_and_no_microdata_still_raises(self):
         with self.assertRaises(RuntimeError):
             self.fetch_html('<html><body><p>Pas une recette</p></body></html>')
+
+    def test_request_sends_browser_like_headers(self):
+        # Une requête ne portant que User-Agent est parfois jugée suspecte
+        # par les protections anti-robot de certains sites et bloquée avec
+        # un 403 : la requête doit donc ressembler à un vrai navigateur.
+        html_body = self._jsonld_html()
+        captured = {}
+        def fake_urlopen(request, timeout=None):
+            captured['headers'] = {k.lower(): v for k, v in request.header_items()}
+            response = io.BytesIO(html_body.encode())
+            response.headers = Message()
+            return response
+        with patch.object(main.urllib.request, 'urlopen', side_effect=fake_urlopen):
+            main.fetch_recipe_from_url('https://example.com/recipe')
+        headers = captured['headers']
+        self.assertIn('accept', headers)
+        self.assertIn('accept-language', headers)
+        self.assertIn('gzip', headers.get('accept-encoding', ''))
+
+    def _jsonld_html(self, **changes):
+        data = {'@type': 'Recipe', 'name': 'Essai', 'recipeYield': '4 personnes',
+                'recipeIngredient': ['1 oeuf'], 'recipeInstructions': ['Etape.'],
+                'prepTime': 'PT10M', 'cookTime': 'PT20M'}
+        data.update(changes)
+        return '<script type="application/ld+json">' + json.dumps(data, ensure_ascii=False) + '</script>'
+
+    def test_gzip_content_encoding_is_decompressed(self):
+        html_body = self._jsonld_html(name='Recette compressee gzip')
+        compressed = gzip.compress(html_body.encode('utf-8'))
+        response = io.BytesIO(compressed)
+        response.headers = Message()
+        response.headers['Content-Encoding'] = 'gzip'
+        with patch.object(main.urllib.request, 'urlopen', return_value=response):
+            r = main.fetch_recipe_from_url('https://example.com/recipe')
+        self.assertEqual(r['name'], 'Recette compressee gzip')
+
+    def test_deflate_content_encoding_is_decompressed(self):
+        html_body = self._jsonld_html(name='Recette compressee deflate')
+        compressed = zlib.compress(html_body.encode('utf-8'))
+        response = io.BytesIO(compressed)
+        response.headers = Message()
+        response.headers['Content-Encoding'] = 'deflate'
+        with patch.object(main.urllib.request, 'urlopen', return_value=response):
+            r = main.fetch_recipe_from_url('https://example.com/recipe')
+        self.assertEqual(r['name'], 'Recette compressee deflate')
+
+    def test_raw_deflate_without_zlib_header_is_decompressed(self):
+        # "deflate" est ambigu : certains serveurs envoient du deflate brut
+        # (RFC 1951, sans en-tête zlib) plutôt que la variante zlib (RFC 1950).
+        html_body = self._jsonld_html(name='Recette deflate brut')
+        compressor = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+        compressed = compressor.compress(html_body.encode('utf-8')) + compressor.flush()
+        response = io.BytesIO(compressed)
+        response.headers = Message()
+        response.headers['Content-Encoding'] = 'deflate'
+        with patch.object(main.urllib.request, 'urlopen', return_value=response):
+            r = main.fetch_recipe_from_url('https://example.com/recipe')
+        self.assertEqual(r['name'], 'Recette deflate brut')
 
 if __name__=='__main__':unittest.main()

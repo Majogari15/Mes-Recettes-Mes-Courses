@@ -1,0 +1,42 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Tous les lundis à 8h UTC
+  push:
+    paths:
+      - "requirements.txt"
+  pull_request:
+    paths:
+      - "requirements.txt"
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      # Sans --require-hashes : requirements.txt ne contient que des
+      # "paquet==version" (pas de hash --hash=sha256:...), ce qui aurait
+      # fait échouer pip-audit dès le premier lancement avec ce drapeau.
+      - name: Run pip-audit
+        run: pip-audit -r requirements.txt
+
+      # Étape non bloquante : Safety a durci son modèle d'accès gratuit
+      # ces dernières années (compte/clé API requis selon les versions) —
+      # on continue sans faire échouer tout le job si l'un des deux
+      # scanners de vulnérabilités n'est pas utilisable en l'état.
+      - name: Check for known vulnerabilities with Safety (best-effort)
+        continue-on-error: true
+        run: |
+          pip install safety
+          safety check -r requirements.txt

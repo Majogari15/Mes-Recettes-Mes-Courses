@@ -1,0 +1,60 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb tesseract-ocr tesseract-ocr-fra python3-tk libzbar0
+
+      # Les builds Python hébergés par actions/setup-python n'incluent pas
+      # toujours Tcl/Tk selon la plateforme et la version : ce contrôle
+      # échoue vite et clairement (message explicite) plutôt que de
+      # laisser un échec confus plus loin dans la collecte des tests.
+      # Si ce contrôle échoue un jour, une piste est d'utiliser le python3
+      # système d'Ubuntu (qui a bien Tcl/Tk via python3-tk) à la place de
+      # celui fourni par setup-python pour cette combinaison.
+      - name: Verify tkinter is available
+        run: python -c "import tkinter; print('tkinter OK, version', tkinter.TkVersion)"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests with xvfb (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: xvfb-run -a python -m pytest tests/ -v --cov=main --cov-report=xml
+
+      - name: Run tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: python -m pytest tests/ -v --cov=main --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

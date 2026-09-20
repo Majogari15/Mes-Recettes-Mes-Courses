@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Construire_le_exe.bat est pensé pour un usage interactif et se
+      # termine par "pause" (attend une touche) : sans entrée, ce serait
+      # bloqué indéfiniment dans un run CI non interactif. "echo." envoie
+      # une ligne vide pour satisfaire ce pause automatiquement, sans
+      # modifier le script lui-même (celui réellement utilisé par les
+      # utilisateurs qui le lancent à la main).
+      - name: Build executable
+        run: echo. | Construire_le_exe.bat
+        shell: cmd
+
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist\Mes Recettes, Mes Courses.exe")) {
+            Write-Error "Executable not found!"
+            exit 1
+          }
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-executable
+          path: dist/
+          retention-days: 30

@@ -4,6 +4,7 @@ import copy
 import csv
 import difflib
 import filecmp
+import gzip
 import html
 import hashlib
 import itertools
@@ -24,6 +25,7 @@ import webbrowser
 import tempfile
 import unicodedata
 import urllib.error
+import zlib
 import urllib.parse
 from html.parser import HTMLParser
 import urllib.request
@@ -5038,6 +5040,28 @@ def _url_clean_steps(steps):
     return cooking, notes
 
 
+def _decompress_recipe_page(raw, content_encoding):
+    """Décompresse le corps de la réponse selon Content-Encoding.
+
+    Nécessaire uniquement parce que la requête annonce désormais
+    Accept-Encoding (voir fetch_recipe_from_url) : certains sites ne
+    répondent en 200 qu'à cette condition, sans quoi ils renvoient un
+    403 (protection anti-robot qui juge une requête sans cet en-tête
+    trop "nue"). "deflate" est ambigu en pratique (RFC 1950 zlib le
+    plus souvent, mais RFC 1951 brut chez certains serveurs) : on
+    tente les deux plutôt que d'échouer sur un site qui répondrait
+    dans l'variante la moins courante."""
+    encoding = (content_encoding or "").lower()
+    if encoding == "gzip":
+        return gzip.decompress(raw)
+    if encoding == "deflate":
+        try:
+            return zlib.decompress(raw)
+        except zlib.error:
+            return zlib.decompress(raw, -zlib.MAX_WBITS)
+    return raw
+
+
 def _download_recipe_page(request):
     """Retry once on transient failures, never on 403 access denials."""
     for attempt in range(2):
@@ -5048,6 +5072,7 @@ def _download_recipe_page(request):
                     raise RuntimeError("La page est trop volumineuse pour être importée en sécurité.")
                 request.recipe_final_url = response.geturl() if hasattr(response, 'geturl') else request.full_url
                 raw = _read_response_limited(response, MAX_WEB_PAGE_BYTES)
+                raw = _decompress_recipe_page(raw, response.headers.get("Content-Encoding"))
                 charset = response.headers.get_content_charset() or "utf-8"
                 return raw.decode(charset, errors="replace")
         except urllib.error.HTTPError as exc:
@@ -5063,9 +5088,23 @@ def fetch_recipe_from_url(url):
     """Télécharge une page de recette et tente d'en extraire le contenu à
     partir des données structurées Schema.org (JSON-LD), un format utilisé
     par la grande majorité des sites de recettes. Lève une exception avec un
-    message clair en cas d'échec."""
+    message clair en cas d'échec.
+
+    Les en-têtes visent à ressembler à un vrai navigateur (Accept,
+    Accept-Language, Accept-Encoding) : une requête ne portant que
+    User-Agent est parfois jugée suspecte par les protections
+    anti-robot de certains sites (Wordfence, Cloudflare...), qui la
+    bloquent avec un 403 même quand le User-Agent est crédible."""
     request = urllib.request.Request(
-        url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        url, headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate",
+        }
     )
     try:
         page_html = _download_recipe_page(request)

@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Voir build.yml : "echo." satisfait le "pause" final du script sans
+      # le modifier.
+      - name: Build executable
+        run: echo. | Construire_le_exe.bat
+        shell: cmd
+
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist\Mes Recettes, Mes Courses.exe")) {
+            Write-Error "Executable not found!"
+            exit 1
+          }
+
+      - name: Create ZIP archive
+        shell: pwsh
+        run: Compress-Archive -Path dist\* -DestinationPath MesRecettesMesCourses.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            MesRecettesMesCourses.zip
+            dist/Mes Recettes, Mes Courses.exe
+          body: |
+            ## Changements
+
+            Voir le CHANGELOG.md pour les détails.
+
+            ## Installation
+
+            1. Télécharger MesRecettesMesCourses.zip
+            2. Décompresser dans le dossier de votre choix
+            3. Lancer "Mes Recettes, Mes Courses.exe"
+
+            ## Notes
+
+            - Tesseract OCR est requis pour l'import photo, sauf si le
+              dossier tesseract-ocr portable a été fourni avant la
+              construction (voir la section OCR de LISEZ-MOI.md).
+            - Vos données sont enregistrées à côté de l'exécutable (ou dans
+              %LocalAppData%\MesRecettesMesCourses si ce dossier n'est pas
+              accessible en écriture).
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
