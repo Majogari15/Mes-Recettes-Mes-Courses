@@ -526,6 +526,9 @@ def detect_tesseract(required_lang=None):
         if configured and configured != "tesseract":
             candidates.append(configured)
     except Exception:
+        # Simple sonde optionnelle : si la structure interne de pytesseract
+        # diffère (autre version, module de test), on continue avec les
+        # autres méthodes de détection ci-dessous plutôt que d'échouer.
         pass
 
     # Copie portable livrée à côté de l'application (dossier "tesseract-ocr",
@@ -777,7 +780,8 @@ def load_default_ingredients():
                 data = json.load(f)
                 if isinstance(data, list):
                     return data
-        except Exception:
+        except Exception as exc:
+            log_internal_error("load_default_ingredients", exc)
             return []
     return []
 
@@ -807,7 +811,8 @@ def print_file(path):
         try:
             subprocess.run(["xdg-open", path], check=True)
             return "opened"
-        except Exception:
+        except Exception as exc:
+            log_internal_error("print_file", exc)
             return None
 
 
@@ -2236,7 +2241,8 @@ def load_nutrition_data():
                 raw = json.load(f)
                 if isinstance(raw, dict):
                     data = {k.strip().lower(): v for k, v in raw.items()}
-        except Exception:
+        except Exception as exc:
+            log_internal_error("load_nutrition_data", exc)
             data = {}
     _nutrition_cache = data
     return _nutrition_cache
@@ -2323,7 +2329,8 @@ def load_ingredient_allergens():
                 raw = json.load(f)
                 if isinstance(raw, dict):
                     data = {k.strip().lower(): v for k, v in raw.items()}
-        except Exception:
+        except Exception as exc:
+            log_internal_error("load_ingredient_allergens", exc)
             data = {}
     _ingredient_allergens_cache = data
     return _ingredient_allergens_cache
@@ -2397,7 +2404,8 @@ def load_default_substitutions():
                 raw = json.load(f)
                 if isinstance(raw, dict):
                     data = {k.strip().lower(): v for k, v in raw.items()}
-        except Exception:
+        except Exception as exc:
+            log_internal_error("load_default_substitutions", exc)
             data = {}
     _default_substitutions_cache = data
     return _default_substitutions_cache
@@ -2422,7 +2430,8 @@ def load_ingredient_translations(lang):
                 raw = json.load(f)
                 if isinstance(raw, dict):
                     data = {k.strip().lower(): v for k, v in raw.items()}
-        except Exception:
+        except Exception as exc:
+            log_internal_error("load_ingredient_translations", exc)
             data = {}
     _ingredient_translations_cache[lang] = data
     return data
@@ -2555,7 +2564,8 @@ def load_default_substitutions_translated(lang):
                 raw = json.load(f)
                 if isinstance(raw, dict):
                     data = {k.strip().lower(): v for k, v in raw.items()}
-        except Exception:
+        except Exception as exc:
+            log_internal_error("load_default_substitutions_translated", exc)
             data = {}
     _default_substitutions_translations_cache[lang] = data
     return data
@@ -4707,7 +4717,8 @@ def _extract_microdata_recipe(page_html):
     parser = _MicrodataRecipeParser()
     try:
         parser.feed(page_html)
-    except Exception:
+    except Exception as exc:
+        log_internal_error("extract_microdata_recipe", exc)
         return None
     if parser.scope_depth is None:
         return None
@@ -6211,7 +6222,8 @@ def _integrity_report():
         missing, orphan = _count_orphan_images(recipes, IMAGES_DIR)
         report["missing_images"] = missing
         report["orphan_images"] = orphan
-    except Exception:
+    except Exception as exc:
+        log_internal_error("_integrity_report", exc)
         report["recipes_json_ok"] = False
     return report
 
@@ -6304,7 +6316,8 @@ class MaintenanceWindow:
         os.makedirs(folder, exist_ok=True)
         try:
             os.startfile(folder)
-        except Exception:
+        except Exception as exc:
+            log_internal_error("open_backups", exc)
             _ui_show_toast(self.win, folder)
 
 class DisclaimerWindow(tk.Toplevel):
@@ -8380,7 +8393,8 @@ class RecipeFormWindow(tk.Toplevel):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             stamp = data.get("saved_at", "?").replace("T", " ")
-        except Exception:
+        except Exception as exc:
+            log_internal_error("_maybe_restore_draft", exc)
             return
         # Nettoie aussi les brouillons identiques laissés par les versions
         # précédentes, qui les créaient même après une annulation sans changement.
@@ -8636,6 +8650,8 @@ class RecipeFormWindow(tk.Toplevel):
                     text=t("recipeform_drop_unavailable")
                 )
             except Exception:
+                # Mise à jour purement cosmétique : si le widget a déjà été
+                # détruit (fermeture concurrente de la fenêtre), rien à faire.
                 pass
             return
 
@@ -8656,6 +8672,8 @@ class RecipeFormWindow(tk.Toplevel):
                 else t("recipeform_drop_unavailable")
             )
         except Exception:
+            # Idem : mise à jour cosmétique, sans conséquence si le widget
+            # n'existe déjà plus.
             pass
 
     def _on_photo_drop_event(self, event):
@@ -8753,7 +8771,8 @@ class RecipeFormWindow(tk.Toplevel):
                         img = Image.open(ref)
                         img.thumbnail((thumb_w, thumb_h))
                         thumb = ImageTk.PhotoImage(img)
-                except Exception:
+                except Exception as exc:
+                    log_internal_error("gallery_thumbnail", exc)
                     thumb = None
 
             if thumb is not None:
@@ -9561,7 +9580,8 @@ class ManageRecipesWindow(tk.Toplevel):
         try:
             self.open_selected()
             return "break"
-        except Exception:
+        except Exception as exc:
+            log_internal_error("keyboard_open_selected", exc)
             return None
 
     def _new_recipe(self):
@@ -9839,6 +9859,8 @@ class ManageRecipesWindow(tk.Toplevel):
         if event.widget is not self or self.view_mode != "grid":
             return
         if self._resize_after is not None:
+            # Anti-rebond du redimensionnement : annuler un after() déjà
+            # exécuté lève une TclError sans conséquence, à ignorer.
             try: self.after_cancel(self._resize_after)
             except Exception: pass
         self._resize_after = self.after(180, self._rerender_grid_after_resize)
@@ -11760,7 +11782,8 @@ def restore_from_zip(path, merge, cancel_event=None, progress=None):
                 with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 return data if isinstance(data, expected_type) else expected_type()
-            except Exception:
+            except Exception as exc:
+                log_internal_error("restore_read_existing", exc)
                 return expected_type()
 
         for filename in dict_merge_files:
