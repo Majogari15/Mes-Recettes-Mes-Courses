@@ -46,24 +46,27 @@ class CookingModeTests(unittest.TestCase):
                     description='Préparer et cuire les ingrédients. '*35,personal_notes='Notes de cuisson. '*20)
         self.window=self.env['CookingModeWindow'](self.root,recipe,2)
         self.root.update()
+        # La CI a montré qu'on ne peut pas fiabilement forcer la largeur
+        # réelle de la fenêtre via geometry() : certains runners Windows
+        # ont un bureau virtuel trop petit (~1024px) pour atteindre les
+        # 1400px demandés, que la fenêtre soit "zoomed" ou "normal". Pire :
+        # même en simulant l'événement <Configure> nous-mêmes (tentative
+        # précédente), un vrai événement <Configure> déclenché par ce
+        # redimensionnement contraint par l'écran pouvait encore arriver
+        # après coup et écraser notre état simulé (constaté en CI :
+        # colonne repassée à "étroit" alors que content_width valait bien
+        # 1400). On débranche donc le gestionnaire réel une bonne fois pour
+        # toutes et on pilote la disposition uniquement via _apply_width,
+        # qui reproduit exactement ce que fait ce gestionnaire.
+        self.window.canvas.unbind('<Configure>')
         self._apply_width(1400)
     def tearDown(self):
         if hasattr(self,'root'):
             self.root.destroy()
     def _apply_width(self, width):
-        # La CI a montré qu'on ne peut pas fiabilement forcer la largeur
-        # réelle de la fenêtre via geometry() : certains runners Windows
-        # ont un bureau virtuel trop petit (~1024px) pour atteindre les
-        # 1400px demandés, que la fenêtre soit "zoomed" ou "normal" — la
-        # largeur obtenue reste alors sous le seuil de 1000px qui bascule
-        # la disposition en mode large, faisant échouer le test pour une
-        # raison qui n'a rien à voir avec la logique testée.
-        # On simule donc directement l'événement <Configure> avec la
-        # largeur voulue, comme le ferait un vrai redimensionnement, sans
-        # dépendre de la résolution d'écran du runner qui exécute le test.
         w = self.window
         w._resize_content(SimpleNamespace(width=width))
-        self.root.update()
+        self.root.update_idletasks()
     def duration(self,row,seconds):
         row.minutes_entry.delete(0,'end');row.minutes_entry.insert(0,'0')
         row.seconds_entry.delete(0,'end');row.seconds_entry.insert(0,str(seconds))
