@@ -5,6 +5,7 @@ import csv
 import difflib
 import filecmp
 import html
+import hashlib
 import itertools
 import json
 import math
@@ -41,8 +42,8 @@ from pathlib import Path
 # Convention alignée sur celle déjà en place côté application mobile
 # (APP_VERSION dans app.js) : un simple entier incrémenté à chaque
 # livraison.
-PRODUCT_VERSION = "1.6.30"
-APP_BUILD = 77
+PRODUCT_VERSION = "1.6.31"
+APP_BUILD = 78
 APP_VERSION = APP_BUILD
 DATA_SCHEMA_VERSION = 2
 
@@ -1782,9 +1783,14 @@ def _normalize_recipe_inplace(recipe, *, assign_id=True, strict=False):
 def validate_recipes_payload(data, *, assign_ids=True):
     if not isinstance(data, list):
         raise ValueError("recipes_not_list")
-    out = []
+    out, seen = [], set()
     for recipe in data:
-        out.append(_normalize_recipe_inplace(copy.deepcopy(recipe), assign_id=assign_ids, strict=True))
+        value = _normalize_recipe_inplace(copy.deepcopy(recipe), assign_id=assign_ids, strict=True)
+        rid = value.get('id')
+        if rid and rid in seen:
+            raise ValueError(t('duplicate_recipe_id', value=rid))
+        seen.add(rid)
+        out.append(value)
     return out
 
 
@@ -2630,13 +2636,13 @@ def _allergen_food_name(name):
     key = ingredient_sort_key(name).replace('œ', 'oe')
     if re.search(r"\b(?:sans|free|sin|ohne|frei|vegan|vegetal|vegetalien|substitut|remplac)\w*\b", key):
         return name
-    base = key
+    base = re.split(r'\s+—\s+', key, maxsplit=1)[0]
     while re.search(r"\([^()]*\)", base):
         base = re.sub(r"\([^()]*\)", '', base)
     base = re.split(r"\s+ou\s+", base, maxsplit=1)[0].strip(' ,')
     base = re.sub(r"(?:\s*,?\s+(?:fondu[es]*|rape[es]*|tamise[es]*|battu[es]*|hache[es]*|concasse[es]*|entier[es]*|frais|fraiche[es]*|bio|legerement|tiede[es]*))+$", '', base)
     base = re.sub(r"\s+", ' ', base).strip(' ,')
-    return {'farine de ble': 'Farine', 'fromage frais': 'Fromage'}.get(base, base)
+    return {'farine de ble': 'Farine', 'fromage frais': 'Fromage', 'creme aigre': 'Crème fraîche'}.get(base, base)
 
 
 def compute_recipe_allergens(ingredients):
@@ -3190,7 +3196,7 @@ def _pdf_font_name(name):
 def _pdf_wrap_lines(c, text, max_width, font_name="Helvetica", font_size=10):
     """Retourne des lignes qui tiennent toutes dans ``max_width``."""
     font_name = _pdf_font_name(font_name)
-    text = str(text or "")
+    text = _url_fraction_text(text or "")
     words = text.split()
     if not words:
         return [""]
@@ -4747,6 +4753,9 @@ _URL_UNITS = {
 }
 _URL_FOOD_ALIASES = {
  '0% fat free greek yoghurt': 'Yaourt', 'huevo': 'Œuf', 'huevos': 'Œufs', 'ei': 'Œuf', 'eier': 'Œufs',
+ 'egg': 'Œuf', 'eggs': 'Œufs', 'oeuf': 'Œuf', 'oeuf(s)': 'Œufs',
+ 'buttermilk': 'Babeurre', 'sour cream': 'Crème aigre', 'kosher salt': 'Sel',
+ 'warm maple syrup': "Sirop d’érable",
  'arroz blanco': 'Riz', 'baking powder': 'Levure chimique',
  'plain flour': 'Farine', 'all-purpose flour': 'Farine', 'all purpose flour': 'Farine',
  'flour': 'Farine', 'large eggs': 'Œufs', 'large egg': 'Œuf',
@@ -4759,9 +4768,12 @@ def _url_food_name(name):
     # Qualifiers and alternatives must never be erased by a generic mapping.
     key = ingredient_sort_key(name).replace('œ', 'oe')
     if key in _URL_FOOD_ALIASES:
-        return _URL_FOOD_ALIASES[key]
+        return normalize_oe(_URL_FOOD_ALIASES[key])
     if re.search(r"\b(?:sans|free|vegan|vegetal\w*|sin|frei\w*|ohne|or|ou|oder|o)\b", key):
         return name
+    leading = re.match(r'^((?:\([^()]*\)\s*)+)(.+)$', key)
+    if leading:
+        key = leading.group(2).strip()
     base = re.split(r'[,()]', key)[0].strip()
     base = re.sub(r'\s+(?:picado|picada|rallado|rallada|sifted|melted|chopped|beaten)$', '', base)
     canonical = _URL_FOOD_ALIASES.get(base)
@@ -4773,13 +4785,33 @@ def _url_food_name(name):
                     candidates.add(fr.capitalize())
         if len(candidates) == 1:
             canonical = candidates.pop()
-    if not canonical or ingredient_sort_key(canonical) == key:
+    if not canonical:
+        return name
+    canonical = normalize_oe(canonical)
+    if ingredient_sort_key(canonical) == key and not leading:
         return name
     # Keep source qualifiers available to the cook, with a canonical food prefix.
-    return canonical if base == key else f'{canonical} ({name})'
+    return canonical if base == key and not leading else f'{canonical} — {name}'
+
+
+def _url_fraction_text(text):
+    text = str(text).replace('⁄', '/').replace('∕', '/')
+    for symbol, replacement in {'½':'1/2','¼':'1/4','¾':'3/4','⅓':'1/3','⅔':'2/3','⅛':'1/8','⅜':'3/8','⅝':'5/8','⅞':'7/8'}.items():
+        text = re.sub(r'(?<=\d)' + symbol, ' ' + replacement, text)
+        text = text.replace(symbol, replacement)
+    return text
+
+
+def _url_quantity_range(line):
+    number = r'(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?)'
+    return re.match(r'^(' + number + r')\s*(?:to|à|a|bis|[-–—])\s*(' + number + r')(?=\s|$)', _url_fraction_text(line), re.I)
 
 
 def _parse_url_ingredient(line):
+    line = _url_fraction_text(line)
+    quantity_range = _url_quantity_range(line)
+    if quantity_range:
+        line = quantity_range.group(1) + line[quantity_range.end():]
     line = re.sub(r"\b(sachet|pincée|cuillerée|filet|rouleau)\(s\)", r"\1", line, flags=re.I)
     line = re.sub(r"^(?:une?|a|an)\s+", "1 ", line.strip(), flags=re.I)
     # A fish/meat fillet is the food itself, unlike a drizzle of oil.
@@ -4844,7 +4876,7 @@ class _RecipePageMetadata(HTMLParser):
             kind = 'rest'
         elif prop == 'difficulty' or 'recipe-difficulty' in classes or 'recipe-primary__item' in classes:
             kind = 'difficulty'
-        elif 'recipe-note' in classes or 'recipe-author-note' in classes or 'recipe-advice-content' in classes:
+        elif 'recipe-notes' in attrs.get('id', '').lower() or 'recipe-notes' in classes or 'recipe-note' in classes or 'recipe-author-note' in classes or 'recipe-advice-content' in classes:
             kind = 'notes'
         elif self.await_note and tag in ('p', 'div', 'blockquote'):
             kind = 'notes'
@@ -4889,6 +4921,9 @@ class _RecipePageMetadata(HTMLParser):
             self.in_header = False
         if self.in_header and key in ('tres facile', 'facile', 'moyen', 'difficile'):
             self.values['difficulty'].append(data)
+        if key in ('astuces', 'notes', 'tips', 'tipps') and any(tag in ('h2','h3','h4') for tag, _ in self.stack):
+            self.await_note = True
+            return
         if key in ("note de l'auteur", "note de l’auteur", 'recipe notes', 'author notes', 'notas', 'notas del autor', 'anmerkungen'):
             self.await_note = True
             return
@@ -4983,6 +5018,9 @@ def _url_clean_steps(steps):
     action = re.compile(r"^(?:vous\s+|pr[ée]chauff|faites|m[ée]lang|ajout|vers|coupez|[ée]pluch|mette|enfourn)", re.I)
     for text in steps:
         text = re.sub(r"^\s*\d+[.)]\s+", "", text).strip()
+        if re.match(r"^Voici les produits particuliers de cette recette\b", text, re.I):
+            notes.append(text)
+            continue
         if re.match(r"^(?:variantes?|FAQ|questions fr[ée]quentes|conseils|astuces|tips|recipe notes|notas|tipps)\s*(?::|[\r\n]|$)", text, re.I):
             supplementary = True
         if supplementary:
@@ -5118,9 +5156,15 @@ def fetch_recipe_from_url(url):
             yield_note = t('importurl_yield_note', value=clean_text(pieces))
         match = (re.search(r"(\d+(?:[.,]\d+)?)\s*(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|pers\b)", str(people), re.I)
                  if people is not None else re.search(r"\d+(?:[.,]\d+)?", str(yield_value or "")))
+        people_range = _url_quantity_range(str(people or ''))
+        if people_range:
+            yield_note = '\n\n'.join(x for x in (yield_note, t('importurl_serving_range', value=clean_text(people))) if x)
+            warnings.append({'key': 'importurl_serving_range', 'value': clean_text(people)})
         if match:
             try:
                 source_persons = float((match.group(1) if people is not None else match.group()).replace(",", "."))
+                if people_range:
+                    source_persons = parse_quantity_token(people_range.group(1))
                 if source_persons <= 0:
                     source_persons = None
             except ValueError:
@@ -5151,7 +5195,7 @@ def fetch_recipe_from_url(url):
     range_notes = []
     for line in raw_ingredients:
         line = clean_text(line)
-        if re.match(r"^\d+(?:[.,]\d+)?\s*(?:[-–—]|à)\s*\d+(?:[.,]\d+)?\b", line):
+        if _url_quantity_range(line):
             note = t("importurl_range_note", line=line, persons=persons)
             range_notes.append(note)
             warnings.append({"key": "importurl_warning_range", "line": line})
@@ -5187,6 +5231,20 @@ def fetch_recipe_from_url(url):
         warning = {'key': 'importurl_warning_missing_ingredient', 'value': egg_mention.group()}
         warnings.append(warning)
         extra_notes.append(t(warning['key'], value=warning['value']))
+    for pattern, food, present in (
+        (r"(?:badigeonn\w*|graiss\w*|arros\w*)[^.!?]{0,70}\b(?:huile|oil)\b", 'huile', r'\b(?:huile|oil|beurre|butter)\b'),
+        (r"\bsalez\b", 'sel', r'\b(?:sel|salt)\b'),
+        (r"\bpoivrez\b", 'poivre', r'\b(?:poivre|pepper)\b'),
+    ):
+        if re.search(pattern, ' '.join(steps), re.I) and not any(re.search(present, i['name'], re.I) for i in ingredients):
+            warning = {'key': 'importurl_warning_missing_ingredient', 'value': food}
+            warnings.append(warning)
+            extra_notes.append(t(warning['key'], value=food))
+    if not recipe_data.get('cookTime'):
+        for step in steps:
+            for sentence in re.split(r'(?<=[.!?])\s+', step):
+                if re.search(r'\b(?:enfourne\w*|cuire|cuisson|bake|cook)\b', sentence, re.I) and re.search(r'\d+\s*(?:min|heure|hour)', sentence, re.I):
+                    extra_notes.append(t('importurl_step_time', value=sentence))
     source_notes = "\n\n".join(part for part in [source_notes, yield_note, *range_notes, *extra_notes] if part)
     description = "\n".join(f"{i + 1}. {text}" for i, text in enumerate(steps))
     if not steps:
@@ -5338,6 +5396,17 @@ def save_trash(trash):
     _atomic_write_json(TRASH_FILE, trash)
 
 
+def recipe_draft_path(recipe_id):
+    key = str(recipe_id or 'new_recipe')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,120}', key):
+        key = 'hashed_' + hashlib.sha256(key.encode('utf-8')).hexdigest()
+    root = os.path.realpath(DRAFTS_DIR)
+    path = os.path.join(root, f'recipe_{key}.json')
+    if os.path.commonpath([root, os.path.realpath(path)]) != root:
+        raise ValueError('unsafe_draft_path')
+    return path
+
+
 def delete_recipe_draft(recipe):
     """Supprime le brouillon automatique lié à une recette.
 
@@ -5348,7 +5417,7 @@ def delete_recipe_draft(recipe):
         recipe_id = (recipe or {}).get("id")
         if not recipe_id:
             return
-        path = os.path.join(DRAFTS_DIR, f"recipe_{recipe_id}.json")
+        path = recipe_draft_path(recipe_id)
         if os.path.isfile(path):
             os.remove(path)
     except OSError as exc:
@@ -5421,6 +5490,10 @@ def permanently_delete_trash_entries(indexes=None):
             protected_trash=remaining
         )
     return len(removed)
+
+
+class CookingRecordedError(RuntimeError):
+    """Persistence succeeded; only a later UI/stock operation failed."""
 
 
 def record_recipe_cooking(recipe_id, recipe_name, note="", comment="",
@@ -8171,7 +8244,7 @@ class RecipeFormWindow(tk.Toplevel):
         if not recipe_id and self.prefill:
             recipe_id = self.prefill.get("id")
         key = recipe_id or "new_recipe"
-        return os.path.join(DRAFTS_DIR, f"recipe_{key}.json")
+        return recipe_draft_path(key)
 
     @staticmethod
     def _entry_set(widget, value):
@@ -8348,12 +8421,7 @@ class RecipeFormWindow(tk.Toplevel):
     def _on_notes_modified(self, event=None):
         self.notes_text.edit_modified(False)
         content = self.notes_text.get("1.0", "end-1c")
-        if len(content) > self.MAX_NOTES_LEN:
-            content = content[: self.MAX_NOTES_LEN]
-            self.notes_text.delete("1.0", "end")
-            self.notes_text.insert("1.0", content)
-            self.notes_text.edit_modified(False)
-        self.notes_counter_label.config(text=t("recipeform_char_counter", count=len(content), max=self.MAX_NOTES_LEN))
+        self.notes_counter_label.config(text=t("recipeform_notes_count", count=len(content)))
 
     def _set_rating(self, value):
         self.rating_value = 0 if self.rating_value == value else value
@@ -9232,9 +9300,9 @@ class RecipeFormWindow(tk.Toplevel):
             "tags": tags,
             "allergens": [a for a, var in self.allergen_vars.items() if var.get()],
             "description": self.description_text.get("1.0", "end-1c").strip()[: self.MAX_DESC_LEN],
-            "personal_notes": self.notes_text.get("1.0", "end-1c").strip()[: self.MAX_NOTES_LEN],
-            "family_opinion": self.family_opinion_text.get("1.0", "end-1c").strip()[: self.MAX_NOTES_LEN],
-            "improvement_notes": self.improvement_notes_text.get("1.0", "end-1c").strip()[: self.MAX_NOTES_LEN],
+            "personal_notes": self.notes_text.get("1.0", "end-1c").strip(),
+            "family_opinion": self.family_opinion_text.get("1.0", "end-1c").strip(),
+            "improvement_notes": self.improvement_notes_text.get("1.0", "end-1c").strip(),
             "actual_difficulty": resolve_difficulty_input(self.actual_difficulty_combo.get(), self.DIFFICULTY_OPTIONS) if self.actual_difficulty_combo.get() else "",
             "ingredients": ingredients,
             "images": final_images,
@@ -11211,6 +11279,36 @@ def build_shared_backup_zip(zip_path):
                 pass
 
 
+def prepare_recipe_merge(imported, existing):
+    by_id = {r.get('id'): r for r in existing}
+    remapped = {}
+    for recipe in imported:
+        rid = recipe.get('id')
+        if rid not in by_id or by_id[rid] == recipe:
+            continue
+        digest = hashlib.sha256(json.dumps(recipe, ensure_ascii=False, sort_keys=True).encode('utf-8')).hexdigest()
+        replacement = uuid.uuid5(uuid.NAMESPACE_URL, 'mesrecettes-conflict:' + digest).hex
+        remapped[rid] = replacement
+        recipe['id'] = replacement
+        recipe['name'] += t('import_conflict_suffix')
+        # If that deterministic copy was edited locally, retain it too.
+        if replacement in by_id and by_id[replacement] != recipe:
+            recipe['id'] = uuid.uuid4().hex
+            remapped[rid] = recipe['id']
+    return remapped
+
+
+def remap_imported_recipe_references(value, mapping):
+    if isinstance(value, dict):
+        if value.get('recipe_id') in mapping:
+            value['recipe_id'] = mapping[value['recipe_id']]
+        for child in value.values():
+            remap_imported_recipe_references(child, mapping)
+    elif isinstance(value, list):
+        for child in value:
+            remap_imported_recipe_references(child, mapping)
+
+
 def restore_from_shared_zip(zip_path, merge):
     """Restaure une archive partagée Windows/mobile.
 
@@ -11232,6 +11330,8 @@ def restore_from_shared_zip(zip_path, merge):
 
         # ---- 1. Lecture et validation complètes avant toute modification ----
         imported_recipes = validate_recipes_payload(read_json("recipes.json", []), assign_ids=True)
+        if merge:
+            prepare_recipe_merge(imported_recipes, load_recipes())
 
         imported_ingredients = validate_ingredients_list_payload(read_json("ingredients.json", []))
 
@@ -11499,6 +11599,11 @@ def restore_from_zip(path, merge, cancel_event=None, progress=None):
 
         parsed = validate_backup_payloads(parsed)
         imported_recipes = parsed.get("recipes.json", [])
+        if merge:
+            mapping = prepare_recipe_merge(imported_recipes, load_recipes())
+            for filename, value in parsed.items():
+                if filename != "recipes.json":
+                    remap_imported_recipe_references(value, mapping)
         imported_ingredients = parsed.get("ingredients.json", [])
 
         image_entries = {}
@@ -13818,38 +13923,41 @@ class OneRecipeWindow(tk.Toplevel):
                 target_id, target_name, note, comment, photo_filename,
                 rating, cooked_persons
             )
-            self.app.refresh_recipes()
-            # refresh_recipes recharge les objets depuis recipes.json ; la
-            # fiche doit utiliser cette instance canonique, sinon elle peut
-            # continuer à afficher l'ancien journal en mémoire.
-            refreshed = find_recipe_by_id(self.app.recipes, target_id) or find_recipe_by_name(self.app.recipes, target_name)
-            self.current_recipe = refreshed or current
-            if self.selected_actual_index is not None:
-                self._populate()
-            self._display_recipe(self.current_recipe)
-            pantry = load_pantry()
-            if pantry and ask_yes_no(
-                    t("onerecipe_pantry_decrement_title"),
-                    t("onerecipe_pantry_decrement_prompt", name=target_name, persons=persons),
-                    parent=self):
-                count = decrement_pantry_for_recipe(current, persons)
-                if count:
-                    messagebox.showinfo(t("onerecipe_pantry_updated_title"),
-                                        t("onerecipe_pantry_updated_message", count=count), parent=self)
-                else:
-                    messagebox.showinfo(t("common_info"), t("onerecipe_pantry_none_decremented"), parent=self)
-            messagebox.showinfo(
-                t("onerecipe_marked_title"),
-                t("onerecipe_marked_message", name=target_name),
-                parent=self
-            )
             try:
-                self.deiconify()
-                self.lift()
-                self.focus_force()
-                self.grab_set()
-            except tk.TclError:
-                pass
+                self.app.refresh_recipes()
+                # refresh_recipes recharge les objets depuis recipes.json ; la
+                # fiche doit utiliser cette instance canonique, sinon elle peut
+                # continuer à afficher l'ancien journal en mémoire.
+                refreshed = find_recipe_by_id(self.app.recipes, target_id) or find_recipe_by_name(self.app.recipes, target_name)
+                self.current_recipe = refreshed or current
+                if self.selected_actual_index is not None:
+                    self._populate()
+                self._display_recipe(self.current_recipe)
+                pantry = load_pantry()
+                if pantry and ask_yes_no(
+                        t("onerecipe_pantry_decrement_title"),
+                        t("onerecipe_pantry_decrement_prompt", name=target_name, persons=persons),
+                        parent=self):
+                    count = decrement_pantry_for_recipe(current, persons)
+                    if count:
+                        messagebox.showinfo(t("onerecipe_pantry_updated_title"),
+                                            t("onerecipe_pantry_updated_message", count=count), parent=self)
+                    else:
+                        messagebox.showinfo(t("common_info"), t("onerecipe_pantry_none_decremented"), parent=self)
+                messagebox.showinfo(
+                    t("onerecipe_marked_title"),
+                    t("onerecipe_marked_message", name=target_name),
+                    parent=self
+                )
+                try:
+                    self.deiconify()
+                    self.lift()
+                    self.focus_force()
+                    self.grab_set()
+                except tk.TclError:
+                    pass
+            except Exception as exc:
+                raise CookingRecordedError(str(exc)) from exc
 
         cooked_persons_display = (
             int(persons) if float(persons).is_integer() else persons
@@ -14469,31 +14577,34 @@ class CookingModeWindow(tk.Toplevel):
                 target_id, target_name, note, comment, photo_filename,
                 rating, cooked_persons
             )
-            self.app.refresh_recipes()
-            refreshed = find_recipe_by_id(self.app.recipes, target_id) or find_recipe_by_name(
-                self.app.recipes, target_name
-            )
-            self.recipe = refreshed or current
-            pantry = load_pantry()
-            if pantry and ask_yes_no(
-                    t("onerecipe_pantry_decrement_title"),
-                    t("onerecipe_pantry_decrement_prompt", name=target_name, persons=self._fmt(persons)),
-                    parent=self):
-                count = decrement_pantry_for_recipe(self.recipe, persons)
-                if count:
-                    messagebox.showinfo(t("onerecipe_pantry_updated_title"),
-                                        t("onerecipe_pantry_updated_message", count=count), parent=self)
-                else:
-                    messagebox.showinfo(t("common_info"), t("onerecipe_pantry_none_decremented"), parent=self)
-            messagebox.showinfo(t("onerecipe_marked_title"), t("onerecipe_marked_message", name=target_name), parent=self)
-            target_window = self.owner_window if self.owner_window is not None else self
             try:
-                target_window.deiconify()
-                target_window.lift()
-                target_window.focus_force()
-                target_window.grab_set()
-            except tk.TclError:
-                pass
+                self.app.refresh_recipes()
+                refreshed = find_recipe_by_id(self.app.recipes, target_id) or find_recipe_by_name(
+                    self.app.recipes, target_name
+                )
+                self.recipe = refreshed or current
+                pantry = load_pantry()
+                if pantry and ask_yes_no(
+                        t("onerecipe_pantry_decrement_title"),
+                        t("onerecipe_pantry_decrement_prompt", name=target_name, persons=self._fmt(persons)),
+                        parent=self):
+                    count = decrement_pantry_for_recipe(self.recipe, persons)
+                    if count:
+                        messagebox.showinfo(t("onerecipe_pantry_updated_title"),
+                                            t("onerecipe_pantry_updated_message", count=count), parent=self)
+                    else:
+                        messagebox.showinfo(t("common_info"), t("onerecipe_pantry_none_decremented"), parent=self)
+                messagebox.showinfo(t("onerecipe_marked_title"), t("onerecipe_marked_message", name=target_name), parent=self)
+                target_window = self.owner_window if self.owner_window is not None else self
+                try:
+                    target_window.deiconify()
+                    target_window.lift()
+                    target_window.focus_force()
+                    target_window.grab_set()
+                except tk.TclError:
+                    pass
+            except Exception as exc:
+                raise CookingRecordedError(str(exc)) from exc
 
         cooked_persons_display = int(persons) if float(persons).is_integer() else persons
         CookLogEntryDialog(
@@ -15183,6 +15294,11 @@ class CookLogEntryDialog(tk.Toplevel):
         rating = max(0, self.rating_combo.current())
         try:
             self.on_done(note, comment, photo_filename, rating, self.persons)
+        except CookingRecordedError as exc:
+            log_internal_error('cook_log_post_commit', exc)
+            messagebox.showwarning(t('common_info'), t('cooklog_saved_followup_failed', error=exc), parent=self)
+            self.destroy()
+            return
         except Exception as exc:
             if photo_filename:
                 delete_image_file(photo_filename)
@@ -15196,6 +15312,11 @@ class CookLogEntryDialog(tk.Toplevel):
     def skip(self):
         try:
             self.on_done("", "", None, 0, self.persons)
+        except CookingRecordedError as exc:
+            log_internal_error('cook_log_post_commit', exc)
+            messagebox.showwarning(t('common_info'), t('cooklog_saved_followup_failed', error=exc), parent=self)
+            self.destroy()
+            return
         except Exception as exc:
             log_internal_error("save_cook_log", exc)
             messagebox.showerror(

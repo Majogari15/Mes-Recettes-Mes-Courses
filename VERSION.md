@@ -1,3 +1,7 @@
+# Build 78 — 1.6.31 (MSIX 1.6.31.0)
+
+Finalisation import, fractions PDF et protections des brouillons, fusions de recettes et journal. Voir RAPPORT_v78.md.
+
 # Build 77 — 1.6.30 (MSIX 1.6.30.0)
 
 Import multilingue : unités, ingrédients, allergènes, rendement, catégories, repos et redirections. Voir RAPPORT_IMPORT_v77.md.

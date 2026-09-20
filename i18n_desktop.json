@@ -456,7 +456,7 @@
     "importexport_backup_created_message": "Une nouvelle sauvegarde automatique a été créée.",
     "importexport_select_backup_first": "Sélectionnez une sauvegarde dans la liste.",
     "importexport_restore_mode_title": "Mode de restauration",
-    "importexport_restore_mode_message": "Comment restaurer cette sauvegarde ?\n\nOui = Fusionner (ajouter aux données actuelles, sans rien supprimer)\nNon = Remplacer entièrement les données actuelles\nAnnuler = ne rien faire",
+    "importexport_restore_mode_message": "Oui = Fusionner. Les recettes différentes ayant le même identifiant sont conservées en copies distinctes. Les autres données correspondantes peuvent être remplacées par celles de l’archive.\nNon = Remplacer les données actuelles.\nAnnuler = Ne rien faire.",
     "importexport_restore_failed": "La restauration a échoué :\n{error}",
     "importexport_restore_done_title": "Restauration terminée",
     "importexport_restore_done_message": "Les données ont été restaurées avec succès.",
@@ -471,7 +471,7 @@
     "importexport_export_data_success": "Vos données ont été exportées vers :\n{path}",
     "importexport_choose_archive_title": "Choisir une archive à importer",
     "importexport_import_mode_title": "Mode d'import",
-    "importexport_import_mode_message": "Comment importer ces données ?\n\nOui = Fusionner (ajouter aux données actuelles, sans rien supprimer)\nNon = Remplacer entièrement les données actuelles\nAnnuler = ne rien faire",
+    "importexport_import_mode_message": "Oui = Fusionner. Les recettes différentes ayant le même identifiant sont conservées en copies distinctes. Les autres données correspondantes peuvent être remplacées par celles de l’archive.\nNon = Remplacer les données actuelles.\nAnnuler = Ne rien faire.",
     "importexport_import_failed": "L'import a échoué :\n{error}",
     "importexport_import_done_title": "Import terminé",
     "importexport_import_done_message": "Les données ont été importées avec succès.",
@@ -1094,7 +1094,13 @@
     "importurl_warning_missing_ingredient": "Ingrédient mentionné dans les étapes mais absent de la liste : {value}. Vérifiez la recette source avant de compléter la liste.",
     "importurl_warning_redirect": "La page a redirigé vers : {value}. Vérifiez la recette importée.",
     "importurl_warning_unit": "Unité à vérifier : {value}.",
-    "importurl_total_note": "Temps total indiqué par la source : {value} min."
+    "importurl_total_note": "Temps total indiqué par la source : {value} min.",
+    "importurl_serving_range": "Portions indiquées par la source : {value}. La borne basse est utilisée ; ajustez si nécessaire.",
+    "importurl_step_time": "Durée mentionnée dans une étape : {value}",
+    "duplicate_recipe_id": "Identifiant de recette en double : {value}. Import annulé.",
+    "import_conflict_suffix": " (copie importée)",
+    "cooklog_saved_followup_failed": "Le journal a bien été enregistré. Une opération suivante a échoué : {error}. Vérifiez le stock avant de recommencer.",
+    "recipeform_notes_count": "{count} caractères"
   },
   "translations": {
     "en": {
@@ -1546,7 +1552,7 @@
       "importexport_backup_created_message": "A new automatic backup has been created.",
       "importexport_select_backup_first": "Select a backup from the list.",
       "importexport_restore_mode_title": "Restore mode",
-      "importexport_restore_mode_message": "How do you want to restore this backup?\n\nYes = Merge (add to current data, without deleting anything)\nNo = Fully replace the current data\nCancel = do nothing",
+      "importexport_restore_mode_message": "Yes = Merge. Different recipes sharing an ID are kept as separate copies. Other matching data may be replaced by the archive.\nNo = Replace current data.\nCancel = Do nothing.",
       "importexport_restore_failed": "Restore failed:\n{error}",
       "importexport_restore_done_title": "Restoration complete",
       "importexport_restore_done_message": "The data has been restored successfully.",
@@ -1561,7 +1567,7 @@
       "importexport_export_data_success": "Your data has been exported to:\n{path}",
       "importexport_choose_archive_title": "Choose an archive to import",
       "importexport_import_mode_title": "Import mode",
-      "importexport_import_mode_message": "How do you want to import this data?\n\nYes = Merge (add to current data, without deleting anything)\nNo = Fully replace the current data\nCancel = do nothing",
+      "importexport_import_mode_message": "Yes = Merge. Different recipes sharing an ID are kept as separate copies. Other matching data may be replaced by the archive.\nNo = Replace current data.\nCancel = Do nothing.",
       "importexport_import_failed": "Import failed:\n{error}",
       "importexport_import_done_title": "Import complete",
       "importexport_import_done_message": "The data has been imported successfully.",
@@ -2192,7 +2198,13 @@
       "importurl_warning_missing_ingredient": "Ingredient mentioned in the instructions but missing from the list: {value}. Check the source before adding it.",
       "importurl_warning_redirect": "The page redirected to: {value}. Check the imported recipe.",
       "importurl_warning_unit": "Check the unit: {value}.",
-      "importurl_total_note": "Total time stated by the source: {value} min."
+      "importurl_total_note": "Total time stated by the source: {value} min.",
+      "importurl_serving_range": "Source servings: {value}. The lower bound is used; adjust if needed.",
+      "importurl_step_time": "Time stated in a step: {value}",
+      "duplicate_recipe_id": "Duplicate recipe ID: {value}. Import cancelled.",
+      "import_conflict_suffix": " (imported copy)",
+      "cooklog_saved_followup_failed": "The cooking log was saved. A later operation failed: {error}. Check pantry stock before trying again.",
+      "recipeform_notes_count": "{count} characters"
     },
     "es": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -2643,7 +2655,7 @@
       "importexport_backup_created_message": "Se ha creado una nueva copia de seguridad automática.",
       "importexport_select_backup_first": "Selecciona una copia de seguridad de la lista.",
       "importexport_restore_mode_title": "Modo de restauración",
-      "importexport_restore_mode_message": "¿Cómo restaurar esta copia de seguridad?\n\nSí = Fusionar (añadir a los datos actuales, sin eliminar nada)\nNo = Reemplazar completamente los datos actuales\nCancelar = no hacer nada",
+      "importexport_restore_mode_message": "Sí = Fusionar. Las recetas distintas con el mismo identificador se conservan como copias separadas. Otros datos coincidentes pueden reemplazarse por los del archivo.\nNo = Reemplazar los datos actuales.\nCancelar = No hacer nada.",
       "importexport_restore_failed": "La restauración falló:\n{error}",
       "importexport_restore_done_title": "Restauración completada",
       "importexport_restore_done_message": "Los datos se han restaurado correctamente.",
@@ -2658,7 +2670,7 @@
       "importexport_export_data_success": "Tus datos han sido exportados a:\n{path}",
       "importexport_choose_archive_title": "Elegir un archivo para importar",
       "importexport_import_mode_title": "Modo de importación",
-      "importexport_import_mode_message": "¿Cómo importar estos datos?\n\nSí = Fusionar (añadir a los datos actuales, sin eliminar nada)\nNo = Reemplazar completamente los datos actuales\nCancelar = no hacer nada",
+      "importexport_import_mode_message": "Sí = Fusionar. Las recetas distintas con el mismo identificador se conservan como copias separadas. Otros datos coincidentes pueden reemplazarse por los del archivo.\nNo = Reemplazar los datos actuales.\nCancelar = No hacer nada.",
       "importexport_import_failed": "La importación falló:\n{error}",
       "importexport_import_done_title": "Importación completada",
       "importexport_import_done_message": "Los datos se han importado correctamente.",
@@ -3289,7 +3301,13 @@
       "importurl_warning_missing_ingredient": "Ingrediente mencionado en los pasos pero ausente de la lista: {value}. Compruebe la receta original antes de añadirlo.",
       "importurl_warning_redirect": "La página redirigió a: {value}. Comprueba la receta importada.",
       "importurl_warning_unit": "Comprueba la unidad: {value}.",
-      "importurl_total_note": "Tiempo total indicado por la fuente: {value} min."
+      "importurl_total_note": "Tiempo total indicado por la fuente: {value} min.",
+      "importurl_serving_range": "Porciones de la fuente: {value}. Se usa el límite inferior; ajústalo si es necesario.",
+      "importurl_step_time": "Tiempo indicado en un paso: {value}",
+      "duplicate_recipe_id": "Identificador de receta duplicado: {value}. Importación cancelada.",
+      "import_conflict_suffix": " (copia importada)",
+      "cooklog_saved_followup_failed": "El registro se ha guardado. Una operación posterior falló: {error}. Comprueba la despensa antes de volver a intentarlo.",
+      "recipeform_notes_count": "{count} caracteres"
     },
     "de": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -3740,7 +3758,7 @@
       "importexport_backup_created_message": "Eine neue automatische Sicherung wurde erstellt.",
       "importexport_select_backup_first": "Wählen Sie eine Sicherung aus der Liste aus.",
       "importexport_restore_mode_title": "Wiederherstellungsmodus",
-      "importexport_restore_mode_message": "Wie soll diese Sicherung wiederhergestellt werden?\n\nJa = Zusammenführen (zu aktuellen Daten hinzufügen, ohne etwas zu löschen)\nNein = Aktuelle Daten vollständig ersetzen\nAbbrechen = nichts tun",
+      "importexport_restore_mode_message": "Ja = Zusammenführen. Unterschiedliche Rezepte mit derselben ID bleiben als getrennte Kopien erhalten. Andere übereinstimmende Daten können durch Archivdaten ersetzt werden.\nNein = Aktuelle Daten ersetzen.\nAbbrechen = Nichts ändern.",
       "importexport_restore_failed": "Wiederherstellung fehlgeschlagen:\n{error}",
       "importexport_restore_done_title": "Wiederherstellung abgeschlossen",
       "importexport_restore_done_message": "Die Daten wurden erfolgreich wiederhergestellt.",
@@ -3755,7 +3773,7 @@
       "importexport_export_data_success": "Ihre Daten wurden exportiert nach:\n{path}",
       "importexport_choose_archive_title": "Zu importierendes Archiv auswählen",
       "importexport_import_mode_title": "Importmodus",
-      "importexport_import_mode_message": "Wie sollen diese Daten importiert werden?\n\nJa = Zusammenführen (zu aktuellen Daten hinzufügen, ohne etwas zu löschen)\nNein = Aktuelle Daten vollständig ersetzen\nAbbrechen = nichts tun",
+      "importexport_import_mode_message": "Ja = Zusammenführen. Unterschiedliche Rezepte mit derselben ID bleiben als getrennte Kopien erhalten. Andere übereinstimmende Daten können durch Archivdaten ersetzt werden.\nNein = Aktuelle Daten ersetzen.\nAbbrechen = Nichts ändern.",
       "importexport_import_failed": "Import fehlgeschlagen:\n{error}",
       "importexport_import_done_title": "Import abgeschlossen",
       "importexport_import_done_message": "Die Daten wurden erfolgreich importiert.",
@@ -4386,7 +4404,13 @@
       "importurl_warning_missing_ingredient": "In den Schritten genannt, aber nicht in der Zutatenliste enthalten: {value}. Prüfen Sie das Originalrezept, bevor Sie die Liste ergänzen.",
       "importurl_warning_redirect": "Die Seite wurde umgeleitet: {value}. Importiertes Rezept prüfen.",
       "importurl_warning_unit": "Einheit prüfen: {value}.",
-      "importurl_total_note": "Gesamtzeit laut Quelle: {value} Min."
+      "importurl_total_note": "Gesamtzeit laut Quelle: {value} Min.",
+      "importurl_serving_range": "Portionen laut Quelle: {value}. Der untere Wert wird verwendet; bei Bedarf anpassen.",
+      "importurl_step_time": "Zeitangabe in einem Schritt: {value}",
+      "duplicate_recipe_id": "Doppelte Rezept-ID: {value}. Import abgebrochen.",
+      "import_conflict_suffix": " (importierte Kopie)",
+      "cooklog_saved_followup_failed": "Der Kocheintrag wurde gespeichert. Ein späterer Vorgang ist fehlgeschlagen: {error}. Vorrat vor einem erneuten Versuch prüfen.",
+      "recipeform_notes_count": "{count} Zeichen"
     }
   }
 }

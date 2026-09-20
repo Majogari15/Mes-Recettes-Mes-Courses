@@ -63,7 +63,7 @@ class ImportV75Tests(unittest.TestCase):
     def test_rest_label_and_meta_ingredients(self):
         r=self.fetch(page='<span>Temps de repos :</span><span>1 h 30</span><meta itemprop="recipeIngredient" content="1 œuf"><p>Texte sans rapport</p>')
         self.assertIn('1 h 30', r['personal_notes'])
-        self.assertEqual([i['name'] for i in r['ingredients']], ['Farine', 'Œuf'])
+        self.assertEqual([i['name'] for i in r['ingredients']], ['Farine', 'Oeuf'])
         self.assertIn('Lactose', main.get_ingredient_allergens('Beurre fondu'))
         self.assertNotIn('Gluten', main.get_ingredient_allergens('Farine sans gluten tamisée'))
 
