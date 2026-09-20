@@ -45,36 +45,24 @@ class CookingModeTests(unittest.TestCase):
         recipe=dict(name='Recette test',ingredients=[dict(name='Pommes de terre',quantity=200,unit='g')],
                     description='Préparer et cuire les ingrédients. '*35,personal_notes='Notes de cuisson. '*20)
         self.window=self.env['CookingModeWindow'](self.root,recipe,2)
-        self._set_geometry('1400x850')
-        self._wait_for_layout(wide=True)
+        self.root.update()
+        self._apply_width(1400)
     def tearDown(self):
         if hasattr(self,'root'):
             self.root.destroy()
-    def _set_geometry(self, geometry):
-        # __init__ appelle self.state("zoomed") : tant que la fenêtre reste
-        # maximisée, Windows ignore/écrête toute geometry() explicite pour
-        # la ramener à la taille réelle de l'écran du runner — confirmé en
-        # CI sur un runner Windows dont le bureau ne fait que 1024x697,
-        # donnant un canvas de 975px (donc "étroit") malgré un
-        # geometry('1400x850') demandé. Repasser en état "normal" avant de
-        # fixer une taille explicite garantit qu'elle s'applique telle
-        # quelle, indépendamment de la résolution du runner.
+    def _apply_width(self, width):
+        # La CI a montré qu'on ne peut pas fiabilement forcer la largeur
+        # réelle de la fenêtre via geometry() : certains runners Windows
+        # ont un bureau virtuel trop petit (~1024px) pour atteindre les
+        # 1400px demandés, que la fenêtre soit "zoomed" ou "normal" — la
+        # largeur obtenue reste alors sous le seuil de 1000px qui bascule
+        # la disposition en mode large, faisant échouer le test pour une
+        # raison qui n'a rien à voir avec la logique testée.
+        # On simule donc directement l'événement <Configure> avec la
+        # largeur voulue, comme le ferait un vrai redimensionnement, sans
+        # dépendre de la résolution d'écran du runner qui exécute le test.
         w = self.window
-        w.state('normal')
-        w.geometry(geometry)
-    def _wait_for_layout(self, wide, timeout_updates=40):
-        # Laisse le temps à la taille demandée de se propager, puis
-        # applique nous-mêmes le gestionnaire de redimensionnement avec la
-        # largeur réellement mesurée : la disposition ne doit pas dépendre
-        # du seul événement <Configure>, dont le déclenchement effectif
-        # (et son ordonnancement par rapport à winfo_width()) peut varier
-        # selon la plateforme.
-        w = self.window
-        for _ in range(timeout_updates):
-            self.root.update()
-            if (w.canvas.winfo_width() >= 1000) == wide:
-                break
-        w._resize_content(SimpleNamespace(width=w.canvas.winfo_width()))
+        w._resize_content(SimpleNamespace(width=width))
         self.root.update()
     def duration(self,row,seconds):
         row.minutes_entry.delete(0,'end');row.minutes_entry.insert(0,'0')
@@ -98,9 +86,9 @@ class CookingModeTests(unittest.TestCase):
         w=self.window;row=w.timer_rows[0];row.start()
         w._adjust(1);self.root.update()
         self.assertIs(w.timer_rows[0],row);self.assertTrue(row.running)
-        diag=lambda: f"canvas={w.canvas.winfo_width()} geometry={w.geometry()} state={w.state()}"
+        diag=lambda: f"canvas={w.canvas.winfo_width()} content_width={w.canvas.itemcget(w._content_id,'width')}"
         self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
-        self._set_geometry('760x850');self._wait_for_layout(wide=False)
+        self._apply_width(760)
         self.assertEqual(int(w.steps_panel.grid_info()['row']),1,diag())
         for panel in (w.ingredients_panel,w.steps_panel):
             self.assertLessEqual(panel.winfo_width(),w.canvas.winfo_width())
@@ -108,7 +96,7 @@ class CookingModeTests(unittest.TestCase):
                 if not isinstance(label, (tk.Label, tk.Checkbutton)):
                     continue
                 self.assertLessEqual(int(float(label.cget('wraplength'))),panel.winfo_width())
-        self._set_geometry('1400x850');self._wait_for_layout(wide=True)
+        self._apply_width(1400)
         self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
         self.assertLess(w.ingredients_panel.winfo_rootx(),w.steps_panel.winfo_rootx())
         self.assertEqual(self.errors,[])
