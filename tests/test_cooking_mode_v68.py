@@ -46,10 +46,23 @@ class CookingModeTests(unittest.TestCase):
                     description='Préparer et cuire les ingrédients. '*35,personal_notes='Notes de cuisson. '*20)
         self.window=self.env['CookingModeWindow'](self.root,recipe,2)
         self.window.geometry('1400x850')
-        self.root.update()
+        self._wait_for_layout(wide=True)
     def tearDown(self):
         if hasattr(self,'root'):
             self.root.destroy()
+    def _wait_for_layout(self, wide, timeout_updates=40):
+        # __init__ appelle self.state("zoomed") juste avant que geometry()
+        # ne soit forcé à une taille explicite : sur Windows (contrairement
+        # à Xvfb+fluxbox), le gestionnaire de fenêtres applique ces requêtes
+        # de façon asynchrone, si bien qu'un seul update() ne suffit pas
+        # toujours à voir le canvas atteindre sa largeur finale avant que le
+        # test ne vérifie la disposition qui en dépend. On boucle donc
+        # jusqu'à ce que la largeur reflète bien la disposition attendue.
+        w = self.window
+        for _ in range(timeout_updates):
+            self.root.update()
+            if (w.canvas.winfo_width() >= 1000) == wide:
+                return
     def duration(self,row,seconds):
         row.minutes_entry.delete(0,'end');row.minutes_entry.insert(0,'0')
         row.seconds_entry.delete(0,'end');row.seconds_entry.insert(0,str(seconds))
@@ -73,7 +86,7 @@ class CookingModeTests(unittest.TestCase):
         w._adjust(1);self.root.update()
         self.assertIs(w.timer_rows[0],row);self.assertTrue(row.running)
         self.assertEqual(int(w.steps_panel.grid_info()['column']),1)
-        w.geometry('760x850');self.root.update()
+        w.geometry('760x850');self._wait_for_layout(wide=False)
         self.assertEqual(int(w.steps_panel.grid_info()['row']),1)
         for panel in (w.ingredients_panel,w.steps_panel):
             self.assertLessEqual(panel.winfo_width(),w.canvas.winfo_width())
@@ -81,7 +94,7 @@ class CookingModeTests(unittest.TestCase):
                 if not isinstance(label, (tk.Label, tk.Checkbutton)):
                     continue
                 self.assertLessEqual(int(float(label.cget('wraplength'))),panel.winfo_width())
-        w.geometry('1400x850');self.root.update()
+        w.geometry('1400x850');self._wait_for_layout(wide=True)
         self.assertEqual(int(w.steps_panel.grid_info()['column']),1)
         self.assertLess(w.ingredients_panel.winfo_rootx(),w.steps_panel.winfo_rootx())
         self.assertEqual(self.errors,[])

@@ -49,9 +49,26 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: xvfb-run -a python -m pytest tests/ -v --cov=main --cov-report=xml
 
+      # Sur les runners Windows hébergés, le dossier Tcl/Tk venant d'être
+      # écrit dans le hostedtoolcache est parfois encore verrouillé par un
+      # scan antivirus au moment où pytest crée sa première fenêtre Tk,
+      # ce qui produit une erreur Tcl transitoire ("couldn't read file
+      # ...: No error") alors que le même fichier est lisible l'instant
+      # d'après (l'étape "Verify tkinter is available" plus haut a réussi
+      # sur la même machine quelques secondes avant). On retente une fois
+      # après une courte pause avant d'abandonner ; un second échec reste
+      # un vrai échec.
       - name: Run tests (Windows)
         if: matrix.os == 'windows-latest'
-        run: python -m pytest tests/ -v --cov=main --cov-report=xml
+        shell: pwsh
+        run: |
+          python -m pytest tests/ -v --cov=main --cov-report=xml
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::Premiere tentative echouee, nouvelle tentative apres une pause (voir commentaire de l'etape pour la cause probable)."
+            Start-Sleep -Seconds 10
+            python -m pytest tests/ -v --cov=main --cov-report=xml
+          }
+          exit $LASTEXITCODE
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
