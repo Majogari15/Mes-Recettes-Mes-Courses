@@ -5102,10 +5102,17 @@ def fetch_recipe_from_url(url):
     message clair en cas d'échec.
 
     Les en-têtes visent à ressembler à un vrai navigateur (Accept,
-    Accept-Language, Accept-Encoding) : une requête ne portant que
-    User-Agent est parfois jugée suspecte par les protections
-    anti-robot de certains sites (Wordfence, Cloudflare...), qui la
-    bloquent avec un 403 même quand le User-Agent est crédible."""
+    Accept-Language, Accept-Encoding, puis les en-têtes Fetch Metadata et
+    Client Hints ci-dessous) : une requête ne portant que User-Agent est
+    parfois jugée suspecte par les protections anti-robot de certains
+    sites (Wordfence, Cloudflare...), qui la bloquent avec un 403 même
+    quand le User-Agent est crédible. Les en-têtes Sec-Fetch-*/sec-ch-ua
+    sont envoyés par tout Chrome récent dès qu'une page est ouverte
+    (URL tapée, favori...) ; certains WAF (dont Wordfence) les vérifient
+    spécifiquement et bloquent leur absence, même avec un Accept-Encoding
+    déjà présent. Malgré cela, certains sites restent bloqués : une
+    protection basée sur l'empreinte TLS (JA3) ou la réputation de l'IP
+    échappe à toute combinaison d'en-têtes HTTP."""
     request = urllib.request.Request(
         url, headers={
             "User-Agent": (
@@ -5115,6 +5122,14 @@ def fetch_recipe_from_url(url):
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
             "Accept-Encoding": "gzip, deflate",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "sec-ch-ua": '"Not)A;Brand";v="99", "Google Chrome";v="128", "Chromium";v="128"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
         }
     )
     try:
@@ -5324,7 +5339,7 @@ def fetch_recipe_from_url(url):
     image_url = _extract_recipe_image_url(recipe_data.get("image"))
     if image_url:
         image_url = urllib.parse.urljoin(final_url, image_url)
-        downloaded = download_image_to_store(image_url, temporary=True)
+        downloaded = download_image_to_store(image_url, temporary=True, referer=final_url)
         if downloaded:
             image_sources.append(downloaded)
 
@@ -5385,12 +5400,27 @@ def _read_response_limited(response, limit):
     return b"".join(chunks)
 
 
-def download_image_to_store(image_url, timeout=15, *, temporary=True):
-    """Télécharge une image avec limites de taille. Par défaut elle reste temporaire."""
+def download_image_to_store(image_url, timeout=15, *, temporary=True, referer=None):
+    """Télécharge une image avec limites de taille. Par défaut elle reste temporaire.
+
+    Mêmes en-têtes « vrai navigateur » que fetch_recipe_from_url, plus un
+    Referer pointant vers la page d'origine quand il est fourni : beaucoup
+    de CDN d'images (constaté sur chefkoch.de) appliquent une protection
+    anti-hotlinking qui refuse une image demandée sans Referer, même quand
+    la page de la recette elle-même a pu être téléchargée sans problème."""
     try:
-        request = urllib.request.Request(
-            image_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        )
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            ),
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate",
+        }
+        if referer:
+            headers["Referer"] = referer
+        request = urllib.request.Request(image_url, headers=headers)
         with urllib.request.urlopen(request, timeout=timeout) as response:
             content_type = (response.headers.get_content_type() or "").lower()
             if content_type and not content_type.startswith("image/"):
@@ -5399,6 +5429,7 @@ def download_image_to_store(image_url, timeout=15, *, temporary=True):
             if length and int(length) > MAX_WEB_IMAGE_BYTES:
                 return None
             data = _read_response_limited(response, MAX_WEB_IMAGE_BYTES)
+            data = _decompress_recipe_page(data, response.headers.get("Content-Encoding"))
     except Exception as exc:
         log_internal_error("download_recipe_image", exc)
         return None

@@ -89,6 +89,12 @@ class ImportTests(unittest.TestCase):
         self.assertIn('accept', headers)
         self.assertIn('accept-language', headers)
         self.assertIn('gzip', headers.get('accept-encoding', ''))
+        # En-têtes Fetch Metadata / Client Hints envoyés par tout Chrome
+        # récent, spécifiquement vérifiés par certains WAF (Wordfence...)
+        # en plus de l'Accept-Encoding déjà testé ci-dessus.
+        self.assertEqual(headers.get('sec-fetch-mode'), 'navigate')
+        self.assertEqual(headers.get('sec-fetch-dest'), 'document')
+        self.assertIn('sec-ch-ua', headers)
 
     def _jsonld_html(self, **changes):
         data = {'@type': 'Recipe', 'name': 'Essai', 'recipeYield': '4 personnes',
@@ -129,5 +135,49 @@ class ImportTests(unittest.TestCase):
         with patch.object(main.urllib.request, 'urlopen', return_value=response):
             r = main.fetch_recipe_from_url('https://example.com/recipe')
         self.assertEqual(r['name'], 'Recette deflate brut')
+
+from pathlib import Path
+from PIL import Image
+from test_regressions import TempDataMixin
+
+class RecipeImageDownloadTests(TempDataMixin, unittest.TestCase):
+    def _jsonld_html(self, **changes):
+        data = {'@type': 'Recipe', 'name': 'Essai', 'recipeYield': '4 personnes',
+                'recipeIngredient': ['1 oeuf'], 'recipeInstructions': ['Etape.'],
+                'prepTime': 'PT10M', 'cookTime': 'PT20M'}
+        data.update(changes)
+        return '<script type="application/ld+json">' + json.dumps(data, ensure_ascii=False) + '</script>'
+
+    def _png_bytes(self):
+        buf = io.BytesIO()
+        Image.new('RGB', (2, 2), color='red').save(buf, format='PNG')
+        return buf.getvalue()
+
+    def test_image_download_sends_referer_and_decompresses(self):
+        # Constaté sur chefkoch.de : la page se télécharge sans problème,
+        # mais l'image de la recette échoue si elle est demandée sans
+        # Referer (protection anti-hotlinking côté CDN d'images).
+        html_body = self._jsonld_html(image='https://cdn.example.com/photo.png')
+        image_bytes = gzip.compress(self._png_bytes())
+        calls = []
+        def fake_urlopen(request, timeout=None):
+            calls.append(request)
+            if len(calls) == 1:
+                response = io.BytesIO(html_body.encode())
+                response.headers = Message()
+                return response
+            response = io.BytesIO(image_bytes)
+            response.headers = Message()
+            response.headers['Content-Type'] = 'image/png'
+            response.headers['Content-Encoding'] = 'gzip'
+            return response
+        with patch.object(main.urllib.request, 'urlopen', side_effect=fake_urlopen):
+            r = main.fetch_recipe_from_url('https://example.com/recipe')
+        self.assertEqual(len(calls), 2)
+        image_headers = {k.lower(): v for k, v in calls[1].header_items()}
+        self.assertEqual(image_headers.get('referer'), 'https://example.com/recipe')
+        self.assertIn('image', image_headers.get('accept', ''))
+        self.assertEqual(len(r['image_sources']), 1)
+        self.assertTrue(Path(r['image_sources'][0]).exists())
 
 if __name__=='__main__':unittest.main()
