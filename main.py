@@ -12332,10 +12332,20 @@ class ImportExportWindow(tk.Toplevel):
 
     def import_shared_data(self):
         """Import depuis le format compatible avec l'application mobile —
-        voir restore_from_shared_zip."""
+        voir restore_from_shared_zip.
+
+        L'application mobile renomme parfois ce zip en ".txt" (Chromium
+        refuse de partager un ".zip" via son Web Share API, mais accepte
+        un ".txt" — le contenu reste un zip valide à l'octet près). Ce
+        filtre affiche donc aussi les ".txt" ; zipfile lit le fichier par
+        son contenu réel, pas par son extension, donc aucun renommage
+        n'est nécessaire ici."""
         path = filedialog.askopenfilename(
             title=t("importexport_choose_archive_title"),
-            filetypes=[("Archive ZIP", "*.zip")]
+            filetypes=[
+                (t("importexport_shared_archive_filetypes"), "*.zip *.txt"),
+                ("Tous les fichiers", "*.*"),
+            ]
         )
         if not path:
             return

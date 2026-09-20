@@ -1,3 +1,4 @@
+import inspect
 import json
 import math
 import os
@@ -159,6 +160,24 @@ class CoreRegressionTests(TempDataMixin, unittest.TestCase):
         with zipfile.ZipFile(out, "r") as z:
             self.assertIn("images/cook.jpg", z.namelist())
 
+    def test_shared_backup_importable_when_renamed_to_txt(self):
+        # L'application mobile renomme ce zip en ".txt" avant de le
+        # partager (Chromium refuse ".zip" dans son Web Share API, mais
+        # accepte ".txt" ; le contenu reste un zip valide à l'octet
+        # près). restore_from_shared_zip doit donc lire le fichier par
+        # son contenu réel, pas par son extension.
+        main.save_recipes([self.recipe(name="Recette partagée")])
+        main.save_ingredients(["Farine"])
+        zip_path = self.base / "sauvegarde-partagee.zip"
+        main.build_shared_backup_zip(str(zip_path))
+        disguised_path = self.base / "sauvegarde-partagee.txt"
+        os.replace(zip_path, disguised_path)
+
+        main.save_recipes([])
+        main.save_ingredients([])
+        main.restore_from_shared_zip(str(disguised_path), merge=False)
+        self.assertEqual(main.load_recipes()[0]["name"], "Recette partagée")
+
 
     def test_cart_selection_uses_recipe_id(self):
         from types import SimpleNamespace
@@ -247,6 +266,13 @@ class StaticRegressionTests(unittest.TestCase):
         fr = set(main.FRENCH_STRINGS)
         for lang in ("en","es","de"):
             self.assertEqual(fr, set(main.TRANSLATIONS[lang]))
+
+    def test_shared_import_dialog_accepts_txt(self):
+        # L'application mobile déguise ce zip en ".txt" avant de le
+        # partager (voir test_shared_backup_importable_when_renamed_to_txt) :
+        # le sélecteur de fichier doit donc aussi afficher les ".txt".
+        src = inspect.getsource(main.ImportExportWindow.import_shared_data)
+        self.assertIn("*.txt", src)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
