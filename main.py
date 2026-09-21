@@ -7032,7 +7032,28 @@ def configure_app_style(root):
 
 class App(APP_TK_BASE):
     def __init__(self):
-        super().__init__()
+        try:
+            super().__init__()
+        except RuntimeError as exc:
+            if not TKDND_AVAILABLE or "tkdnd" not in str(exc).lower():
+                raise
+            # TkinterDnD.Tk crée d'abord une vraie fenêtre Tk (tkinter.Tk.
+            # __init__) puis charge l'extension Tcl tkdnd dans un second
+            # temps : cette 2e étape échoue de façon intermittente (constaté
+            # plusieurs fois en CI Windows, jamais reproduit localement),
+            # sans rapport avec le code de l'application — la fenêtre existe
+            # déjà à ce stade. On retente le chargement seul avant
+            # d'abandonner le glisser-déposer pour cette fenêtre plutôt que
+            # de faire planter toute l'application pour un souci mineur
+            # (_enable_photo_drop gère déjà l'absence de tkdnd en dégradé).
+            self.TkdndVersion = None
+            for _attempt in range(3):
+                time.sleep(0.2)
+                try:
+                    self.TkdndVersion = TkinterDnD._require(self)
+                    break
+                except RuntimeError:
+                    continue
         install_tk_exception_logger(self)
         # Le mode « Texte agrandi » doit être chargé et appliqué AVANT tout
         # calcul de géométrie ci-dessous (via gs()), sans quoi la fenêtre
