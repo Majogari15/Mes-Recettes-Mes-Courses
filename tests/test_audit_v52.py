@@ -14,7 +14,8 @@ class AuditV52Tests(unittest.TestCase):
     def test_all_languages_have_same_keys_and_placeholders(self):
         catalog = json.loads((ROOT / "i18n_desktop.json").read_text(encoding="utf-8"))
         french = catalog["fr"]
-        placeholders = lambda value: sorted(re.findall(r"\{[^{}]+\}", value))
+        def placeholders(value):
+            return sorted(re.findall(r"\{[^{}]+\}", value))
         for language in ("en", "es", "de"):
             translated = catalog["translations"][language]
             self.assertEqual(set(french), set(translated), language)
