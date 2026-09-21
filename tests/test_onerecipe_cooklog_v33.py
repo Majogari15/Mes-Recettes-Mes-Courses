@@ -1,66 +1,272 @@
-
-import inspect
 import unittest
+from datetime import datetime
+from unittest.mock import patch
+
+import tkinter as tk
+
 import main
+from test_regressions import TempDataMixin
 
-class OneRecipeCookLogV33Tests(unittest.TestCase):
-    def test_mark_as_cooked_does_not_use_missing_fmt_method(self):
-        src = inspect.getsource(main.OneRecipeWindow.mark_as_cooked)
-        self.assertNotIn("self._fmt(", src)
-        self.assertIn("cooked_persons_display", src)
-        self.assertIn("persons=cooked_persons_display", src)
 
+class OneRecipeWindowTestBase(TempDataMixin, unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(self.app.destroy)
+        self.app.withdraw()
+
+
+class OneRecipeCookLogV33Tests(OneRecipeWindowTestBase):
     def test_onerecipe_has_no_required_fmt_dependency(self):
         self.assertFalse(hasattr(main.OneRecipeWindow, "_fmt"))
 
-    def test_cooking_refreshes_canonical_recipe_and_visible_summary(self):
-        source = inspect.getsource(main.OneRecipeWindow.mark_as_cooked)
-        self.assertIn("refreshed = find_recipe_by_id", source)
-        self.assertIn("self._display_recipe(self.current_recipe)", source)
+    def test_mark_as_cooked_records_cook_log_and_refreshes_canonical_recipe(self):
+        main.save_recipes([{
+            "id": "r1", "name": "Poulet rôti", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [{"name": "Poulet", "quantity": 1, "unit": "pièce"}],
+            "steps": ["Cuire au four."],
+        }])
+        self.app.refresh_recipes()
+        win = main.OneRecipeWindow(self.app, initial_recipe_name="Poulet rôti")
+        self.addCleanup(win.destroy)
+        self.assertIsNotNone(win.current_recipe)
+        win.pers_entry.delete(0, tk.END)
+        win.pers_entry.insert(0, "4")
+
+        class FakeCookLogEntryDialog:
+            def __init__(self, app, recipe_name, on_done, persons=None):
+                # Simule l'utilisateur validant immédiatement le formulaire
+                # de journal de cuisson (synchronement, sans boîte modale).
+                on_done("Excellent", "Un peu salé", None, rating=5, cooked_persons=persons)
+
+        with patch.object(main, "CookLogEntryDialog", FakeCookLogEntryDialog), \
+             patch.object(main.messagebox, "showinfo"), \
+             patch.object(main.messagebox, "showerror"):
+            win.mark_as_cooked()
+
+        recipes = main.load_recipes()
+        target = main.find_recipe_by_id(recipes, "r1")
+        self.assertEqual(len(target["cook_log"]), 1)
+        entry = target["cook_log"][0]
+        self.assertEqual(entry["note"], "Excellent")
+        self.assertEqual(entry["comment"], "Un peu salé")
+        self.assertEqual(entry["rating"], 5)
+        # Les personnes entières doivent être stockées comme int (pas 4.0),
+        # c'est ce que "cooked_persons_display" garantit dans mark_as_cooked.
+        self.assertEqual(entry["persons"], 4)
+        self.assertIsInstance(entry["persons"], int)
+
+        # La fiche doit utiliser l'objet recette canonique rechargé depuis
+        # disque (via app.recipes), pas une copie obsolète en mémoire.
+        self.assertIs(win.current_recipe, main.find_recipe_by_id(self.app.recipes, "r1"))
+        self.assertEqual(len(win.current_recipe["cook_log"]), 1)
+
+        # La fenêtre doit rester active au premier plan après la cuisson.
+        self.assertTrue(win.winfo_exists())
+        win.deiconify()
+        win.lift()
+        win.focus_force()
+        win.grab_set()
 
     def test_cooking_photo_is_included_in_recipe_gallery(self):
-        source = inspect.getsource(main.OneRecipeWindow._refresh_gallery)
-        self.assertIn("onerecipe_latest_cook_photo", source)
-        self.assertIn("cook_log", source)
+        recipe = {
+            "id": "r2", "name": "Tarte", "default_persons": 4,
+            "category": "Dessert", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+            "cook_log": [
+                {"date": "2024-01-01T10:00:00", "photo": None},
+                {"date": "2024-03-15T18:30:00", "photo": "cook_photo.jpg"},
+            ],
+        }
+        main.save_recipes([recipe])
+        self.app.refresh_recipes()
+        win = main.OneRecipeWindow(self.app, initial_recipe_name="Tarte")
+        self.addCleanup(win.destroy)
 
-    def test_recipe_library_does_not_refresh_after_it_was_closed(self):
-        source = inspect.getsource(main.ManageRecipesWindow._open_index)
-        self.assertIn("if not self.winfo_exists():", source)
-
-    def test_edit_form_exposes_cooking_log_tab(self):
-        source = inspect.getsource(main.RecipeFormWindow.__init__)
-        self.assertIn("tab_cook_log", source)
-        self.assertIn("recipeform_tab_cook_log", source)
-
-    def test_edit_form_renders_cooking_history_details_and_photos(self):
-        source = inspect.getsource(main.RecipeFormWindow._build_cook_log_tab)
-        for token in ("cook_log", "cooklog_entry_persons", "cooklog_entry_rating", "load_thumbnail"):
-            self.assertIn(token, source)
+        texts = []
+        for cell in win.gallery_frame.winfo_children():
+            for grandchild in cell.winfo_children():
+                if "text" in grandchild.keys():
+                    texts.append(grandchild.cget("text"))
+        self.assertIn(main.t("onerecipe_latest_cook_photo"), texts)
 
     def test_recipe_view_returns_to_foreground_after_edit(self):
-        source = inspect.getsource(main.OneRecipeWindow._edit_recipe)
-        self.assertIn("self.lift()", source)
-        self.assertIn("self.focus_force()", source)
-        self.assertIn("self.grab_set()", source)
+        main.save_recipes([{
+            "id": "r3", "name": "Soupe", "default_persons": 2,
+            "category": "Entrée", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+        }])
+        self.app.refresh_recipes()
+        win = main.OneRecipeWindow(self.app, initial_recipe_name="Soupe")
+        self.addCleanup(win.destroy)
+        index = win.selected_actual_index
+        self.assertIsNotNone(index)
+
+        class FakeRecipeFormWindow(tk.Toplevel):
+            # _populate() du parent référence RecipeFormWindow.CATEGORY_OPTIONS
+            # au niveau module : ce faux remplaçant doit l'exposer aussi.
+            CATEGORY_OPTIONS = main.RecipeFormWindow.CATEGORY_OPTIONS
+
+            def __init__(fake_self, app, recipe_index=None):
+                super().__init__(app)
+                fake_self.after_idle(fake_self.destroy)
+
+        with patch.object(main, "RecipeFormWindow", FakeRecipeFormWindow):
+            win._edit_recipe(index)
+
+        self.assertTrue(win.winfo_exists())
+        # Aucune exception ne doit être levée par ces appels de premier plan,
+        # sinon un TclError serait remonté après la fermeture du formulaire.
+        win.deiconify()
+        win.lift()
+        win.focus_force()
+        win.grab_set()
 
     def test_recipe_view_can_refresh_without_being_destroyed(self):
-        source = inspect.getsource(main.OneRecipeWindow.refresh_ui)
-        self.assertIn("self._populate()", source)
-        self.assertIn("self._display_recipe", source)
+        main.save_recipes([{
+            "id": "r4", "name": "Salade", "default_persons": 2,
+            "category": "Entrée", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+        }])
+        self.app.refresh_recipes()
+        win = main.OneRecipeWindow(self.app, initial_recipe_name="Salade")
+        self.addCleanup(win.destroy)
+        before = win.current_recipe
+        self.assertIsNotNone(before)
 
-    def test_cooking_confirmation_keeps_recipe_view_active(self):
-        source = inspect.getsource(main.OneRecipeWindow.mark_as_cooked)
-        self.assertIn("parent=self", source)
-        self.assertIn("self.deiconify()", source)
+        win.refresh_ui()
 
-    def test_cook_log_uses_large_photos_and_responsive_text(self):
-        source = inspect.getsource(main.RecipeFormWindow._build_cook_log_tab)
-        self.assertIn("photo_w", source)
-        self.assertIn("update_wraplength", source)
-        self.assertIn("_cook_log_wrap_labels", source)
-        self.assertIn("content_window", source)
-        self.assertIn("canvas.itemconfigure", source)
-        self.assertIn("content.winfo_width()", source)
+        self.assertTrue(win.winfo_exists())
+        self.assertEqual(win.current_recipe["name"], "Salade")
+        self.assertEqual(win.title(), main.t("onerecipe_window_title"))
+
+    def test_recipe_library_does_not_refresh_after_it_was_closed(self):
+        main.save_recipes([{
+            "id": "r5", "name": "Ratatouille", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+        }])
+        self.app.refresh_recipes()
+        manage = main.ManageRecipesWindow(self.app)
+
+        class FakeOneRecipeWindow(tk.Toplevel):
+            def __init__(fake_self, app, initial_recipe_name=None):
+                super().__init__(app)
+
+                def _simulate_closed_while_viewing():
+                    # La bibliothèque a pu être fermée (ex : depuis la barre
+                    # des tâches) pendant que la fiche recette était affichée.
+                    manage.destroy()
+                    fake_self.destroy()
+
+                fake_self.after_idle(_simulate_closed_while_viewing)
+
+        with patch.object(main, "OneRecipeWindow", FakeOneRecipeWindow), \
+             patch.object(manage, "_populate") as fake_populate, \
+             patch.object(self.app, "refresh_recipes") as fake_refresh:
+            manage._open_index(0)
+
+        self.assertFalse(manage.winfo_exists())
+        fake_populate.assert_not_called()
+        fake_refresh.assert_not_called()
+
+    def test_edit_form_exposes_cooking_log_tab(self):
+        main.save_recipes([{
+            "id": "r6", "name": "Gratin", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [], "cook_log": [],
+        }])
+        self.app.refresh_recipes()
+        form = main.RecipeFormWindow(self.app, recipe_index=0)
+        self.addCleanup(form.destroy)
+
+        self.assertTrue(form.editing)
+        self.assertTrue(hasattr(form, "tab_cook_log"))
+        tabs = form.form_notebook.tabs()
+        self.assertIn(str(form.tab_cook_log), tabs)
+        self.assertEqual(
+            form.form_notebook.tab(form.tab_cook_log, "text"),
+            main.t("recipeform_tab_cook_log"),
+        )
+
+    def test_edit_form_renders_cooking_history_details_and_photos(self):
+        main.save_recipes([{
+            "id": "r7", "name": "Curry", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+            "cook_log": [{
+                "date": datetime(2024, 6, 1, 19, 30).isoformat(),
+                "note": "Bien épicé",
+                "comment": "À refaire",
+                "photo": None,
+                "rating": 4,
+                "persons": 6,
+            }],
+        }])
+        self.app.refresh_recipes()
+        form = main.RecipeFormWindow(self.app, recipe_index=0)
+        self.addCleanup(form.destroy)
+
+        texts = []
+
+        def collect(widget):
+            if "text" in widget.keys():
+                texts.append(widget.cget("text"))
+            for child in widget.winfo_children():
+                collect(child)
+
+        collect(form.tab_cook_log)
+
+        self.assertIn(main.t("cooklog_entry_persons", persons=6), texts)
+        self.assertIn(main.t("cooklog_entry_rating", stars="★★★★☆"), texts)
+        self.assertTrue(any("Bien épicé" in text for text in texts))
+        self.assertTrue(any("À refaire" in text for text in texts))
+
+    def test_cook_log_tab_rewraps_notes_when_window_is_resized(self):
+        long_comment = "Un commentaire assez long pour tester le retour à la ligne. " * 4
+        main.save_recipes([{
+            "id": "r8", "name": "Risotto", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+            "cook_log": [{
+                "date": datetime(2024, 6, 1, 19, 30).isoformat(),
+                "note": "", "comment": long_comment,
+                "photo": None, "rating": 0, "persons": 4,
+            }],
+        }])
+        self.app.refresh_recipes()
+        form = main.RecipeFormWindow(self.app, recipe_index=0)
+        self.addCleanup(form.destroy)
+        self.assertEqual(len(form._cook_log_wrap_labels), 1)
+        comment_label = form._cook_log_wrap_labels[0]
+        # Le calcul de largeur dépend de winfo_width(), qui n'est mis à jour
+        # que pour l'onglet réellement affiché.
+        form.form_notebook.select(form.tab_cook_log)
+
+        form.geometry("1400x700")
+        form.update()
+        wide_wrap = comment_label.cget("wraplength")
+
+        form.geometry("700x500")
+        form.update()
+        narrow_wrap = comment_label.cget("wraplength")
+
+        self.assertNotEqual(wide_wrap, narrow_wrap)
+        self.assertLess(narrow_wrap, wide_wrap)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,14 +1,16 @@
-import inspect
 import json
 import os
 import tempfile
 import threading
+import tkinter as tk
 import unittest
 import zipfile
 from pathlib import Path
 from unittest import mock
+from unittest.mock import patch
 
 import main
+from test_regressions import TempDataMixin
 
 
 class ReliabilityV35Tests(unittest.TestCase):
@@ -40,14 +42,6 @@ class ReliabilityV35Tests(unittest.TestCase):
             finally:
                 main.DATA_FILE = old
 
-    def test_both_cooking_entry_points_use_five_argument_callback(self):
-        source = inspect.getsource(main.CookingModeWindow.mark_as_cooked)
-        self.assertIn(
-            "def _on_log_done(note, comment, photo_filename, rating=0, cooked_persons=None)",
-            source,
-        )
-        self.assertIn("persons=cooked_persons_display", source)
-
     def test_auto_backup_exists_without_recipes_file(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -76,26 +70,6 @@ class ReliabilityV35Tests(unittest.TestCase):
                 for name, value in old.items():
                     setattr(main, name, value)
                 main.USER_DATA_FILES[:] = old_user
-
-    def test_normal_edit_save_deletes_the_crash_draft(self):
-        source = inspect.getsource(main.RecipeFormWindow.save_recipe)
-        self.assertIn("self._delete_draft()", source)
-
-    def test_normal_cancel_deletes_the_crash_draft(self):
-        source = inspect.getsource(main.RecipeFormWindow._close_without_draft)
-        self.assertIn("self._delete_draft()", source)
-        self.assertIn("self.after_cancel", source)
-
-    def test_unchanged_edit_does_not_create_a_draft_prompt(self):
-        source = inspect.getsource(main.RecipeFormWindow._save_draft_snapshot)
-        self.assertIn("_draft_baseline_signature", source)
-        self.assertIn("unchanged", source)
-        self.assertIn("os.remove(path)", source)
-
-    def test_legacy_unchanged_draft_is_removed_without_prompt(self):
-        source = inspect.getsource(main.RecipeFormWindow._maybe_restore_draft)
-        self.assertIn("_draft_signature(data)", source)
-        self.assertIn("self._delete_draft()", source)
 
     def test_corrupt_recipes_are_quarantined_and_cannot_be_overwritten(self):
         with tempfile.TemporaryDirectory() as td:
@@ -224,6 +198,153 @@ class ReliabilityV35Tests(unittest.TestCase):
         launcher = (Path(main.__file__).parent / "Executer_les_tests.bat").read_text(encoding="utf-8")
         self.assertIn("unittest discover", launcher)
         self.assertIn('test_*.py', launcher)
+
+
+class DraftRecoveryTests(TempDataMixin, unittest.TestCase):
+    """Instancie réellement RecipeFormWindow (et CookingModeWindow) pour
+    vérifier le système de récupération après plantage (brouillon), plutôt
+    que d'inspecter le texte source des méthodes."""
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(self.app.destroy)
+        self.app.withdraw()
+
+    def test_draft_autosave_skips_unchanged_edits_but_saves_real_changes(self):
+        main.save_recipes([{
+            "id": "e1", "name": "Ragoût", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [{"name": "Boeuf", "quantity": 500, "unit": "Gr"}],
+            "steps": [],
+        }])
+        self.app.refresh_recipes()
+        form = main.RecipeFormWindow(self.app, recipe_index=0)
+        self.addCleanup(form.destroy)
+        draft_path = Path(form._draft_file_path())
+
+        # Rien n'a changé depuis l'ouverture du formulaire : pas de brouillon.
+        form._save_draft_snapshot()
+        self.assertFalse(draft_path.exists())
+
+        # Une vraie modification doit, elle, produire un brouillon récupérable.
+        form.name_entry.delete(0, tk.END)
+        form.name_entry.insert(0, "Ragoût modifié")
+        form._save_draft_snapshot()
+        self.assertTrue(draft_path.exists())
+        saved = json.loads(draft_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["name"], "Ragoût modifié")
+
+    def test_legacy_unchanged_draft_is_removed_without_prompt(self):
+        main.save_recipes([{
+            "id": "e2", "name": "Risotto", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [{"name": "Riz", "quantity": 300, "unit": "Gr"}],
+            "steps": [],
+        }])
+        self.app.refresh_recipes()
+
+        probe = main.RecipeFormWindow(self.app, recipe_index=0)
+        snapshot = probe._collect_draft_snapshot()
+        draft_path = Path(probe._draft_file_path())
+        probe.destroy()
+
+        # Un ancien brouillon strictement identique à l'état non modifié,
+        # comme en laissaient d'anciennes versions même sans modification.
+        draft_path.write_text(json.dumps(snapshot), encoding="utf-8")
+        self.assertTrue(draft_path.exists())
+
+        with patch.object(main, "ask_yes_no") as fake_ask:
+            form = main.RecipeFormWindow(self.app, recipe_index=0)
+            self.addCleanup(form.destroy)
+
+        fake_ask.assert_not_called()
+        self.assertFalse(draft_path.exists())
+
+    def test_normal_edit_save_deletes_the_crash_draft(self):
+        # L'ingrédient doit déjà exister dans le catalogue global, sinon
+        # save_recipe() ouvrirait une vraie boîte de dialogue de résolution
+        # (UnknownIngredientsDialog) qui resterait bloquée sans interaction.
+        main.save_ingredients(["Oeuf"])
+        main.save_recipes([{
+            "id": "e3", "name": "Quiche", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [{"name": "Oeuf", "quantity": 3, "unit": "pièce"}],
+            "steps": [],
+        }])
+        self.app.refresh_recipes()
+        self.app.refresh_ingredients()
+        form = main.RecipeFormWindow(self.app, recipe_index=0)
+        draft_path = Path(form._draft_file_path())
+        draft_path.write_text(json.dumps({"saved_at": "2024-01-01T00:00:00"}), encoding="utf-8")
+        self.assertTrue(draft_path.exists())
+
+        form.save_recipe()
+
+        self.assertFalse(form.winfo_exists())
+        self.assertFalse(draft_path.exists())
+
+    def test_normal_cancel_deletes_the_crash_draft(self):
+        main.save_recipes([{
+            "id": "e4", "name": "Pâtes", "default_persons": 2,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+        }])
+        self.app.refresh_recipes()
+        form = main.RecipeFormWindow(self.app, recipe_index=0)
+        draft_path = Path(form._draft_file_path())
+        draft_path.write_text(json.dumps({"saved_at": "2024-01-01T00:00:00"}), encoding="utf-8")
+        self.assertTrue(draft_path.exists())
+        scheduled_id = form._draft_after_id
+        self.assertIsNotNone(scheduled_id)
+
+        form._close_without_draft()
+
+        self.assertFalse(draft_path.exists())
+        # after_cancel a bien été appelé : l'identifiant "after" programmé
+        # n'existe plus dans la file d'attente Tcl de la fenêtre parente.
+        with self.assertRaises(tk.TclError):
+            self.app.tk.call("after", "info", scheduled_id)
+
+    def test_cooking_mode_mark_as_cooked_uses_five_argument_callback(self):
+        main.save_recipes([{
+            "id": "cm1", "name": "Curry", "default_persons": 2,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+        }])
+        self.app.refresh_recipes()
+        recipe = main.find_recipe_by_id(self.app.recipes, "cm1")
+        win = main.CookingModeWindow(self.app, recipe, 2)
+        self.addCleanup(win.destroy)
+
+        class FakeCookLogEntryDialog:
+            def __init__(fake_self, app, recipe_name, on_done, persons=None):
+                on_done("Note", "Commentaire", None, rating=4, cooked_persons=persons)
+
+        with patch.object(main, "CookLogEntryDialog", FakeCookLogEntryDialog), \
+             patch.object(main.messagebox, "showinfo"), \
+             patch.object(main.messagebox, "showerror"):
+            win.mark_as_cooked()
+
+        saved = main.find_recipe_by_id(main.load_recipes(), "cm1")
+        self.assertEqual(len(saved["cook_log"]), 1)
+        entry = saved["cook_log"][0]
+        self.assertEqual(entry["comment"], "Commentaire")
+        self.assertEqual(entry["rating"], 4)
+        self.assertEqual(entry["persons"], 2)
+        self.assertIsInstance(entry["persons"], int)
 
 
 if __name__ == "__main__":
