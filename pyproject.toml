@@ -2,10 +2,17 @@
 target-version = "py310"
 
 [tool.ruff.lint]
-# Base par défaut de ruff (pycodestyle E/W + pyflakes F), avec des exclusions
-# pour un style délibérément dense déjà en place dans tout le projet
-# (plusieurs instructions par ligne, lignes longues) : les activer produirait
-# ~1600 signalements purement stylistiques sans rapport avec de vrais bugs.
+# Sélection EXPLICITE plutôt que la sélection "par défaut" de ruff : celle-ci
+# s'est révélée changer d'une version à l'autre (0.15.8 en local ne
+# signalait que E/F classiques ; 0.16.8 sur la CI active en plus tout un tas
+# de catégories — BLE, FURB, PERF, PIE, UP, RUF, I, YTT... — donnant 328
+# signalements au lieu de 0 pour un code identique). E/F (pycodestyle +
+# pyflakes) reste stable et suffisant pour attraper de vrais bugs.
+select = ["E", "F"]
+# Exclusions pour un style délibérément dense déjà en place dans tout le
+# projet (plusieurs instructions par ligne, lignes longues) : les activer
+# produirait ~1600 signalements purement stylistiques sans rapport avec de
+# vrais bugs.
 ignore = [
     "E701",  # instructions multiples sur une ligne (deux-points)
     "E702",  # instructions multiples sur une ligne (point-virgule)

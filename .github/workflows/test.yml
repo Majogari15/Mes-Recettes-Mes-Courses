@@ -14,12 +14,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # Version épinglée : un premier essai avec "pip install ruff" (sans
+      # version) a pris la 0.16.8 alors que la config avait été testée avec
+      # la 0.15.8 — la sélection de règles "par défaut" de ruff a changé
+      # entre les deux, donnant 328 signalements au lieu de 0 pour un code
+      # identique. pyproject.toml sélectionne maintenant les règles
+      # explicitement (donc les deux versions sont propres), mais autant
+      # épingler comme le reste des dépendances du projet.
       - name: Install ruff
-        run: pip install ruff
-      # Configuration dans pyproject.toml : ignore volontairement les règles
-      # de style (lignes/instructions multiples, longueur) déjà en place
-      # partout dans ce projet, pour ne signaler que de vrais problèmes
-      # (imports inutilisés, except nu, variable ambiguë...).
+        run: pip install ruff==0.16.8
+      # Configuration dans pyproject.toml : sélectionne explicitement E/F,
+      # en ignorant les règles de style (lignes/instructions multiples,
+      # longueur) déjà en place partout dans ce projet, pour ne signaler que
+      # de vrais problèmes (imports inutilisés, except nu, variable ambiguë...).
       - name: Run ruff
         run: ruff check .
 
