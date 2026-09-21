@@ -38,7 +38,7 @@ class CookingModeTests(unittest.TestCase):
             translate_ingredient_name=lambda x:x, translate_unit_name=lambda x:x,
             ingredient_quantity_for_persons=lambda ing,p:ing['quantity']*p,
             translate_difficulty_name=lambda x:x, log_internal_error=lambda *a:None,
-            ask_yes_no=lambda *a, **kw: True)
+            ask_yes_no=lambda *a, **kw: True, add_tooltip=lambda widget, text: None)
         tree = ast.parse((ROOT/'main.py').read_text(encoding='utf-8'))
         nodes=[n for n in tree.body if isinstance(n,ast.ClassDef) and n.name in ('TimerRow','CookingModeWindow')]
         exec(compile(ast.Module(body=nodes,type_ignores=[]),'main.py','exec'),self.env)

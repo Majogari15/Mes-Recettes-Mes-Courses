@@ -6351,6 +6351,64 @@ def _ui_bind_local_mousewheel(canvas, container, callback):
     return bindtag
 
 
+class _Tooltip:
+    """Info-bulle affichée après un court survol, pour les boutons composés
+    d'une seule icône sans texte visible (ce que la souris seule permettait
+    de deviner par essai-erreur)."""
+
+    DELAY_MS = 500
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self._after_id = None
+        self._tip = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+        widget.bind("<Destroy>", self._hide, add="+")
+
+    def _schedule(self, _event=None):
+        self._hide()
+        self._after_id = self.widget.after(self.DELAY_MS, self._show)
+
+    def _show(self):
+        self._after_id = None
+        if self._tip is not None or not self.widget.winfo_exists():
+            return
+        x = self.widget.winfo_rootx() + 6
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+        self._tip = tk.Toplevel(self.widget)
+        self._tip.wm_overrideredirect(True)
+        try:
+            self._tip.wm_attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        self._tip.wm_geometry(f"+{x}+{y}")
+        tk.Label(self._tip, text=self.text, background=COLOR_TEXT, foreground=COLOR_BG,
+                 font=("Segoe UI", sf(9)), padx=8, pady=4, wraplength=280, justify="left").pack()
+
+    def _hide(self, _event=None):
+        if self._after_id is not None:
+            try:
+                self.widget.after_cancel(self._after_id)
+            except tk.TclError:
+                pass
+            self._after_id = None
+        if self._tip is not None:
+            try:
+                self._tip.destroy()
+            except tk.TclError:
+                pass
+            self._tip = None
+
+
+def add_tooltip(widget, text):
+    """Attache une info-bulle à un widget, typiquement un bouton icône-seule
+    (🗑, 👁, 🔄...) dont l'action n'est pas devinable sans l'essayer."""
+    return _Tooltip(widget, text)
+
+
 def _ui_attach_more_menu(button, items):
     menu = tk.Menu(button, tearoff=0)
     for label, command in items:
@@ -7195,9 +7253,20 @@ class App(APP_TK_BASE):
             t("corruptdata_blocked_message", files=names, copies=copies), parent=self
         )
 
+    def _recipes_available(self):
+        """Retourne True si au moins une recette existe. Sinon, plutôt
+        qu'un message bloquant sans suite possible, propose de créer la
+        première recette tout de suite : si l'utilisateur accepte et
+        l'enregistre, la fonctionnalité demandée s'ouvre normalement juste
+        après avec les données fraîchement créées."""
+        if self.recipes:
+            return True
+        if messagebox.askyesno(t("common_info"), t("home_empty_prompt_create_recipe")):
+            self.open_add_recipe()
+        return bool(self.recipes)
+
     def open_quick_search(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         QuickSearchWindow(self)
 
@@ -7668,8 +7737,10 @@ class App(APP_TK_BASE):
             ttk.Label(row, text=f"{translate_mealslot_name(slot)} :", width=18, anchor="w", style="Card.TLabel").pack(side="left")
             ttk.Label(row, text=f"{recipe_name} ({persons} pers.)", anchor="w",
                       style="Card.TLabel").pack(side="left")
-            ttk.Button(row, text="👁", width=3,
-                       command=lambda n=recipe_name: self._open_today_recipe(n)).pack(side="left", padx=5)
+            preview_btn = ttk.Button(row, text="👁", width=3,
+                       command=lambda n=recipe_name: self._open_today_recipe(n))
+            preview_btn.pack(side="left", padx=5)
+            add_tooltip(preview_btn, t("tooltip_preview_recipe"))
 
     def _open_today_recipe(self, recipe_name):
         win = OneRecipeWindow(self, initial_recipe_name=recipe_name)
@@ -7745,15 +7816,13 @@ class App(APP_TK_BASE):
 
     # ---------- Voir toutes les recettes ----------
     def open_all_recipes(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         AllRecipesWindow(self)
 
     # ---------- Voir une recette précise ----------
     def open_one_recipe(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         win = OneRecipeWindow(self)
         self.wait_window(win)
@@ -7761,8 +7830,7 @@ class App(APP_TK_BASE):
 
     # ---------- Modifier / Supprimer une recette ----------
     def open_manage_recipes(self, quick_filter=None, initial_search=""):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         win = ManageRecipesWindow(self, quick_filter=quick_filter, initial_search=initial_search)
         self.wait_window(win)
@@ -7837,8 +7905,7 @@ class App(APP_TK_BASE):
 
     # ---------- Que puis-je cuisiner ? ----------
     def open_what_can_i_cook(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         WhatCanICookWindow(self)
 
@@ -7856,8 +7923,7 @@ class App(APP_TK_BASE):
 
     # ---------- Planning de la semaine ----------
     def open_weekly_plan(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         win = WeeklyPlanWindow(self)
         self.wait_window(win)
@@ -7865,22 +7931,19 @@ class App(APP_TK_BASE):
 
     # ---------- Mes menus ----------
     def open_menus(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         MenuManagerWindow(self)
 
     # ---------- Statistiques ----------
     def open_statistics(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         StatisticsWindow(self)
 
     # ---------- Exporter le livre de recettes ----------
     def open_cookbook_export(self):
-        if not self.recipes:
-            messagebox.showinfo(t("common_info"), t("common_no_recipes"))
+        if not self._recipes_available():
             return
         CookbookExportWindow(self)
 
@@ -13283,8 +13346,10 @@ class ShoppingCartRenderMixin:
             qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
             qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
             ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
-            ttk.Button(row, text="🗑", width=3,
-                       command=lambda i=idx: self._delete_item(i)).pack(side="left", padx=3)
+            delete_btn = ttk.Button(row, text="🗑", width=3,
+                       command=lambda i=idx: self._delete_item(i))
+            delete_btn.pack(side="left", padx=3)
+            add_tooltip(delete_btn, t("tooltip_delete_item"))
 
         if self._shopping_sort_var.get() == "nom":
             for idx in _cart_items_sorted_by_name(self.current_items):
@@ -13799,10 +13864,12 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
             ttk.Label(
                 cell, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), anchor="w"
             ).grid(row=0, column=2, padx=3, sticky="w")
-            ttk.Button(
+            delete_btn = ttk.Button(
                 cell, text="🗑", width=3,
                 command=lambda i=idx: self._delete_item(i)
-            ).grid(row=0, column=3, padx=(3, 0))
+            )
+            delete_btn.grid(row=0, column=3, padx=(3, 0))
+            add_tooltip(delete_btn, t("tooltip_delete_item"))
 
         if self._shopping_sort_var.get() == "nom":
             items_frame = ttk.Frame(self.result_frame)
@@ -15449,8 +15516,10 @@ class TimerRow(tk.Frame):
         self.display_label = tk.Label(top_row, text=self._format_time(), font=("Segoe UI", sf(18), "bold"),
                                        background=COLOR_CARD, foreground=COLOR_ACCENT_DARK, width=7)
         self.display_label.pack(side="left", padx=10)
-        ttk.Button(top_row, text="🗑", width=3,
-                   command=lambda: self.timers_window.remove_timer(self)).pack(side="right")
+        delete_timer_btn = ttk.Button(top_row, text="🗑", width=3,
+                   command=lambda: self.timers_window.remove_timer(self))
+        delete_timer_btn.pack(side="right")
+        add_tooltip(delete_timer_btn, t("tooltip_delete_timer"))
 
         bottom_row = tk.Frame(self, background=COLOR_CARD)
         bottom_row.pack(fill="x", padx=8, pady=(0, 8))
@@ -15465,9 +15534,13 @@ class TimerRow(tk.Frame):
 
         self.start_button = ttk.Button(bottom_row, text="▶️", width=3, command=self.start)
         self.start_button.pack(side="left", padx=2)
+        add_tooltip(self.start_button, t("tooltip_start_timer"))
         self.pause_button = ttk.Button(bottom_row, text="⏸️", width=3, command=self.pause, state="disabled")
         self.pause_button.pack(side="left", padx=2)
-        ttk.Button(bottom_row, text="🔄", width=3, command=self.reset).pack(side="left", padx=2)
+        add_tooltip(self.pause_button, t("tooltip_pause_timer"))
+        reset_btn = ttk.Button(bottom_row, text="🔄", width=3, command=self.reset)
+        reset_btn.pack(side="left", padx=2)
+        add_tooltip(reset_btn, t("tooltip_reset_timer"))
 
         extend_row = tk.Frame(self, background=COLOR_CARD)
         extend_row.pack(fill="x", padx=8, pady=(0, 8))
