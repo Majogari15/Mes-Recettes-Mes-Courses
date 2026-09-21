@@ -1550,6 +1550,27 @@ def recipe_matches_search(recipe, search_key):
     return False
 
 
+def fuzzy_search_recipes(query, recipes, limit=8, threshold=0.45):
+    """Cherche des recettes proches d'une saisie approximative (faute de
+    frappe, accent oublié...) quand aucune correspondance exacte n'a été
+    trouvée. Même principe que rank_close_ingredients (SequenceMatcher, sans
+    dépendance externe), appliqué au nom et aux étiquettes de la recette."""
+    query_key = ingredient_sort_key(query)
+    if not query_key:
+        return []
+    scored = []
+    for recipe in recipes:
+        name_key = ingredient_sort_key(recipe.get("name", ""))
+        score = difflib.SequenceMatcher(None, query_key, name_key).ratio()
+        for tag in recipe.get("tags", []):
+            tag_score = difflib.SequenceMatcher(None, query_key, ingredient_sort_key(tag)).ratio()
+            score = max(score, tag_score)
+        if score >= threshold:
+            scored.append((score, recipe))
+    scored.sort(key=lambda item: (-item[0], ingredient_sort_key(item[1].get("name", ""))))
+    return [recipe for _score, recipe in scored[:limit]]
+
+
 RECIPE_SORT_OPTIONS = ["Nom (A-Z)", "Temps de préparation", "Temps total", "Difficulté", "Note", "Ajoutées récemment", "Plus cuisinées", "Dernière cuisson"]
 _DIFFICULTY_ORDER = {"Très facile": 0.5, "Facile": 1, "Moyen": 2, "Difficile": 3}
 
@@ -2247,6 +2268,17 @@ def get_expiring_pantry_items(days=5, include_expired=True):
             item["_days_to_expiry"] = delta
             result.append(item)
     return sorted(result, key=lambda e: (e.get("_days_to_expiry", 99999), ingredient_sort_key(e.get("name", ""))))
+
+
+def missing_recipe_ingredients(recipe, pantry_keys):
+    """Noms des ingrédients d'une recette absents du garde-manger.
+    ``pantry_keys`` doit être l'ensemble des clés (ingredient_sort_key) déjà
+    présentes dans load_pantry() — à calculer une seule fois par appelant
+    plutôt qu'à chaque recette."""
+    return [
+        ing.get("name", "") for ing in recipe.get("ingredients", [])
+        if ingredient_sort_key(ing.get("name", "")) not in pantry_keys
+    ]
 
 
 def get_low_stock_pantry_items():
@@ -6915,6 +6947,20 @@ def configure_app_style(root):
 
     style.configure("TPanedwindow", background=COLOR_BG)
 
+    # Bouton d'action principale (validation, enregistrement...) : jusqu'ici
+    # "Primary.TButton" était utilisé partout dans l'app sans jamais être
+    # défini, donc visuellement identique à un TButton normal — aucune
+    # hiérarchie visuelle entre l'action principale et les actions
+    # secondaires d'un même écran. Distingué du TButton normal par un texte
+    # gras et un padding plus généreux ; mêmes couleurs (repos/survol/
+    # désactivé) que TButton, volontairement, pour rester sur une
+    # combinaison déjà utilisée en production.
+    style.configure("Primary.TButton", background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT,
+                     font=("Segoe UI", sf(10), "bold"), padding=(14, 8), borderwidth=0, relief="flat")
+    style.map("Primary.TButton",
+              background=[("active", COLOR_ACCENT_DARK), ("disabled", "#D8CBB8")],
+              foreground=[("disabled", "#F4EEE3")])
+
     # Boutons secondaires plus discrets (utilisés pour des actions annexes) :
     # à activer au cas par cas avec style="Secondary.TButton" si besoin plus tard.
     style.configure("Secondary.TButton", background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
@@ -9949,6 +9995,24 @@ class ManageRecipesWindow(tk.Toplevel):
         except tk.TclError:
             pass
 
+    @staticmethod
+    def _on_card_hover_enter(card):
+        """Effet de survol ("élévation") : la bordure de la carte devient
+        plus marquée quand la souris passe au-dessus, qu'elle soit sur le
+        cadre lui-même ou sur l'un de ses enfants (qui recouvrent presque
+        toute sa surface visible)."""
+        try:
+            card.configure(highlightbackground=COLOR_ACCENT, highlightthickness=2)
+        except tk.TclError:
+            pass
+
+    @staticmethod
+    def _on_card_hover_leave(card):
+        try:
+            card.configure(highlightbackground=COLOR_BORDER, highlightthickness=1)
+        except tk.TclError:
+            pass
+
     def _render_grid_cards(self, shown):
         for child in self.grid_frame.winfo_children():
             child.destroy()
@@ -10014,11 +10078,15 @@ class ManageRecipesWindow(tk.Toplevel):
                 widget.bind("<Button-1>", lambda e, i=idx: self._select_grid_index(i))
                 widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
                 widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
+                widget.bind("<Enter>", lambda e, c=card: self._on_card_hover_enter(c))
+                widget.bind("<Leave>", lambda e, c=card: self._on_card_hover_leave(c))
             # Bind all non-tag labels inside body to opening/context as well.
             for widget in body.winfo_children():
                 if isinstance(widget, tk.Label) and widget.master is body:
                     widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
                     widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
+                    widget.bind("<Enter>", lambda e, c=card: self._on_card_hover_enter(c))
+                    widget.bind("<Leave>", lambda e, c=card: self._on_card_hover_leave(c))
 
     def _on_resize(self, event):
         if event.widget is not self or self.view_mode != "grid":
@@ -13821,6 +13889,11 @@ class QuickSearchWindow(tk.Toplevel):
         self.search_entry.bind("<Down>", lambda e: self.listbox.focus_set())
         self.bind("<Escape>", lambda e: self.destroy())
 
+        self.fuzzy_hint_label = ttk.Label(
+            self, text="", foreground=COLOR_TEXT_MUTED, font=("Segoe UI", sf(8))
+        )
+        self.fuzzy_hint_label.pack(padx=15, pady=(0, 2), fill="x")
+
         list_frame = ttk.Frame(self)
         list_frame.pack(padx=15, pady=(0, 10), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, font=("Segoe UI", sf(9)))
@@ -13842,11 +13915,24 @@ class QuickSearchWindow(tk.Toplevel):
         search = self.search_entry.get().strip()
         search_key = ingredient_sort_key(search) if search else ""
         self.matched_names = []
+        self.fuzzy_hint_label.configure(text="")
         for recipe in self.app.recipes:
             if search_key and not recipe_matches_search(recipe, search_key):
                 continue
             self.listbox.insert(tk.END, format_recipe_list_label(recipe))
             self.matched_names.append(recipe["name"])
+        # Aucune correspondance exacte : propose les recettes les plus
+        # proches (faute de frappe, accent oublié...) plutôt que de laisser
+        # l'utilisateur face à une liste vide.
+        if not self.matched_names and search_key and len(search) >= 3:
+            suggestions = fuzzy_search_recipes(search, self.app.recipes)
+            if suggestions:
+                self.fuzzy_hint_label.configure(
+                    text=t("quicksearch_fuzzy_hint", query=search)
+                )
+                for recipe in suggestions:
+                    self.listbox.insert(tk.END, format_recipe_list_label(recipe))
+                    self.matched_names.append(recipe["name"])
         if not self.matched_names:
             self.listbox.insert(tk.END, t("quicksearch_no_results"))
 
@@ -16810,13 +16896,14 @@ class UseSoonRecipesWindow(tk.Toplevel):
 
     def _populate(self):
         exp_keys = {ingredient_sort_key(e.get("name", "")): e for e in self.items}
+        pantry_keys = set(load_pantry().keys())
         scored = []
         for recipe in self.app.recipes:
             recipe_keys = {ingredient_sort_key(i.get("name", "")) for i in recipe.get("ingredients", [])}
             used = [e for k, e in exp_keys.items() if k in recipe_keys]
             if not used:
                 continue
-            missing = [i.get("name", "") for i in recipe.get("ingredients", []) if ingredient_sort_key(i.get("name", "")) not in {ingredient_sort_key(x.get("name", "")) for x in load_pantry().values()}]
+            missing = missing_recipe_ingredients(recipe, pantry_keys)
             scored.append((len(used), len(missing), recipe, used, missing))
         scored.sort(key=lambda x: (-x[0], x[1], ingredient_sort_key(x[2].get("name", ""))))
         for _, _, recipe, used, missing in scored:
