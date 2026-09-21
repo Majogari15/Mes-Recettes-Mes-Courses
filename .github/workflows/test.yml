@@ -7,6 +7,29 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Version épinglée : un premier essai avec "pip install ruff" (sans
+      # version) a pris la 0.16.8 alors que la config avait été testée avec
+      # la 0.15.8 — la sélection de règles "par défaut" de ruff a changé
+      # entre les deux, donnant 328 signalements au lieu de 0 pour un code
+      # identique. pyproject.toml sélectionne maintenant les règles
+      # explicitement (donc les deux versions sont propres), mais autant
+      # épingler comme le reste des dépendances du projet.
+      - name: Install ruff
+        run: pip install ruff==0.16.8
+      # Configuration dans pyproject.toml : sélectionne explicitement E/F,
+      # en ignorant les règles de style (lignes/instructions multiples,
+      # longueur) déjà en place partout dans ce projet, pour ne signaler que
+      # de vrais problèmes (imports inutilisés, except nu, variable ambiguë...).
+      - name: Run ruff
+        run: ruff check .
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -49,9 +72,26 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: xvfb-run -a python -m pytest tests/ -v --cov=main --cov-report=xml
 
+      # Sur les runners Windows hébergés, le dossier Tcl/Tk venant d'être
+      # écrit dans le hostedtoolcache est parfois encore verrouillé par un
+      # scan antivirus au moment où pytest crée sa première fenêtre Tk,
+      # ce qui produit une erreur Tcl transitoire ("couldn't read file
+      # ...: No error") alors que le même fichier est lisible l'instant
+      # d'après (l'étape "Verify tkinter is available" plus haut a réussi
+      # sur la même machine quelques secondes avant). On retente une fois
+      # après une courte pause avant d'abandonner ; un second échec reste
+      # un vrai échec.
       - name: Run tests (Windows)
         if: matrix.os == 'windows-latest'
-        run: python -m pytest tests/ -v --cov=main --cov-report=xml
+        shell: pwsh
+        run: |
+          python -m pytest tests/ -v --cov=main --cov-report=xml
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::Premiere tentative echouee, nouvelle tentative apres une pause (voir commentaire de l'etape pour la cause probable)."
+            Start-Sleep -Seconds 10
+            python -m pytest tests/ -v --cov=main --cov-report=xml
+          }
+          exit $LASTEXITCODE
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
