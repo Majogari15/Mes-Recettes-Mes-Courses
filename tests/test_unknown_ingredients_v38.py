@@ -1,5 +1,6 @@
 import inspect
 import unittest
+from types import SimpleNamespace
 
 import main
 
@@ -73,6 +74,28 @@ class UnknownIngredientsV38Tests(unittest.TestCase):
     def test_prefilled_suggestion_is_selected_for_direct_retyping(self):
         source = inspect.getsource(main.UnknownIngredientsDialog._on_replacement_focus_in)
         self.assertIn("select_range(0, tk.END)", source)
+
+    def test_did_you_mean_hint_suggests_close_ingredient_while_typing(self):
+        fake = SimpleNamespace(ingredient_names=["Tomate", "Oignon", "Farine"])
+        self.assertEqual(main.RecipeFormWindow._did_you_mean_hint(fake, "Tomates"), "Tomate")
+
+    def test_did_you_mean_hint_ignores_already_known_ingredient(self):
+        fake = SimpleNamespace(ingredient_names=["Tomate", "Oignon"])
+        self.assertIsNone(main.RecipeFormWindow._did_you_mean_hint(fake, "Tomate"))
+
+    def test_did_you_mean_hint_ignores_short_or_unrelated_text(self):
+        fake = SimpleNamespace(ingredient_names=["Tomate", "Oignon"])
+        self.assertIsNone(main.RecipeFormWindow._did_you_mean_hint(fake, "To"))
+        self.assertIsNone(main.RecipeFormWindow._did_you_mean_hint(fake, "Xylophone"))
+
+    def test_ingredient_keyrelease_falls_back_to_did_you_mean_hint(self):
+        # Repli en temps réel pendant la frappe, en plus de la résolution
+        # existante à l'enregistrement (UnknownIngredientsDialog) : même
+        # mécanisme de popup de suggestions, avec value_map pour insérer le
+        # nom réel plutôt que la phrase affichée.
+        source = inspect.getsource(main.RecipeFormWindow._on_ingredient_keyrelease)
+        self.assertIn("_did_you_mean_hint", source)
+        self.assertIn("value_map", source)
 
 
 if __name__ == "__main__":

@@ -1,11 +1,13 @@
 import inspect
 import json
-import math
 import os
 import tempfile
+import tkinter as tk
 import unittest
 import zipfile
 from pathlib import Path
+from tkinter import ttk
+from unittest.mock import patch
 
 import main
 
@@ -114,6 +116,32 @@ class CoreRegressionTests(TempDataMixin, unittest.TestCase):
         total, known, count = main.compute_recipe_cost(r, 2)
         self.assertAlmostEqual(total, 22.0)
         self.assertEqual((known, count), (2, 2))
+
+    def test_cart_cost_sums_known_prices_and_counts_unknown(self):
+        # compute_cart_cost partage la conversion d'unités de
+        # compute_recipe_cost, mais part de quantités déjà absolues (liste
+        # de courses sommée entre recettes), pas par personne.
+        main.save_ingredient_prices({
+            "farine": {"name": "Farine", "price": 10, "unit": "kg"},
+            "lait": {"name": "Lait", "price": 2, "unit": "L"},
+        })
+        items = [
+            {"name": "Farine", "quantity": 1000, "unit": "Gr", "rayon": "Epicerie"},
+            {"name": "Lait", "quantity": 500, "unit": "cl", "rayon": "Cremerie"},
+            {"name": "Sel", "quantity": 1, "unit": "pièce", "rayon": "Epicerie"},
+        ]
+        total, known, count = main.compute_cart_cost(items)
+        self.assertAlmostEqual(total, 20.0)  # 1 kg farine (10) + 5 L lait (10)
+        self.assertEqual((known, count), (2, 3))
+
+    def test_cart_items_sorted_by_name_ignores_rayon(self):
+        items = [
+            {"name": "Yaourt", "quantity": 1, "unit": "pièce", "rayon": "Cremerie"},
+            {"name": "Abricot", "quantity": 1, "unit": "pièce", "rayon": "Fruits"},
+            {"name": "Farine", "quantity": 1, "unit": "Gr", "rayon": "Epicerie"},
+        ]
+        order = main._cart_items_sorted_by_name(items)
+        self.assertEqual([items[i]["name"] for i in order], ["Abricot", "Farine", "Yaourt"])
 
     def test_plan_old_name_migrates_to_id_and_survives_rename(self):
         r = self.recipe("stable-id", name="Ancien nom")
@@ -273,6 +301,84 @@ class StaticRegressionTests(unittest.TestCase):
         # le sélecteur de fichier doit donc aussi afficher les ".txt".
         src = inspect.getsource(main.ImportExportWindow.import_shared_data)
         self.assertIn("*.txt", src)
+
+class ShoppingListWidgetTests(TempDataMixin, unittest.TestCase):
+    """Instancie réellement les 3 fenêtres liste de courses (Toutes les
+    recettes, Planning, Nouveau menu) pour vérifier que le coût total et le
+    tri par nom s'affichent bien à l'écran, plutôt que d'inspecter le texte
+    source des méthodes (ce que faisait l'ancienne version de ce test :
+    elle passait même si le rendu réel était cassé)."""
+
+    def setUp(self):
+        super().setUp()
+        main.save_recipes([{
+            "id": "r1", "name": "Recette test", "default_persons": 2,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [{"name": "Farine", "quantity": 200, "unit": "g"}],
+        }])
+        main.save_ingredients(["Farine"])
+        main.save_ingredient_prices({"farine": {"name": "Farine", "price": 2, "unit": "kg"}})
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.app.withdraw()
+        self.addCleanup(self.app.destroy)
+
+    @staticmethod
+    def _descendants(widget):
+        found = []
+        for child in widget.winfo_children():
+            found.append(child)
+            found.extend(ShoppingListWidgetTests._descendants(child))
+        return found
+
+    def _assert_cost_and_sort_shown(self, win):
+        self.addCleanup(win.destroy)
+        win.current_items = [
+            {"name": "Farine", "quantity": 2000, "unit": "g", "rayon": "Épicerie"},
+        ]
+        win._render_shopping_list()
+        self.app.update()
+
+        widgets = self._descendants(win.result_frame)
+        expected_cost_text = main.t("onerecipe_cost_label", cost="4.00", partial="")
+        labels = [w for w in widgets if isinstance(w, ttk.Label)]
+        self.assertTrue(
+            any(lbl.cget("text") == expected_cost_text for lbl in labels),
+            f"coût attendu {expected_cost_text!r} absent, labels vus : {[lbl.cget('text') for lbl in labels]}",
+        )
+
+        radios = [w for w in widgets if isinstance(w, ttk.Radiobutton)]
+        self.assertEqual(sorted(r.cget("value") for r in radios), ["nom", "rayon"])
+        rayon_heading = main.translate_rayon_name("Épicerie")
+        self.assertTrue(any(isinstance(w, ttk.Label) and w.cget("text") == rayon_heading for w in widgets))
+
+        next(r for r in radios if r.cget("value") == "nom").invoke()
+        self.app.update()
+        self.assertEqual(win._shopping_sort_var.get(), "nom")
+        widgets_after_sort = self._descendants(win.result_frame)
+        self.assertFalse(any(
+            isinstance(w, ttk.Label) and w.cget("text") == rayon_heading for w in widgets_after_sort
+        ), "l'en-tête de rayon ne devrait plus apparaître après le tri par nom")
+
+    def test_all_recipes_window_shows_cost_and_sort(self):
+        self._assert_cost_and_sort_shown(main.AllRecipesWindow(self.app))
+
+    def test_weekly_plan_window_shows_cost_and_sort(self):
+        self._assert_cost_and_sort_shown(main.WeeklyPlanWindow(self.app))
+
+    def test_menu_form_window_shows_cost_and_sort(self):
+        self._assert_cost_and_sort_shown(main.MenuFormWindow(self.app, manager=None, menu_index=None))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

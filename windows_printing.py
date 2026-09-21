@@ -85,7 +85,7 @@ def load_pdf_engine():
             f"pypdfium2: {type(exc).__name__}: {exc}"
         ) from exc
     try:
-        from PIL import Image  # Le rendu final utilise PIL.
+        from PIL import Image  # noqa: F401 — sert seulement à vérifier que Pillow est importable ici.
     except Exception as exc:
         raise PrintDependencyError(
             f"Pillow: {type(exc).__name__}: {exc}"

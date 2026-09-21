@@ -1,5 +1,4 @@
 """Cases from the seven user PDFs and the data-safety audit."""
-import copy
 import io
 import json
 import os
@@ -66,9 +65,18 @@ class FinalizeV78Tests(TempDataMixin, unittest.TestCase):
 
     def test_draft_containment_and_legacy(self):
         victim=self.base/'outside.json';victim.write_text('keep')
+        # recipe_draft_path() compare via os.path.realpath(DRAFTS_DIR) pour sa
+        # propre verification de confinement ; certains runners Windows
+        # resolvent un composant du chemin temporaire (ex. le dossier du
+        # compte utilisateur) sous sa forme courte 8.3 (RUNNER~1) via
+        # realpath, alors que main.DRAFTS_DIR (fixe par le test) garde la
+        # forme longue d'origine. Comparer ici avec le meme realpath evite un
+        # faux echec du au choix de representation, sans rien assouplir a la
+        # verification de securite elle-meme.
+        drafts_root=os.path.realpath(main.DRAFTS_DIR)
         for rid in ['x/../../outside','..\\..\\outside','a/b','C:\\temp\\x']:
             path=main.recipe_draft_path(rid)
-            self.assertEqual(os.path.commonpath([main.DRAFTS_DIR,path]),main.DRAFTS_DIR)
+            self.assertEqual(os.path.commonpath([drafts_root,path]),drafts_root)
             main._atomic_write_json(path,{'name':'draft'})
             main.delete_recipe_draft({'id':rid})
             self.assertFalse(Path(path).exists())
