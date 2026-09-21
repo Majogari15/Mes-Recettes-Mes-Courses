@@ -6967,6 +6967,14 @@ def configure_app_style(root):
                      padding=(12, 7))
     style.map("Secondary.TButton", background=[("active", COLOR_ACCENT_LIGHT)])
 
+    # Indicateur de focus clavier pour les étoiles de note (ttk.Label ne
+    # supporte pas highlightbackground/highlightthickness, contrairement à
+    # tk.Label/tk.Frame) : juste un style="TLabel" avec une couleur d'accent
+    # échangé au focus/perte de focus, sans style.map (aucun risque du bug
+    # de blocage déjà rencontré avec Primary.TButton, spécifique aux "state
+    # maps").
+    style.configure("RatingStarFocus.TLabel", foreground=COLOR_ACCENT)
+
     # Menu déroulant de langue : même habillage visuel que les boutons
     # secondaires ci-dessus, pour rester cohérent dans la barre du haut.
     style.configure("Secondary.TMenubutton", background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
@@ -7388,7 +7396,8 @@ class App(APP_TK_BASE):
         ]
         for col, (title, subtitle, command) in enumerate(cards):
             primary.columnconfigure(col, weight=1, uniform="primary")
-            card = tk.Frame(primary, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
+            card = tk.Frame(primary, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
+                             highlightcolor=COLOR_BORDER, highlightthickness=1, cursor="hand2", takefocus=1)
             card.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0 if col == 3 else 6), pady=2)
             title_lbl = tk.Label(card, text=title, background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
                                  font=("Segoe UI", sf(12), "bold"), cursor="hand2")
@@ -7398,6 +7407,15 @@ class App(APP_TK_BASE):
             sub_lbl.pack(padx=14, pady=(0, 16))
             for w in (card, title_lbl, sub_lbl):
                 w.bind("<Button-1>", lambda e, c=command: c())
+            # Ces 4 cartes sont les entrées principales de navigation de
+            # l'accueil : atteignables au clavier (Tab) comme les cartes de
+            # recettes, avec le même indicateur de focus visible.
+            card.bind("<FocusIn>", lambda e, c=card: c.configure(
+                highlightbackground=COLOR_ACCENT, highlightcolor=COLOR_ACCENT, highlightthickness=2))
+            card.bind("<FocusOut>", lambda e, c=card: c.configure(
+                highlightbackground=COLOR_BORDER, highlightcolor=COLOR_BORDER, highlightthickness=1))
+            card.bind("<Return>", lambda e, c=command: c())
+            card.bind("<space>", lambda e, c=command: c())
 
         # Filtres rapides, compacts.
         filters = ttk.Frame(main)
@@ -7457,6 +7475,22 @@ class App(APP_TK_BASE):
         ttk.Label(main, text=t("home_alerts_title"), style="Section.TLabel").pack(anchor="w", pady=(20, 8))
         alerts = tk.Frame(main, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
         alerts.pack(fill="x")
+
+        def _make_alert_row_focusable(row, action):
+            # Ces bandeaux d'alerte étaient cliquables à la souris
+            # uniquement : atteignables au clavier (Tab) désormais, avec un
+            # anneau de focus visible (invisible au repos, l'anneau se
+            # confond avec le fond de la carte tant que la ligne n'a pas le
+            # focus clavier).
+            row.configure(highlightbackground=COLOR_CARD, highlightcolor=COLOR_CARD,
+                          highlightthickness=2, takefocus=1)
+            row.bind("<Return>", lambda e: action())
+            row.bind("<space>", lambda e: action())
+            row.bind("<FocusIn>", lambda e, r=row: r.configure(
+                highlightbackground=COLOR_ACCENT, highlightcolor=COLOR_ACCENT))
+            row.bind("<FocusOut>", lambda e, r=row: r.configure(
+                highlightbackground=COLOR_CARD, highlightcolor=COLOR_CARD))
+
         any_alert = False
         if low_stock:
             any_alert = True
@@ -7466,6 +7500,7 @@ class App(APP_TK_BASE):
                            font=("Segoe UI", sf(9)), wraplength=850)
             row.pack(fill="x", padx=14, pady=8)
             row.bind("<Button-1>", lambda e, items=low_stock: self._open_low_stock_to_cart(items))
+            _make_alert_row_focusable(row, lambda items=low_stock: self._open_low_stock_to_cart(items))
         expiring = get_expiring_pantry_items(days=5)
         if expiring:
             any_alert = True
@@ -7474,6 +7509,7 @@ class App(APP_TK_BASE):
                            font=("Segoe UI", sf(9)), wraplength=850)
             row.pack(fill="x", padx=14, pady=8)
             row.bind("<Button-1>", lambda e, items=expiring: UseSoonRecipesWindow(self, items))
+            _make_alert_row_focusable(row, lambda items=expiring: UseSoonRecipesWindow(self, items))
         stale = []
         for r in self.recipes:
             if r.get("wishlist") and r.get("wishlist_since"):
@@ -7489,6 +7525,7 @@ class App(APP_TK_BASE):
                            font=("Segoe UI", sf(9)), wraplength=850)
             row.pack(fill="x", padx=14, pady=8)
             row.bind("<Button-1>", lambda e: self.open_manage_recipes(quick_filter="envie"))
+            _make_alert_row_focusable(row, lambda: self.open_manage_recipes(quick_filter="envie"))
         if not any_alert:
             ttk.Label(alerts, text=t("home_no_alerts"), style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(anchor="w", padx=14, pady=12)
 
@@ -8181,9 +8218,18 @@ class RecipeFormWindow(tk.Toplevel):
         ttk.Label(rating_frame, text=t("recipeform_rating_label")).pack(side="left", padx=(0, 5))
         self.rating_star_labels = []
         for i in range(1, 6):
-            lbl = ttk.Label(rating_frame, text="☆", font=("Segoe UI", sf(14)), cursor="hand2")
+            lbl = ttk.Label(rating_frame, text="☆", font=("Segoe UI", sf(14)), cursor="hand2", takefocus=1)
             lbl.pack(side="left")
             lbl.bind("<Button-1>", lambda e, i=i: self._set_rating(i))
+            # Les étoiles n'avaient aucun équivalent clavier : impossible de
+            # noter une recette sans souris. Atteignables au Tab désormais,
+            # Entrée/Espace valident comme un clic, et le style change au
+            # focus pour rester visible (pas de highlightthickness sur les
+            # widgets ttk).
+            lbl.bind("<Return>", lambda e, i=i: self._set_rating(i))
+            lbl.bind("<space>", lambda e, i=i: self._set_rating(i))
+            lbl.bind("<FocusIn>", lambda e, w=lbl: w.configure(style="RatingStarFocus.TLabel"))
+            lbl.bind("<FocusOut>", lambda e, w=lbl: w.configure(style="TLabel"))
             self.rating_star_labels.append(lbl)
         self._refresh_rating_stars()
 
