@@ -143,21 +143,121 @@ class RecipeCardHoverTests(AppWindowTestBase):
         self.addCleanup(win.destroy)
         self.assertEqual(win.view_mode, "grid")
         self.assertTrue(win._grid_items)
-        _idx, card = win._grid_items[0]
+        idx, card = win._grid_items[0]
         before = (str(card.cget("highlightbackground")), card.cget("highlightthickness"))
 
         # event_generate("<Enter>") exige un vrai déplacement de la souris
         # suivi par le serveur X, indisponible sous Xvfb sans gestionnaire
         # de fenêtres : on appelle directement le vrai gestionnaire lié au
         # survol, comme le ferait le passage réel du curseur.
-        win._on_card_hover_enter(card)
+        win._on_card_hover_enter(idx, card)
         after_enter = (str(card.cget("highlightbackground")), card.cget("highlightthickness"))
 
-        win._on_card_hover_leave(card)
+        win._on_card_hover_leave(idx, card)
         after_leave = (str(card.cget("highlightbackground")), card.cget("highlightthickness"))
 
         self.assertNotEqual(before, after_enter)
         self.assertEqual(before, after_leave)
+
+
+class RecipeCardKeyboardNavigationTests(AppWindowTestBase):
+    """Les cartes de recettes (vue grille, par défaut) n'étaient atteignables
+    qu'à la souris — aucun moyen d'y accéder ni de les ouvrir au clavier,
+    contrairement à la vue liste (Treeview). Vérifie que Tab, les flèches et
+    Entrée/Espace fonctionnent réellement sur de vrais widgets."""
+
+    def setUp(self):
+        super().setUp()
+        main.save_recipes([
+            {
+                "id": f"r{i}", "name": f"Recette {i}", "default_persons": 4,
+                "category": "Plat", "difficulty": "Facile", "images": [],
+                "ingredients": [], "steps": [], "tags": [],
+            }
+            for i in range(6)
+        ])
+        self.app.refresh_recipes()
+
+    def test_recipe_card_is_reachable_by_tab(self):
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        _idx, card = win._grid_items[0]
+        self.assertEqual(str(card.cget("takefocus")), "1")
+
+    def test_keyboard_focus_shows_the_same_border_as_mouse_hover(self):
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        _idx, card = win._grid_items[0]
+        before = (str(card.cget("highlightbackground")), card.cget("highlightthickness"))
+
+        card.focus_set()
+        win.update()
+        during = (str(card.cget("highlightbackground")), card.cget("highlightthickness"))
+
+        win.focus_set()
+        win.update()
+        after = (str(card.cget("highlightbackground")), card.cget("highlightthickness"))
+
+        self.assertNotEqual(before, during)
+        self.assertEqual(before, after)
+
+    def test_arrow_right_then_left_moves_focus_between_adjacent_cards(self):
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        self.assertGreaterEqual(len(win._grid_items), 2)
+        first_idx, first_card = win._grid_items[0]
+        _second_idx, second_card = win._grid_items[1]
+
+        win._move_grid_focus(first_idx, delta_col=1)
+        win.update()
+        self.assertIs(win.focus_get(), second_card)
+
+        win._move_grid_focus(_second_idx, delta_col=-1)
+        win.update()
+        self.assertIs(win.focus_get(), first_card)
+
+    def test_arrow_left_from_the_first_card_does_not_move_focus_away(self):
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        first_idx, first_card = win._grid_items[0]
+        first_card.focus_set()
+        win.update()
+
+        win._move_grid_focus(first_idx, delta_col=-1)
+        win.update()
+
+        self.assertIs(win.focus_get(), first_card)
+
+    def test_selected_card_keeps_its_border_after_the_mouse_or_focus_leaves(self):
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        idx, card = win._grid_items[0]
+        win._select_grid_index(idx)
+        selected = (str(card.cget("highlightbackground")), card.cget("highlightthickness"))
+
+        win._on_card_hover_leave(idx, card)
+
+        self.assertEqual(
+            (str(card.cget("highlightbackground")), card.cget("highlightthickness")),
+            selected,
+        )
+
+    def test_enter_key_opens_the_focused_card_recipe(self):
+        # event_generate("<Return>") pour une touche exige un vrai focus
+        # clavier X11 (routage), indisponible sous Xvfb sans gestionnaire de
+        # fenêtres — on appelle directement le vrai gestionnaire lié à la
+        # touche, comme le ferait une pression réelle sur Entrée/Espace.
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        idx, card = win._grid_items[0]
+        self.assertTrue(card.bind("<Return>"))
+        self.assertTrue(card.bind("<space>"))
+
+        opened = []
+        with patch.object(win, "_open_index", lambda i: opened.append(i)):
+            win._on_card_activate(idx)
+
+        self.assertEqual(opened, [idx])
 
 
 if __name__ == "__main__":

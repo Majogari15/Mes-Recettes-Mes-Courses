@@ -9660,6 +9660,7 @@ class ManageRecipesWindow(tk.Toplevel):
         self.display_limit = self.PAGE_SIZE
         self._grid_refs = []
         self._grid_items = []
+        self._grid_columns = 1
         self._resize_after = None
         self._context_index = None
         settings = load_settings()
@@ -9995,23 +9996,54 @@ class ManageRecipesWindow(tk.Toplevel):
         except tk.TclError:
             pass
 
-    @staticmethod
-    def _on_card_hover_enter(card):
-        """Effet de survol ("élévation") : la bordure de la carte devient
-        plus marquée quand la souris passe au-dessus, qu'elle soit sur le
-        cadre lui-même ou sur l'un de ses enfants (qui recouvrent presque
-        toute sa surface visible)."""
+    def _on_card_hover_enter(self, idx, card):
+        """Effet de survol/focus ("élévation") : la bordure de la carte
+        devient plus marquée au survol de la souris OU quand elle reçoit le
+        focus clavier (Tab), qu'il s'agisse du cadre lui-même ou de l'un de
+        ses enfants (qui recouvrent presque toute sa surface visible).
+        highlightbackground sert à la bordure hors focus (survol souris),
+        highlightcolor à la bordure quand le widget a réellement le focus
+        clavier — les deux sont mis à jour pour couvrir les deux cas."""
         try:
-            card.configure(highlightbackground=COLOR_ACCENT, highlightthickness=2)
+            card.configure(highlightbackground=COLOR_ACCENT, highlightcolor=COLOR_ACCENT,
+                            highlightthickness=2)
         except tk.TclError:
             pass
 
-    @staticmethod
-    def _on_card_hover_leave(card):
+    def _on_card_hover_leave(self, idx, card):
+        # La carte sélectionnée (dernier clic gauche/clic droit) garde sa
+        # bordure d'accent même quand la souris s'en éloigne ou qu'elle perd
+        # le focus clavier.
+        if idx == self._context_index:
+            return
         try:
-            card.configure(highlightbackground=COLOR_BORDER, highlightthickness=1)
+            card.configure(highlightbackground=COLOR_BORDER, highlightcolor=COLOR_BORDER,
+                            highlightthickness=1)
         except tk.TclError:
             pass
+
+    def _on_card_activate(self, idx, _event=None):
+        """Ouvre la recette d'une carte activée au clavier (Entrée/Espace),
+        même action que le double-clic ou le Retour en vue liste."""
+        self._open_index(idx)
+
+    def _move_grid_focus(self, current_idx, delta_row=0, delta_col=0):
+        """Déplace le focus clavier vers la carte adjacente (haut/bas/
+        gauche/droite) dans la grille, sans effet si on est déjà au bord."""
+        positions = [idx for idx, _card in self._grid_items]
+        if current_idx not in positions:
+            return
+        pos = positions.index(current_idx)
+        columns = self._grid_columns or 1
+        row, col = divmod(pos, columns)
+        new_row, new_col = row + delta_row, col + delta_col
+        if new_col < 0 or new_col >= columns:
+            return
+        new_pos = new_row * columns + new_col
+        if not (0 <= new_pos < len(positions)):
+            return
+        _idx, card = self._grid_items[new_pos]
+        card.focus_set()
 
     def _render_grid_cards(self, shown):
         for child in self.grid_frame.winfo_children():
@@ -10021,13 +10053,18 @@ class ManageRecipesWindow(tk.Toplevel):
         available = max(gs(760), self.winfo_width() - gs(70))
         card_target = gs(285)
         columns = max(2, min(4, available // card_target))
+        self._grid_columns = columns
         for c in range(columns):
             self.grid_frame.grid_columnconfigure(c, weight=1, uniform="recipe_cards")
 
         for pos, (idx, recipe) in enumerate(shown):
             row, col = divmod(pos, columns)
+            # takefocus=1 : sans lui, une carte (tk.Frame) n'est jamais
+            # atteignable au clavier (Tab) — seule la vue liste l'était
+            # jusqu'ici. La bordure d'accent (survol/sélection) sert aussi
+            # d'indicateur de focus clavier visible.
             card = tk.Frame(self.grid_frame, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
-                            highlightthickness=1, cursor="hand2")
+                            highlightthickness=1, cursor="hand2", takefocus=1)
             card.grid(row=row, column=col, padx=7, pady=7, sticky="nsew")
             self._grid_items.append((idx, card))
 
@@ -10078,15 +10115,29 @@ class ManageRecipesWindow(tk.Toplevel):
                 widget.bind("<Button-1>", lambda e, i=idx: self._select_grid_index(i))
                 widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
                 widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
-                widget.bind("<Enter>", lambda e, c=card: self._on_card_hover_enter(c))
-                widget.bind("<Leave>", lambda e, c=card: self._on_card_hover_leave(c))
+                widget.bind("<Enter>", lambda e, i=idx, c=card: self._on_card_hover_enter(i, c))
+                widget.bind("<Leave>", lambda e, i=idx, c=card: self._on_card_hover_leave(i, c))
             # Bind all non-tag labels inside body to opening/context as well.
             for widget in body.winfo_children():
                 if isinstance(widget, tk.Label) and widget.master is body:
                     widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
                     widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
-                    widget.bind("<Enter>", lambda e, c=card: self._on_card_hover_enter(c))
-                    widget.bind("<Leave>", lambda e, c=card: self._on_card_hover_leave(c))
+                    widget.bind("<Enter>", lambda e, i=idx, c=card: self._on_card_hover_enter(i, c))
+                    widget.bind("<Leave>", lambda e, i=idx, c=card: self._on_card_hover_leave(i, c))
+
+            # Navigation clavier : la carte elle-même est l'unique arrêt de
+            # tabulation (ses enfants ne prennent jamais le focus). Entrée
+            # et Espace ouvrent la recette, comme un double-clic ; les
+            # flèches déplacent le focus vers la carte adjacente, comme dans
+            # une vraie grille.
+            card.bind("<FocusIn>", lambda e, i=idx, c=card: self._on_card_hover_enter(i, c))
+            card.bind("<FocusOut>", lambda e, i=idx, c=card: self._on_card_hover_leave(i, c))
+            card.bind("<Return>", lambda e, i=idx: self._on_card_activate(i))
+            card.bind("<space>", lambda e, i=idx: self._on_card_activate(i))
+            card.bind("<Left>", lambda e, i=idx: self._move_grid_focus(i, delta_col=-1))
+            card.bind("<Right>", lambda e, i=idx: self._move_grid_focus(i, delta_col=1))
+            card.bind("<Up>", lambda e, i=idx: self._move_grid_focus(i, delta_row=-1))
+            card.bind("<Down>", lambda e, i=idx: self._move_grid_focus(i, delta_row=1))
 
     def _on_resize(self, event):
         if event.widget is not self or self.view_mode != "grid":
@@ -10110,9 +10161,12 @@ class ManageRecipesWindow(tk.Toplevel):
 
     def _select_grid_index(self, idx):
         self._context_index = idx
-        # Bordure d'accent sur la carte sélectionnée.
+        # Bordure d'accent sur la carte sélectionnée (highlightcolor est
+        # aussi mis à jour : c'est cette option, et non highlightbackground,
+        # que Tk affiche pour une carte qui a par ailleurs le focus clavier).
         for i, card in self._grid_items:
-            card.configure(highlightbackground=COLOR_ACCENT if i == idx else COLOR_BORDER,
+            color = COLOR_ACCENT if i == idx else COLOR_BORDER
+            card.configure(highlightbackground=color, highlightcolor=color,
                            highlightthickness=2 if i == idx else 1)
 
     def _show_tree_context(self, event):
