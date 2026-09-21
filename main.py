@@ -5902,6 +5902,17 @@ def gs(size):
     return round(size * FONT_SCALE)
 
 
+# Échelle d'espacement (padx/pady) à multiples de 8, pour un rythme visuel
+# cohérent au lieu de valeurs ad hoc (14, 18, 22, 9...) qui ne veulent rien
+# dire les unes par rapport aux autres. À passer dans gs(...) comme n'importe
+# quelle autre dimension pour qu'il suive le mode « Texte agrandi ».
+SPACE_XS = 4
+SPACE_SM = 8
+SPACE_MD = 16
+SPACE_LG = 24
+SPACE_XL = 32
+
+
 def get_large_text_preference():
     return bool(load_settings().get("large_text", False))
 
@@ -7375,13 +7386,13 @@ class App(APP_TK_BASE):
         top_bar = tk.Frame(self, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
         top_bar.pack(fill="x")
         ttk.Button(top_bar, text=t("home_donate_button"), style="Hero.TButton",
-                   command=self.open_donate_page).pack(side="left", padx=14, pady=10)
+                   command=self.open_donate_page).pack(side="left", padx=gs(SPACE_MD), pady=gs(SPACE_SM))
         ttk.Label(top_bar, text=t("home_window_title"), font=("Segoe UI", sf(15), "bold"),
-                  style="Card.TLabel").pack(side="left", padx=(4, 18))
+                  style="Card.TLabel").pack(side="left", padx=(gs(SPACE_XS), gs(SPACE_MD)))
 
         # Recherche visible (Ctrl+K reste disponible partout).
         search_wrap = ttk.Frame(top_bar, style="Card.TFrame")
-        search_wrap.pack(side="left", fill="x", expand=True, padx=8, pady=10)
+        search_wrap.pack(side="left", fill="x", expand=True, padx=gs(SPACE_SM), pady=gs(SPACE_SM))
         self.home_search_var = tk.StringVar()
         home_search = ttk.Entry(search_wrap, textvariable=self.home_search_var, font=("Segoe UI", sf(10)))
         home_search.pack(side="left", fill="x", expand=True, ipady=4)
@@ -7398,7 +7409,7 @@ class App(APP_TK_BASE):
         home_search.bind("<FocusIn>", _search_focus_in)
         home_search.bind("<FocusOut>", _search_focus_out)
         home_search.bind("<Return>", self._open_home_search)
-        ttk.Button(search_wrap, text="🔎", width=3, command=self._open_home_search).pack(side="left", padx=(6, 0))
+        ttk.Button(search_wrap, text="🔎", width=3, command=self._open_home_search).pack(side="left", padx=(gs(SPACE_SM), 0))
 
         language_names = {"fr": "Français", "en": "English", "es": "Español", "de": "Deutsch"}
         current_flag = self.flag_photos.get(self.language)
@@ -7414,7 +7425,7 @@ class App(APP_TK_BASE):
                 item.update(image=flag, compound="left")
             lang_menu.add_command(**item)
         lang_btn["menu"] = lang_menu
-        lang_btn.pack(side="right", padx=(4, 12), pady=10)
+        lang_btn.pack(side="right", padx=(gs(SPACE_XS), gs(SPACE_MD)), pady=gs(SPACE_SM))
 
         settings_btn = ttk.Menubutton(top_bar, text=t("home_settings_button"), style="Secondary.TMenubutton")
         settings_menu = tk.Menu(settings_btn, tearoff=False)
@@ -7425,7 +7436,7 @@ class App(APP_TK_BASE):
         settings_menu.add_command(label=t("diagnostic_button"), command=lambda: DiagnosticWindow(self))
         settings_menu.add_command(label=t("keyboard_shortcuts"), command=lambda: messagebox.showinfo(t("keyboard_shortcuts"), t("keyboard_shortcuts_text"), parent=self))
         settings_btn["menu"] = settings_menu
-        settings_btn.pack(side="right", padx=4, pady=10)
+        settings_btn.pack(side="right", padx=gs(SPACE_XS), pady=gs(SPACE_SM))
 
         outer = ttk.Frame(self)
         outer.pack(fill="both", expand=True)
@@ -7446,12 +7457,12 @@ class App(APP_TK_BASE):
         hero = tk.Frame(content, background=COLOR_ACCENT)
         hero.pack(fill="x")
         tk.Label(hero, text=t("home_banner_title"), font=("Segoe UI", sf(22), "bold"),
-                 background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT).pack(pady=(20, 2))
+                 background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT).pack(pady=(gs(SPACE_LG), gs(SPACE_XS)))
         tk.Label(hero, text=t("home_banner_subtitle"), font=("Segoe UI", sf(10)),
-                 background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT).pack(pady=(0, 18))
+                 background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT).pack(pady=(0, gs(SPACE_MD)))
 
         main = ttk.Frame(content)
-        main.pack(fill="x", padx=max(24, gs(34)), pady=22)
+        main.pack(fill="x", padx=max(gs(SPACE_LG), gs(34)), pady=gs(SPACE_LG))
 
         # Quatre entrées principales : toute la carte est cliquable.
         primary = ttk.Frame(main)
@@ -7467,13 +7478,14 @@ class App(APP_TK_BASE):
             primary.columnconfigure(col, weight=1, uniform="primary")
             card = tk.Frame(primary, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
                              highlightcolor=COLOR_BORDER, highlightthickness=1, cursor="hand2", takefocus=1)
-            card.grid(row=0, column=col, sticky="nsew", padx=(0 if col == 0 else 6, 0 if col == 3 else 6), pady=2)
+            card.grid(row=0, column=col, sticky="nsew",
+                      padx=(0 if col == 0 else gs(SPACE_SM), 0 if col == 3 else gs(SPACE_SM)), pady=gs(SPACE_XS))
             title_lbl = tk.Label(card, text=title, background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
                                  font=("Segoe UI", sf(12), "bold"), cursor="hand2")
-            title_lbl.pack(padx=14, pady=(16, 4))
+            title_lbl.pack(padx=gs(SPACE_MD), pady=(gs(SPACE_MD), gs(SPACE_XS)))
             sub_lbl = tk.Label(card, text=subtitle, background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
                                font=("Segoe UI", sf(9)), cursor="hand2")
-            sub_lbl.pack(padx=14, pady=(0, 16))
+            sub_lbl.pack(padx=gs(SPACE_MD), pady=(0, gs(SPACE_MD)))
             for w in (card, title_lbl, sub_lbl):
                 w.bind("<Button-1>", lambda e, c=command: c())
             # Ces 4 cartes sont les entrées principales de navigation de
@@ -7488,7 +7500,7 @@ class App(APP_TK_BASE):
 
         # Filtres rapides, compacts.
         filters = ttk.Frame(main)
-        filters.pack(fill="x", pady=(14, 0))
+        filters.pack(fill="x", pady=(gs(SPACE_MD), 0))
         for text, qf in [
             (t("home_quick_filter_favorites"), "favoris"),
             (t("home_quick_filter_quick"), "rapide"),
@@ -7496,16 +7508,16 @@ class App(APP_TK_BASE):
             (t("home_quick_filter_wishlist"), "envie"),
         ]:
             ttk.Button(filters, text=text, style="Secondary.TButton",
-                       command=lambda f=qf: self.open_manage_recipes(quick_filter=f)).pack(side="left", padx=(0, 8))
+                       command=lambda f=qf: self.open_manage_recipes(quick_filter=f)).pack(side="left", padx=(0, gs(SPACE_SM)))
 
         # Recette du jour : carte large et visuelle.
         daily_recipe = get_daily_recipe(self.recipes)
         if daily_recipe is not None:
-            ttk.Label(main, text=t("home_daily_recipe_title"), style="Section.TLabel").pack(anchor="w", pady=(20, 8))
+            ttk.Label(main, text=t("home_daily_recipe_title"), style="Section.TLabel").pack(anchor="w", pady=(gs(SPACE_LG), gs(SPACE_SM)))
             daily = tk.Frame(main, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
             daily.pack(fill="x")
             left = ttk.Frame(daily, style="Card.TFrame")
-            left.pack(side="left", fill="both", expand=True, padx=16, pady=14)
+            left.pack(side="left", fill="both", expand=True, padx=gs(SPACE_MD), pady=gs(SPACE_MD))
             star = "⭐ " if daily_recipe.get("favorite") else ""
             ttk.Label(left, text=f"{star}{daily_recipe['name']}", font=("Segoe UI", sf(14), "bold"), style="Card.TLabel").pack(anchor="w")
             meta = []
@@ -7518,30 +7530,30 @@ class App(APP_TK_BASE):
                 log_internal_error("suppressed_exception", exc)
             if daily_recipe.get("difficulty"):
                 meta.append(translate_difficulty_name(daily_recipe.get("difficulty")))
-            ttk.Label(left, text="  •  ".join(meta), style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(5, 0))
-            ttk.Button(daily, text=t("home_open_button"), command=lambda r=daily_recipe: self._open_daily_recipe(r)).pack(side="right", padx=16)
+            ttk.Label(left, text="  •  ".join(meta), style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(gs(SPACE_XS), 0))
+            ttk.Button(daily, text=t("home_open_button"), command=lambda r=daily_recipe: self._open_daily_recipe(r)).pack(side="right", padx=gs(SPACE_MD))
 
         two_col = ttk.Frame(main)
-        two_col.pack(fill="x", pady=(20, 0))
+        two_col.pack(fill="x", pady=(gs(SPACE_LG), 0))
         two_col.columnconfigure(0, weight=1, uniform="homecol")
         two_col.columnconfigure(1, weight=1, uniform="homecol")
 
         today_card = tk.Frame(two_col, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
-        today_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        ttk.Label(today_card, text=t("home_today_title"), style="Card.TLabel", font=("Segoe UI", sf(12), "bold")).pack(anchor="w", padx=14, pady=(12, 6))
+        today_card.grid(row=0, column=0, sticky="nsew", padx=(0, gs(SPACE_SM)))
+        ttk.Label(today_card, text=t("home_today_title"), style="Card.TLabel", font=("Segoe UI", sf(12), "bold")).pack(anchor="w", padx=gs(SPACE_MD), pady=(gs(SPACE_MD), gs(SPACE_SM)))
         self.today_frame = ttk.Frame(today_card, style="Card.TFrame")
-        self.today_frame.pack(fill="x", padx=14, pady=(0, 14))
+        self.today_frame.pack(fill="x", padx=gs(SPACE_MD), pady=(0, gs(SPACE_MD)))
         self._refresh_today_meals()
 
         recent_card = tk.Frame(two_col, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
-        recent_card.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
-        ttk.Label(recent_card, text=t("home_recent_title"), style="Card.TLabel", font=("Segoe UI", sf(12), "bold")).pack(anchor="w", padx=14, pady=(12, 6))
+        recent_card.grid(row=0, column=1, sticky="nsew", padx=(gs(SPACE_SM), 0))
+        ttk.Label(recent_card, text=t("home_recent_title"), style="Card.TLabel", font=("Segoe UI", sf(12), "bold")).pack(anchor="w", padx=gs(SPACE_MD), pady=(gs(SPACE_MD), gs(SPACE_SM)))
         self.recent_frame = ttk.Frame(recent_card, style="Card.TFrame")
-        self.recent_frame.pack(fill="x", padx=14, pady=(0, 14))
+        self.recent_frame.pack(fill="x", padx=gs(SPACE_MD), pady=(0, gs(SPACE_MD)))
         self._refresh_recent_views()
 
         # Alertes utiles regroupées, au lieu de plusieurs bandeaux concurrents.
-        ttk.Label(main, text=t("home_alerts_title"), style="Section.TLabel").pack(anchor="w", pady=(20, 8))
+        ttk.Label(main, text=t("home_alerts_title"), style="Section.TLabel").pack(anchor="w", pady=(gs(SPACE_LG), gs(SPACE_SM)))
         alerts = tk.Frame(main, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
         alerts.pack(fill="x")
 
@@ -7567,7 +7579,7 @@ class App(APP_TK_BASE):
             row = tk.Label(alerts, text=t("home_low_stock_reminder", count=len(low_stock), names=names),
                            background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
                            font=("Segoe UI", sf(9)), wraplength=850)
-            row.pack(fill="x", padx=14, pady=8)
+            row.pack(fill="x", padx=gs(SPACE_MD), pady=gs(SPACE_SM))
             row.bind("<Button-1>", lambda e, items=low_stock: self._open_low_stock_to_cart(items))
             _make_alert_row_focusable(row, lambda items=low_stock: self._open_low_stock_to_cart(items))
         expiring = get_expiring_pantry_items(days=5)
@@ -7576,7 +7588,7 @@ class App(APP_TK_BASE):
             row = tk.Label(alerts, text=t("home_expiring_reminder", count=len(expiring)),
                            background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
                            font=("Segoe UI", sf(9)), wraplength=850)
-            row.pack(fill="x", padx=14, pady=8)
+            row.pack(fill="x", padx=gs(SPACE_MD), pady=gs(SPACE_SM))
             row.bind("<Button-1>", lambda e, items=expiring: UseSoonRecipesWindow(self, items))
             _make_alert_row_focusable(row, lambda items=expiring: UseSoonRecipesWindow(self, items))
         stale = []
@@ -7592,20 +7604,20 @@ class App(APP_TK_BASE):
             row = tk.Label(alerts, text=t("home_wishlist_reminder", count=len(stale), days=90),
                            background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
                            font=("Segoe UI", sf(9)), wraplength=850)
-            row.pack(fill="x", padx=14, pady=8)
+            row.pack(fill="x", padx=gs(SPACE_MD), pady=gs(SPACE_SM))
             row.bind("<Button-1>", lambda e: self.open_manage_recipes(quick_filter="envie"))
             _make_alert_row_focusable(row, lambda: self.open_manage_recipes(quick_filter="envie"))
         if not any_alert:
-            ttk.Label(alerts, text=t("home_no_alerts"), style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(anchor="w", padx=14, pady=12)
+            ttk.Label(alerts, text=t("home_no_alerts"), style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(anchor="w", padx=gs(SPACE_MD), pady=gs(SPACE_MD))
 
         # Outils secondaires : regroupés par usage pour éviter une grande
         # grille compacte difficile à parcourir visuellement.
         ttk.Label(main, text=t("home_more_tools"), style="Section.TLabel").pack(
-            anchor="w", pady=(22, 8)
+            anchor="w", pady=(gs(SPACE_LG), gs(SPACE_SM))
         )
 
         tools_grid = ttk.Frame(main)
-        tools_grid.pack(fill="x", pady=(0, 8))
+        tools_grid.pack(fill="x", pady=(0, gs(SPACE_SM)))
         tools_grid.columnconfigure(0, weight=1, uniform="toolgroups")
         tools_grid.columnconfigure(1, weight=1, uniform="toolgroups")
 
@@ -7650,11 +7662,11 @@ class App(APP_TK_BASE):
         for group_index, (group_title, items) in enumerate(tool_groups):
             row = group_index // 2
             col = group_index % 2
-            group = ttk.LabelFrame(tools_grid, text=group_title, padding=14)
+            group = ttk.LabelFrame(tools_grid, text=group_title, padding=gs(SPACE_MD))
             group.grid(
                 row=row, column=col, sticky="nsew",
-                padx=(0, 9) if col == 0 else (9, 0),
-                pady=(0, 14)
+                padx=(0, gs(SPACE_SM)) if col == 0 else (gs(SPACE_SM), 0),
+                pady=(0, gs(SPACE_MD))
             )
             group.columnconfigure(0, weight=1)
             # Boutons verticaux : beaucoup plus faciles à lire que l'ancienne
@@ -7675,10 +7687,10 @@ class App(APP_TK_BASE):
         if not QRCODE_AVAILABLE: warnings.append(t("warning_qrcode"))
         if not PYTESSERACT_AVAILABLE: warnings.append(t("warning_pytesseract"))
         if warnings:
-            ttk.Label(main, text="\n".join(warnings), foreground=COLOR_ERROR, justify="center").pack(pady=10)
+            ttk.Label(main, text="\n".join(warnings), foreground=COLOR_ERROR, justify="center").pack(pady=gs(SPACE_SM))
 
         self.footer = ttk.Label(self, text=t("home_footer_recipe_count", count=len(self.recipes)), font=("Segoe UI", sf(9)))
-        self.footer.pack(side="bottom", pady=10)
+        self.footer.pack(side="bottom", pady=gs(SPACE_SM))
 
     def refresh_recipes(self):
         self.recipes = load_recipes()
