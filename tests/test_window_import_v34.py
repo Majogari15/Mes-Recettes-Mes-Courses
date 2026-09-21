@@ -1,4 +1,4 @@
-import inspect
+import tkinter as tk
 import unittest
 from unittest import mock
 
@@ -59,11 +59,47 @@ class WindowAndImportV34Tests(unittest.TestCase):
         )
 
     def test_window_fitting_does_not_cap_native_maximum_size(self):
-        fit_source = inspect.getsource(main.fit_window_to_workarea)
-        ensure_source = inspect.getsource(main.ensure_window_visible_and_fitted)
-        self.assertNotIn(".maxsize(", fit_source)
-        self.assertNotIn(".maxsize(", ensure_source)
-        self.assertIn('state()).lower() == "zoomed"', ensure_source)
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(root.destroy)
+        root.withdraw()
+        win = tk.Toplevel(root)
+        self.addCleanup(win.destroy)
+        win.update_idletasks()
+
+        default_max = win.maxsize()
+        main.fit_window_to_workarea(win, 400, 300)
+        self.assertEqual(
+            win.maxsize(), default_max,
+            "fit_window_to_workarea ne doit pas réduire le maxsize natif "
+            "(sinon impossible d'agrandir/maximiser la fenêtre ensuite)"
+        )
+
+    def test_ensure_window_visible_and_fitted_leaves_zoomed_window_untouched(self):
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(root.destroy)
+        root.withdraw()
+        win = tk.Toplevel(root)
+        self.addCleanup(win.destroy)
+        win.geometry("300x200+50+50")
+        win.update_idletasks()
+        before = win.geometry()
+
+        # state() dépend de la plateforme (Windows: "zoomed" ; ce runner
+        # Linux ne le supporte pas nativement) : on force juste la valeur
+        # lue par ensure_window_visible_and_fitted, le reste de la fenêtre
+        # (winfo_*, geometry) reste réel.
+        win.state = lambda *a: "zoomed"
+        main.ensure_window_visible_and_fitted(win)
+        self.assertEqual(
+            win.geometry(), before,
+            "une fenêtre maximisée (zoomed) ne doit pas être repositionnée/redimensionnée"
+        )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import ctypes
 import tempfile
+import tkinter as tk
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ from unittest.mock import Mock, patch
 
 import main
 import windows_printing as wp
+from test_regressions import TempDataMixin
 
 
 class FakeAPI:
@@ -161,9 +163,6 @@ class IntegrationTests(unittest.TestCase):
             open_pdf.assert_not_called()
 
     def test_all_four_print_buttons_use_same_controller(self):
-        import inspect
-        for cls,method in ((main.OneRecipeWindow,'print_recipe'),):
-            self.assertIn('print_document(self, temp_path',inspect.getsource(getattr(cls,method)))
         # Le code source est enregistré en UTF-8.  Sur Windows, pathlib
         # utilise sinon l'encodage ANSI de la console (cp1252), qui échoue
         # dès qu'un caractère UTF-8 non représentable est rencontré.
@@ -183,5 +182,45 @@ class IntegrationTests(unittest.TestCase):
         self.assertRegex((root/'requirements.txt').read_text(encoding="utf-8"), r'(?m)^pypdfium2==\S+$')
         script=(root/'Construire_le_exe.bat').read_text(encoding="utf-8")
         self.assertIn('--collect-all=pypdfium2_raw',script)
+
+class OneRecipeWindowPrintTests(TempDataMixin, unittest.TestCase):
+    """Instancie réellement OneRecipeWindow et déclenche print_recipe() pour
+    vérifier l'appel réel à print_document(), plutôt que d'inspecter le
+    texte source de la méthode."""
+
+    @unittest.skipUnless(main.REPORTLAB_AVAILABLE, "reportlab indisponible")
+    def test_print_recipe_builds_pdf_and_calls_print_document(self):
+        main.save_recipes([{
+            "id": "r1", "name": "Recette imprimée", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [{"name": "Farine", "quantity": 200, "unit": "g"}],
+            "steps": ["Etape unique."],
+        }])
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(app.destroy)
+        app.withdraw()
+        win = main.OneRecipeWindow(app, initial_recipe_name="Recette imprimée")
+        self.addCleanup(win.destroy)
+
+        with patch.object(main, "print_document") as fake_print:
+            win.print_recipe()
+
+        fake_print.assert_called_once()
+        called_owner, called_path, called_subject = fake_print.call_args[0]
+        self.assertIs(called_owner, win)
+        self.assertTrue(Path(called_path).exists(), "le PDF doit être réellement généré avant l'appel")
+        self.assertIn("Recette imprimée", called_subject)
 
 if __name__=='__main__':unittest.main()

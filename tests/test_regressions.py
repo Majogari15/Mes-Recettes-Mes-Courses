@@ -1,4 +1,3 @@
-import inspect
 import json
 import os
 import tempfile
@@ -299,8 +298,22 @@ class StaticRegressionTests(unittest.TestCase):
         # L'application mobile déguise ce zip en ".txt" avant de le
         # partager (voir test_shared_backup_importable_when_renamed_to_txt) :
         # le sélecteur de fichier doit donc aussi afficher les ".txt".
-        src = inspect.getsource(main.ImportExportWindow.import_shared_data)
-        self.assertIn("*.txt", src)
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(root.destroy)
+        root.withdraw()
+        win = main.ImportExportWindow(root)
+        self.addCleanup(win.destroy)
+        captured = {}
+        def fake_askopenfilename(**kwargs):
+            captured.update(kwargs)
+            return ""
+        with patch.object(main.filedialog, "askopenfilename", side_effect=fake_askopenfilename):
+            win.import_shared_data()
+        filetypes = dict(captured["filetypes"])
+        self.assertIn("*.zip *.txt", filetypes.values())
 
 class ContrastAccessibilityTests(unittest.TestCase):
     """Vérifie le ratio de contraste WCAG des combinaisons texte/fond
@@ -356,8 +369,19 @@ class ContrastAccessibilityTests(unittest.TestCase):
         # Danger.TButton doit avoir son propre fond (comme Secondary.TButton),
         # pas hériter du fond ACCENT de TButton : sur ACCENT, ERROR tombait à
         # 1.74:1 (clair) / 1.01:1 (sombre) — illisible dans les deux thèmes.
-        src = inspect.getsource(main.configure_app_style)
-        self.assertRegex(src, r'style\.configure\("Danger\.TButton",\s*background=COLOR_CARD')
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(root.destroy)
+        root.withdraw()
+        style = main.configure_app_style(root)
+        actual_background = style.lookup("Danger.TButton", "background")
+        self.assertNotEqual(
+            actual_background, style.lookup("TButton", "background"),
+            "Danger.TButton ne doit pas hériter du fond ACCENT de TButton"
+        )
+        self.assertEqual(actual_background, main.COLOR_CARD)
         for name, palette in (("clair", main.LIGHT_PALETTE), ("sombre", main.DARK_PALETTE)):
             ratio = self._contrast(palette["ERROR"], palette["CARD"])
             self.assertGreaterEqual(ratio, 4.5, f"palette {name} : ERROR sur CARD = {ratio:.2f}:1")

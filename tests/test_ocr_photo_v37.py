@@ -1,4 +1,5 @@
-import inspect
+import tempfile
+import tkinter as tk
 import types
 import unittest
 from pathlib import Path
@@ -74,12 +75,35 @@ class OcrPhotoV37Tests(unittest.TestCase):
             }
             self.assertEqual(main.detect_ocr_rotation(object()), 0)
 
+    @unittest.skipUnless(main.PIL_AVAILABLE, "Pillow indisponible")
     def test_photo_window_offers_manual_rotation(self):
-        source = inspect.getsource(main.ImportFromPhotoWindow)
-        self.assertIn("importphoto_rotate_left_button", source)
-        self.assertIn("importphoto_rotate_right_button", source)
-        self.assertIn("_rotate_selected_photo", source)
-        self.assertIn("ImageOps.exif_transpose", source)
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(root.destroy)
+        root.withdraw()
+        win = main.ImportFromPhotoWindow(root)
+        self.addCleanup(win._close_import_window)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            photo_path = str(Path(tmp) / "photo.jpg")
+            main.Image.new("RGB", (40, 20), "white").save(photo_path)
+            win.photo_paths = [photo_path]
+            win._refresh_photo_list()
+            win.photo_listbox.selection_set(0)
+
+            self.assertEqual(win.photo_rotations.get(photo_path, 0), 0)
+            win._rotate_selected_photo(90)
+            self.assertEqual(win.photo_rotations[photo_path], 90)
+            win._rotate_selected_photo(90)
+            self.assertEqual(win.photo_rotations[photo_path], 180)
+            # Le bouton "rotation gauche" appelle _rotate_selected_photo(-90) :
+            # le modulo doit rester dans [0, 360), jamais négatif.
+            win._rotate_selected_photo(-90)
+            win._rotate_selected_photo(-90)
+            win._rotate_selected_photo(-90)
+            self.assertEqual(win.photo_rotations[photo_path], 270)
 
     def test_new_labels_exist_in_all_languages(self):
         for key in (

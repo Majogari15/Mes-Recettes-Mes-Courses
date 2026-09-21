@@ -1,13 +1,17 @@
 import json
 import re
+import tkinter as tk
 import unittest
 from pathlib import Path
+from tkinter import font as tkfont, ttk
+from unittest.mock import patch
 import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import main
+from test_regressions import TempDataMixin
 
 
 class AuditV52Tests(unittest.TestCase):
@@ -42,14 +46,62 @@ class AuditV52Tests(unittest.TestCase):
             catalog = main._language_catalog(language)
             self.assertEqual(set(main.FRENCH_STRINGS), set(catalog), language)
 
-    def test_open_window_refresh_helpers_are_called_by_settings(self):
-        for method_name, helper in (
-            ("set_language", "_ui_translate_open_windows"),
-            ("toggle_dark_mode", "_ui_recolor_open_windows"),
-            ("toggle_large_text", "_ui_rescale_open_window_fonts"),
+class OpenWindowRefreshTests(TempDataMixin, unittest.TestCase):
+    """Vérifie, en instanciant réellement l'App et une fenêtre secondaire
+    déjà ouverte, que changer la langue, le thème ou la taille de texte
+    depuis les paramètres se répercute effectivement dessus — sans la
+    fermer/rouvrir — plutôt que d'inspecter le texte source des méthodes."""
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
         ):
-            import inspect
-            self.assertIn(helper, inspect.getsource(getattr(main.App, method_name)))
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(self.app.destroy)
+        self.app.withdraw()
+        self.diag = main.DiagnosticWindow(self.app)
+        self.addCleanup(self.diag.destroy)
+
+    def _close_button(self):
+        for child in self.diag.winfo_children():
+            if isinstance(child, ttk.Frame):
+                for grandchild in child.winfo_children():
+                    if isinstance(grandchild, ttk.Button) and grandchild.cget("text") == main.t("common_close"):
+                        return grandchild
+        self.fail("bouton Fermer introuvable dans DiagnosticWindow")
+
+    def test_set_language_retranslates_already_open_window(self):
+        close_button = self._close_button()
+        self.assertEqual(close_button.cget("text"), main.FRENCH_STRINGS["common_close"])
+        self.app.set_language("en")
+        self.assertEqual(close_button.cget("text"), main.TRANSLATIONS["en"]["common_close"])
+
+    def test_toggle_dark_mode_recolors_already_open_window(self):
+        before = self.diag.cget("background")
+        self.app.toggle_dark_mode()
+        after = self.diag.cget("background")
+        self.assertNotEqual(before, after)
+        self.assertEqual(str(after), main.COLOR_BG)
+
+    def test_toggle_large_text_rescales_already_open_window_font(self):
+        style = ttk.Style(self.app)
+        before_font = tkfont.Font(root=self.app, font=style.lookup("TButton", "font"))
+        before_size = before_font.cget("size")
+        self.app.toggle_large_text()
+        after_font = tkfont.Font(root=self.app, font=style.lookup("TButton", "font"))
+        after_size = after_font.cget("size")
+        self.assertGreater(main.FONT_SCALE, 1.0)
+        self.assertGreater(abs(after_size), abs(before_size))
 
 
 if __name__ == "__main__":
