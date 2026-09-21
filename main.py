@@ -10064,7 +10064,7 @@ class ManageRecipesWindow(tk.Toplevel):
             # jusqu'ici. La bordure d'accent (survol/sélection) sert aussi
             # d'indicateur de focus clavier visible.
             card = tk.Frame(self.grid_frame, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
-                            highlightthickness=1, cursor="hand2", takefocus=1)
+                            highlightcolor=COLOR_BORDER, highlightthickness=1, cursor="hand2", takefocus=1)
             card.grid(row=row, column=col, padx=7, pady=7, sticky="nsew")
             self._grid_items.append((idx, card))
 
