@@ -5,11 +5,53 @@ cuisine, créée avec Python + Tkinter, avec une identité visuelle chaleureuse
 (palette terracotta/crème) plutôt que le gris par défaut de Windows, et un
 thème sombre disponible en un clic.
 
+## Sommaire
+- [Organisation de la documentation](#doc-organisation)
+- [Contenu du dossier](#dossier-contenu)
+- [1. Installer les dépendances](#installer-dependances)
+- [2. Lancer l'application](#lancer-application)
+- [3. Comment ça marche](#comment-ca-marche)
+  - [🔍 Recherche rapide (Ctrl+K)](#recherche-rapide)
+  - [⚠ Clause de responsabilité](#clause-responsabilite)
+  - [🏠 Page d'accueil](#page-accueil)
+  - [🔄 Convertisseur d'unités](#convertisseur-unites)
+  - [🥕 Gérer les ingrédients](#gerer-ingredients)
+  - [🔎 Recherche par ingrédient](#recherche-ingredient)
+  - [💰 Gérer les prix](#gerer-prix)
+  - [🥗 Coût et valeurs nutritionnelles estimés](#cout-nutrition)
+  - [🔄 Gérer les substitutions](#gerer-substitutions)
+  - [⚖️ Comparer deux ou trois recettes](#comparer-recettes)
+  - [🌐 Importer une recette depuis un lien](#import-lien)
+  - [📷 Importer une recette depuis une photo](#import-photo)
+  - [➕ Ajouter une recette](#ajouter-recette)
+  - [🧾 Voir toutes les recettes (liste de courses)](#toutes-recettes-liste-courses)
+  - [✏️ Modifier ou supprimer un ingrédient de la liste calculée](#modifier-ingredient-liste)
+  - [💾 Enregistrer / 📂 Charger une liste de courses](#enregistrer-charger-liste)
+  - [➕ Ajouter un ingrédient à la liste de courses](#ajouter-ingredient-liste)
+  - [🍽️ Voir une recette précise](#voir-recette-precise)
+  - [✏️ Modifier / Supprimer une recette](#modifier-supprimer-recette)
+  - [🗑️ Corbeille](#corbeille)
+  - [💾 Importer / Exporter les données](#import-export-donnees)
+  - [🗄️ Sauvegardes automatiques](#sauvegardes-auto)
+  - [☁️ Sauvegarde automatique dans le cloud](#sauvegarde-cloud)
+  - [🧊 Que puis-je cuisiner ?](#que-cuisiner)
+  - [📦 Mon garde-manger](#garde-manger)
+  - [📅 Planning de la semaine](#planning-semaine)
+  - [🕘 Historique des semaines passées](#historique-semaines)
+  - [📋 Modèles de semaine](#modeles-semaine)
+  - [📋 Mes menus](#mes-menus)
+  - [📊 Statistiques](#statistiques)
+  - [📖 Exporter le livre de recettes](#export-livre)
+- [4. Transformer l'application en vrai fichier .exe Windows](#creer-exe)
+- [5. Idées d'amélioration possibles](#ameliorations-possibles)
+
+<a id="doc-organisation"></a>
 ## Organisation de la documentation
 - `LISEZ-MOI.txt` : guide livré avec l’exécutable Windows.
 - `DEMARRAGE_RAPIDE.md` et `COMMENT_CREER_INSTALLATEUR.md` : guides de construction et d’installation.
 - `docs/history/` : archives des audits et corrections historiques, conservées pour référence.
 
+<a id="dossier-contenu"></a>
 ## Contenu du dossier
 - `main.py` : le code principal de l'application
 - `main.pyw` : le petit lanceur Windows sans console, qui importe `main.py` ;
@@ -91,6 +133,7 @@ thème sombre disponible en un clic.
 > Les données personnelles, elles, peuvent se trouver dans un autre dossier :
 > consultez l'écran Diagnostic pour connaître leur emplacement exact.
 
+<a id="installer-dependances"></a>
 ## 1. Installer les dépendances
 
 Il vous faut Python installé (gratuit sur https://www.python.org/downloads/,
@@ -161,6 +204,7 @@ internet, eux, fonctionnent toujours sans dépendance supplémentaire.
 > ce dossier, rien ne change : Tesseract doit être installé à part comme
 > décrit ci-dessus.
 
+<a id="lancer-application"></a>
 ## 2. Lancer l'application
 
 Double-cliquez sur `main.pyw` (recommandé, aucune fenêtre noire ne s'ouvre),
@@ -190,8 +234,10 @@ python main.py
 > chaque liste déroulante, pour pouvoir descendre l'ascenseur un peu plus
 > bas que le dernier élément et le voir entièrement.
 
+<a id="comment-ca-marche"></a>
 ## 3. Comment ça marche
 
+<a id="recherche-rapide"></a>
 **🔍 Recherche rapide (Ctrl+K)**
 Appuyez sur **Ctrl+K** à tout moment, depuis n'importe quelle fenêtre de
 l'application, pour ouvrir une petite fenêtre de recherche rapide de
@@ -200,6 +246,7 @@ page d'accueil. Tapez quelques lettres, utilisez les flèches pour naviguer
 dans les résultats, Entrée pour ouvrir la recette sélectionnée (ou la
 première si aucune n'est sélectionnée), Échap pour fermer.
 
+<a id="clause-responsabilite"></a>
 **⚠ Clause de responsabilité (au tout premier lancement)**
 Avant de pouvoir utiliser l'application pour la première fois, une fenêtre
 affiche une clause de responsabilité (notamment sur la gestion des
@@ -210,6 +257,7 @@ accéder à l'application. Ce texte n'apparaît **qu'une seule fois** : votre
 acceptation est mémorisée dans `settings.json`, les lancements suivants
 vont directement à la page d'accueil.
 
+<a id="page-accueil"></a>
 **🏠 Page d'accueil**
 En haut à gauche, le bouton **"☕ Faire un don"** ouvre dans votre navigateur
 la page https://buymeacoffee.com/majogari, si vous souhaitez soutenir le
@@ -354,6 +402,7 @@ d'accueil affiche trois sections pratiques :
   oubliée. "🎲 Nouveau tirage" en propose 10 autres au hasard, et "👁 Ouvrir"
   (ou double-clic) ouvre la recette sélectionnée.
 
+<a id="convertisseur-unites"></a>
 **🔄 Convertisseur d'unités**
 Un petit outil indépendant, accessible directement depuis la page d'accueil,
 pour convertir une quantité entre unités (grammes, kilogrammes, onces,
@@ -363,6 +412,7 @@ La conversion entre unités de volume et de poids se base sur la densité de
 l'eau : fiable pour les liquides, approximative pour des solides comme la
 farine ou le sucre (dont la densité réelle diffère légèrement).
 
+<a id="gerer-ingredients"></a>
 **🥕 Gérer les ingrédients**
 Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
 - une **barre de recherche** en haut filtre instantanément la liste affichée
@@ -419,6 +469,7 @@ Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
 > jour, utilisez simplement le bouton "📚 Charger les 1030 ingrédients
 > courants" pour les ajouter à votre liste existante.
 
+<a id="recherche-ingredient"></a>
 **🔎 Recherche par ingrédient**
 Cette fenêtre fait l'inverse d'une recherche classique : au lieu de chercher
 une recette par son nom, elle trouve **toutes les recettes qui utilisent un
@@ -431,6 +482,7 @@ ingrédient devient difficile à trouver. Sélectionnez une recette dans les
 résultats puis "📖 Consulter la recette sélectionnée" (ou double-cliquez
 dessus) pour l'ouvrir directement dans "Voir une recette précise".
 
+<a id="gerer-prix"></a>
 **💰 Gérer les prix (dans "Gérer les ingrédients")**
 Cette fenêtre permet de renseigner un prix pour les ingrédients qui vous
 intéressent — inutile de tous les faire, seuls ceux avec un prix connu
@@ -447,6 +499,7 @@ des centilitres (cl) ; les prix en pièce/cuillère s'appliquent tels quels.
 > qui reste la seule méthode qui donne une estimation réellement pertinente
 > pour votre budget.
 
+<a id="cout-nutrition"></a>
 **🥗 Coût et valeurs nutritionnelles estimés**
 Une fois des prix renseignés, le **coût estimé** d'une recette s'affiche
 automatiquement dans "Voir une recette précise", dans les exports PDF
@@ -457,6 +510,7 @@ partir de la base `valeurs_nutritionnelles.json` fournie avec l'application
 (1030 ingrédients) — sans rien à configurer de votre côté pour la
 nutrition, contrairement au coût.
 
+<a id="gerer-substitutions"></a>
 **🔄 Gérer les substitutions (dans "Gérer les ingrédients")**
 Une trentaine de substitutions culinaires courantes sont fournies avec
 l'application (ex. beurre → margarine, œufs → compote de pommes, farine →
@@ -506,6 +560,7 @@ prix pour un ingrédient à la pièce, cela fonctionne normalement pour le coût
 > précise — à prendre comme un ordre de grandeur utile, pas une valeur
 > médicale exacte.
 
+<a id="comparer-recettes"></a>
 **⚖️ Comparer deux ou trois recettes**
 Choisissez une recette A et une recette B dans les deux menus déroulants,
 puis "⚖️ Comparer" : un tableau côte à côte affiche leur catégorie, favori,
@@ -515,6 +570,7 @@ personnes par défaut de chacune), suivi de la liste des **ingrédients
 communs aux deux recettes** et de ceux qui ne se trouvent que dans l'une ou
 l'autre — pratique pour choisir entre deux variantes d'un même plat.
 
+<a id="import-lien"></a>
 **🌐 Importer une recette depuis un lien**
 Collez l'adresse (URL) d'une page de recette trouvée sur internet, puis
 "🌐 Récupérer la recette" : l'application télécharge la page et tente d'en
@@ -542,6 +598,7 @@ doublon, aussi bien dans la liste que dans la recette importée elle-même —
 ce qui permet aussi de conserver la détection des allergènes et des valeurs
 nutritionnelles pour cet ingrédient.
 
+<a id="import-photo"></a>
 **📷 Importer une recette depuis une photo**
 Prenez en photo (ou scannez) une recette manuscrite, une carte de recette ou
 une page de livre de cuisine, puis choisissez cette image via
@@ -564,6 +621,7 @@ externe **Tesseract OCR** installé séparément sur votre PC (voir la section
 instructions par système). Sans cela, le bouton "🔍 Extraire le texte" vous
 indique clairement ce qu'il manque plutôt que de planter.
 
+<a id="ajouter-recette"></a>
 **➕ Ajouter une recette**
 Le formulaire est organisé en deux colonnes pour limiter le défilement :
 à gauche le nom, la catégorie, les temps/difficulté et les étiquettes, à
@@ -672,6 +730,7 @@ de la recette).
 > par un "e" accentué (Échalote, Épices, Édulcorant...) sont désormais
 > classés avec les mots en "e" plutôt qu'à la fin de la liste.
 
+<a id="toutes-recettes-liste-courses"></a>
 **🧾 Voir toutes les recettes (liste de courses)**
 Une **barre de recherche**, un menu **"Trier par :"** et un menu
 **"Catégorie :"** permettent de
@@ -744,6 +803,7 @@ fermez cette fenêtre, un message vous prévient qu'elle sera perdue et vous
 laisse annuler la fermeture — pensez à "💾 Enregistrer cette liste pour plus
 tard" avant de fermer si vous voulez la conserver.
 
+<a id="modifier-ingredient-liste"></a>
 **✏️ Modifier ou supprimer un ingrédient de la liste calculée**
 Dès qu'un ingrédient apparaît dans la liste de courses affichée (que ce soit
 via "🛒 Ajouter aux courses" sur "Toutes les recettes", ou via "Calculer la
@@ -757,6 +817,7 @@ vous n'ajoutez pas une nouvelle recette ou ne relancez pas le calcul (ce qui
 recalcule sans perdre vos modifications précédentes sur "Toutes les
 recettes", mais repart de zéro sur "Planning"/"Nouveau menu").
 
+<a id="enregistrer-charger-liste"></a>
 **💾 Enregistrer / 📂 Charger une liste de courses**
 Disponible sur "Toutes les recettes", "Planning de la semaine" et "Nouveau
 menu" : "💾 Enregistrer cette liste pour plus tard" sauvegarde la liste
@@ -769,6 +830,7 @@ leur date), pour en **charger** une (elle remplace alors la liste
 actuellement affichée, quelle que soit la fenêtre depuis laquelle vous
 l'avez enregistrée) ou en **supprimer** une définitivement.
 
+<a id="ajouter-ingredient-liste"></a>
 **➕ Ajouter un ingrédient à la liste de courses**
 Ce bouton (disponible sur "Toutes les recettes", "Planning de la semaine" et
 "Nouveau menu") permet d'ajouter à la liste de courses un ou plusieurs
@@ -808,6 +870,7 @@ de la sélection actuelle.
 > comparer d'un coup d'œil ou repérer une allergie sans avoir à ouvrir
 > chaque recette.
 
+<a id="voir-recette-precise"></a>
 **🍽️ Voir une recette précise**
 La fenêtre s'ouvre à la hauteur de votre écran, et l'affichage d'une
 recette est divisé en deux panneaux côte à côte : à gauche les ingrédients
@@ -918,6 +981,7 @@ l'une d'elles pour l'ouvrir directement, sans repasser par la recherche.
 Cette section ne s'affiche que s'il existe au moins une recette
 suffisamment proche.
 
+<a id="modifier-supprimer-recette"></a>
 **✏️ Modifier / Supprimer une recette**
 Une **barre de recherche**, un menu **"Trier par :"** et un menu
 **"Catégorie :"** (Toutes, Petit-déjeuner, Entrée, Plat, Dessert, Apéro,
@@ -934,6 +998,7 @@ note en étoiles affichés). Sélectionnez une recette puis :
 Vous pouvez aussi supprimer une recette directement depuis l'écran de
 modification.
 
+<a id="corbeille"></a>
 **🗑️ Corbeille**
 Une recette supprimée (depuis "Modifier/Supprimer" ou depuis l'écran de
 modification) n'est jamais effacée immédiatement : elle est déplacée dans la
@@ -947,6 +1012,7 @@ leur date de suppression, et permet :
 - "🧹 Vider la corbeille" : efface définitivement tout son contenu d'un coup
   (irréversible, avec confirmation).
 
+<a id="import-export-donnees"></a>
 **💾 Importer / Exporter les données**
 - "📤 Exporter toutes mes données" enregistre un fichier `.zip` contenant
   **absolument toutes vos données** : recettes, photos, ingrédients
@@ -968,6 +1034,7 @@ leur date de suppression, et permet :
     par celles du fichier importé, y compris les réglages et le planning
     actuellement en cours.
 
+<a id="sauvegardes-auto"></a>
 **🗄️ Sauvegardes automatiques** (dans le même écran, plus bas)
 L'application crée automatiquement une sauvegarde complète (mêmes données
 que l'export manuel ci-dessus) au démarrage, au maximum une fois toutes les
@@ -983,6 +1050,7 @@ utile pour le dossier cloud, voir ci-dessous). Dans cette fenêtre :
 - "♻️ Restaurer la sélection" restaure la sauvegarde choisie (avec le même
   choix Fusionner/Remplacer que pour un import classique).
 
+<a id="sauvegarde-cloud"></a>
 **☁️ Sauvegarde automatique dans le cloud** (dans le même écran, tout en bas)
 Pour que vos sauvegardes soient aussi envoyées en ligne automatiquement,
 cliquez sur "📁 Choisir un dossier cloud" et sélectionnez un dossier
@@ -1000,6 +1068,7 @@ automatique (les sauvegardes déjà envoyées restent en ligne).
 > seul. Vous n'avez donc rien à configurer côté Google/Microsoft/Dropbox
 > dans l'application.
 
+<a id="que-cuisiner"></a>
 **🧊 Que puis-je cuisiner ?**
 Cette fenêtre vous aide à trouver une recette à partir de ce que vous avez
 déjà chez vous. À l'ouverture, quelques **ingrédients de base courants sont
@@ -1030,6 +1099,7 @@ Sélectionnez une recette dans les résultats puis "📖 Consulter la recette
 sélectionnée" (ou double-cliquez dessus) pour l'ouvrir directement dans
 "Voir une recette précise".
 
+<a id="garde-manger"></a>
 **📦 Mon garde-manger**
 Indiquez ici ce que vous avez chez vous **avec une quantité et une unité**
 (contrairement à "Que puis-je cuisiner ?" qui ne fait que cocher une
@@ -1061,6 +1131,7 @@ fiable à celle de la recette (par exemple des "pièces" contre des grammes)
 Rappel garde-manger" plus haut, mis à jour dès que vous fermez cette
 fenêtre, sans avoir besoin de relancer l'application).
 
+<a id="planning-semaine"></a>
 **📅 Planning de la semaine**
 La fenêtre se présente comme une **vraie grille calendrier** : les 7 jours de
 la semaine (Lundi à Dimanche) en colonnes, et les **7 créneaux de repas** en
@@ -1085,6 +1156,7 @@ planning. "📆 Exporter vers un calendrier (.ics)" enregistre un fichier
 à la même heure — le déjeuner et le dîner regroupent en un seul évènement
 l'entrée, le plat et le dessert prévus.
 
+<a id="historique-semaines"></a>
 **🕘 Historique des semaines passées**
 Chaque fois que vous cliquez sur "💾 Enregistrer le planning", un
 instantané de la semaine est automatiquement archivé (jusqu'à 26 semaines,
@@ -1097,6 +1169,7 @@ base d'une nouvelle semaine (pensez à enregistrer le planning en cours
 avant si vous voulez le garder), ou "🗑 Supprimer cette semaine" pour
 retirer une archive.
 
+<a id="modeles-semaine"></a>
 **📋 Modèles de semaine**
 Pour une semaine type que vous réutilisez souvent ("Semaine légère",
 "Semaine végétarienne"...), "📋 Modèles de semaine" permet d'enregistrer le
@@ -1115,6 +1188,7 @@ Une fois vos repas de la semaine choisis :
   possibilité de modifier une quantité, retirer un ingrédient, ou enregistrer
   la liste pour plus tard.
 
+<a id="mes-menus"></a>
 **📋 Mes menus**
 Créez et sauvegardez des combinaisons de plusieurs recettes (par exemple
 entrée + plat + dessert) pour une occasion particulière. "➕ Nouveau menu"
@@ -1131,6 +1205,7 @@ et enregistrer/charger cette liste pour plus tard — les recettes y sont
 regroupées par catégorie (Apéro, Entrée, Plat, Sauce, Dessert, Boisson,
 Autre) dans l'ordre logique d'un repas.
 
+<a id="statistiques"></a>
 **📊 Statistiques**
 Un aperçu synthétique de votre livre de recettes : nombre total de recettes,
 répartition par catégorie et par difficulté, nombre de favoris, note moyenne
@@ -1150,6 +1225,7 @@ utilisées, deux sections "recettes oubliées" pour redécouvrir votre livre
   une case est foncée, plus vous avez cuisiné ce jour-là (défilement
   horizontal si besoin, ouvert d'emblée sur les semaines les plus récentes).
 
+<a id="export-livre"></a>
 **📖 Exporter le livre de recettes**
 Réunit plusieurs recettes en **un seul PDF**, façon vrai livre de cuisine.
 Filtrez par catégorie si besoin, cochez/décochez les recettes à inclure
@@ -1180,6 +1256,7 @@ sont enregistrées dans le profil utilisateur.
 > l'impression depuis là. Ce n'est qu'en cas d'échec total que l'application
 > vous indique simplement le chemin du PDF généré pour l'ouvrir vous-même.
 
+<a id="creer-exe"></a>
 ## 4. Transformer l'application en vrai fichier .exe Windows
 
 Sur un PC Windows, lancez `Construire_le_exe.bat` depuis le dossier complet
@@ -1207,6 +1284,7 @@ La génération de l'exécutable ne valide pas à elle seule le paquet Microsoft
 Store : testez l'installation, la mise à jour et l'import Internet dans le
 paquet final avant sa soumission.
 
+<a id="ameliorations-possibles"></a>
 ## 5. Idées d'amélioration possibles
 - Multi-profils (plusieurs membres du foyer, chacun avec ses favoris/notes)
 - Verrouillage de l'application par mot de passe

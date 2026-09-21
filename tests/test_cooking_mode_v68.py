@@ -45,24 +45,28 @@ class CookingModeTests(unittest.TestCase):
         recipe=dict(name='Recette test',ingredients=[dict(name='Pommes de terre',quantity=200,unit='g')],
                     description='Préparer et cuire les ingrédients. '*35,personal_notes='Notes de cuisson. '*20)
         self.window=self.env['CookingModeWindow'](self.root,recipe,2)
-        self.window.geometry('1400x850')
-        self._wait_for_layout(wide=True)
+        self.root.update()
+        # La CI a montré qu'on ne peut pas fiabilement forcer la largeur
+        # réelle de la fenêtre via geometry() : certains runners Windows
+        # ont un bureau virtuel trop petit (~1024px) pour atteindre les
+        # 1400px demandés, que la fenêtre soit "zoomed" ou "normal". Pire :
+        # même en simulant l'événement <Configure> nous-mêmes (tentative
+        # précédente), un vrai événement <Configure> déclenché par ce
+        # redimensionnement contraint par l'écran pouvait encore arriver
+        # après coup et écraser notre état simulé (constaté en CI :
+        # colonne repassée à "étroit" alors que content_width valait bien
+        # 1400). On débranche donc le gestionnaire réel une bonne fois pour
+        # toutes et on pilote la disposition uniquement via _apply_width,
+        # qui reproduit exactement ce que fait ce gestionnaire.
+        self.window.canvas.unbind('<Configure>')
+        self._apply_width(1400)
     def tearDown(self):
         if hasattr(self,'root'):
             self.root.destroy()
-    def _wait_for_layout(self, wide, timeout_updates=40):
-        # __init__ appelle self.state("zoomed") juste avant que geometry()
-        # ne soit forcé à une taille explicite : sur Windows (contrairement
-        # à Xvfb+fluxbox), le gestionnaire de fenêtres applique ces requêtes
-        # de façon asynchrone, si bien qu'un seul update() ne suffit pas
-        # toujours à voir le canvas atteindre sa largeur finale avant que le
-        # test ne vérifie la disposition qui en dépend. On boucle donc
-        # jusqu'à ce que la largeur reflète bien la disposition attendue.
+    def _apply_width(self, width):
         w = self.window
-        for _ in range(timeout_updates):
-            self.root.update()
-            if (w.canvas.winfo_width() >= 1000) == wide:
-                return
+        w._resize_content(SimpleNamespace(width=width))
+        self.root.update_idletasks()
     def duration(self,row,seconds):
         row.minutes_entry.delete(0,'end');row.minutes_entry.insert(0,'0')
         row.seconds_entry.delete(0,'end');row.seconds_entry.insert(0,str(seconds))
@@ -84,18 +88,26 @@ class CookingModeTests(unittest.TestCase):
     def test_resize_and_persons_preserve_timers(self):
         w=self.window;row=w.timer_rows[0];row.start()
         w._adjust(1);self.root.update()
+        # _adjust() appelle _render(), qui recrée entièrement
+        # ingredients_panel/steps_panel et relance _layout_recipe() avec la
+        # vraie largeur du canvas (self.canvas.winfo_width()) plutôt que la
+        # largeur simulée — la disposition simulée par setUp() est donc
+        # perdue sur les nouveaux panneaux et doit être réappliquée.
+        self._apply_width(1400)
         self.assertIs(w.timer_rows[0],row);self.assertTrue(row.running)
-        self.assertEqual(int(w.steps_panel.grid_info()['column']),1)
-        w.geometry('760x850');self._wait_for_layout(wide=False)
-        self.assertEqual(int(w.steps_panel.grid_info()['row']),1)
+        def diag():
+            return f"canvas={w.canvas.winfo_width()} content_width={w.canvas.itemcget(w._content_id,'width')}"
+        self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
+        self._apply_width(760)
+        self.assertEqual(int(w.steps_panel.grid_info()['row']),1,diag())
         for panel in (w.ingredients_panel,w.steps_panel):
             self.assertLessEqual(panel.winfo_width(),w.canvas.winfo_width())
             for label in panel.winfo_children():
                 if not isinstance(label, (tk.Label, tk.Checkbutton)):
                     continue
                 self.assertLessEqual(int(float(label.cget('wraplength'))),panel.winfo_width())
-        w.geometry('1400x850');self._wait_for_layout(wide=True)
-        self.assertEqual(int(w.steps_panel.grid_info()['column']),1)
+        self._apply_width(1400)
+        self.assertEqual(int(w.steps_panel.grid_info()['column']),1,diag())
         self.assertLess(w.ingredients_panel.winfo_rootx(),w.steps_panel.winfo_rootx())
         self.assertEqual(self.errors,[])
     def test_finish_remove_and_close(self):
