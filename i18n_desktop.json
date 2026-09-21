@@ -1101,7 +1101,8 @@
     "duplicate_recipe_id": "Identifiant de recette en double : {value}. Import annulé.",
     "import_conflict_suffix": " (copie importée)",
     "cooklog_saved_followup_failed": "Le journal a bien été enregistré. Une opération suivante a échoué : {error}. Vérifiez le stock avant de recommencer.",
-    "recipeform_notes_count": "{count} caractères"
+    "recipeform_notes_count": "{count} caractères",
+    "recipeform_did_you_mean": "💡 Vouliez-vous dire « {name} » ?"
   },
   "translations": {
     "en": {
@@ -2206,7 +2207,8 @@
       "duplicate_recipe_id": "Duplicate recipe ID: {value}. Import cancelled.",
       "import_conflict_suffix": " (imported copy)",
       "cooklog_saved_followup_failed": "The cooking log was saved. A later operation failed: {error}. Check pantry stock before trying again.",
-      "recipeform_notes_count": "{count} characters"
+      "recipeform_notes_count": "{count} characters",
+      "recipeform_did_you_mean": "💡 Did you mean \"{name}\"?"
     },
     "es": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -3310,7 +3312,8 @@
       "duplicate_recipe_id": "Identificador de receta duplicado: {value}. Importación cancelada.",
       "import_conflict_suffix": " (copia importada)",
       "cooklog_saved_followup_failed": "El registro se ha guardado. Una operación posterior falló: {error}. Comprueba la despensa antes de volver a intentarlo.",
-      "recipeform_notes_count": "{count} caracteres"
+      "recipeform_notes_count": "{count} caracteres",
+      "recipeform_did_you_mean": "💡 ¿Quisiste decir «{name}»?"
     },
     "de": {
       "home_window_title": "Mes Recettes, Mes Courses",
@@ -4414,7 +4417,8 @@
       "duplicate_recipe_id": "Doppelte Rezept-ID: {value}. Import abgebrochen.",
       "import_conflict_suffix": " (importierte Kopie)",
       "cooklog_saved_followup_failed": "Der Kocheintrag wurde gespeichert. Ein späterer Vorgang ist fehlgeschlagen: {error}. Vorrat vor einem erneuten Versuch prüfen.",
-      "recipeform_notes_count": "{count} Zeichen"
+      "recipeform_notes_count": "{count} Zeichen",
+      "recipeform_did_you_mean": "💡 Meinten Sie „{name}\"?"
     }
   }
 }
