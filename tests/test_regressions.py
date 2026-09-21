@@ -302,6 +302,72 @@ class StaticRegressionTests(unittest.TestCase):
         src = inspect.getsource(main.ImportExportWindow.import_shared_data)
         self.assertIn("*.txt", src)
 
+class ContrastAccessibilityTests(unittest.TestCase):
+    """Vérifie le ratio de contraste WCAG des combinaisons texte/fond
+    réellement utilisées dans configure_app_style(), dans les deux palettes.
+    Garde-fou contre une régression comme celle mesurée sur les boutons en
+    thème sombre (texte blanc sur fond ACCENT : 2.65:1, sous le seuil AA de
+    4.5:1) : ces tests échoueraient si une future modification de couleur
+    recassait le contraste sans qu'on le remarque à l'œil."""
+
+    @staticmethod
+    def _luminance(hex_color):
+        hex_color = hex_color.lstrip("#")
+        channels = []
+        for i in (0, 2, 4):
+            c = int(hex_color[i:i + 2], 16) / 255.0
+            channels.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+        r, g, b = channels
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    @classmethod
+    def _contrast(cls, hex_a, hex_b):
+        l1, l2 = cls._luminance(hex_a), cls._luminance(hex_b)
+        lighter, darker = max(l1, l2), min(l1, l2)
+        return (lighter + 0.05) / (darker + 0.05)
+
+    def test_dark_mode_button_text_meets_aa_on_accent_backgrounds(self):
+        # Le vrai bug corrigé : texte blanc illisible sur les boutons en
+        # thème sombre (2.65:1 sur ACCENT, 2.00:1 sur ACCENT_DARK, tous deux
+        # bien sous le seuil AA de 4.5:1). ON_ACCENT y vaut maintenant la
+        # couleur de fond sombre (texte foncé), qui offre un vrai contraste.
+        for bg_key in ("ACCENT", "ACCENT_DARK"):
+            ratio = self._contrast(main.DARK_PALETTE["ON_ACCENT"], main.DARK_PALETTE[bg_key])
+            self.assertGreaterEqual(
+                ratio, 4.5,
+                f"palette sombre : ON_ACCENT sur {bg_key} = {ratio:.2f}:1 (minimum WCAG AA 4.5:1)"
+            )
+
+    def test_light_mode_button_text_still_meets_minimum_ui_contrast(self):
+        # Le thème clair (texte blanc sur ACCENT/ACCENT_DARK) était déjà
+        # limite avant cette session — 3.06:1/4.36:1, sous le seuil AA
+        # 4.5:1 pour du texte mais au-dessus du seuil 3:1 applicable aux
+        # composants d'interface. Non touché ici (choix de couleur de marque
+        # existant, pas une régression) : ce test garde seulement le plancher
+        # 3:1 pour repérer une éventuelle aggravation future.
+        for bg_key in ("ACCENT", "ACCENT_DARK"):
+            ratio = self._contrast(main.LIGHT_PALETTE["ON_ACCENT"], main.LIGHT_PALETTE[bg_key])
+            self.assertGreaterEqual(
+                ratio, 3.0,
+                f"palette claire : ON_ACCENT sur {bg_key} = {ratio:.2f}:1 (minimum 3:1)"
+            )
+
+    def test_danger_button_text_meets_aa_on_its_own_background(self):
+        # Danger.TButton doit avoir son propre fond (comme Secondary.TButton),
+        # pas hériter du fond ACCENT de TButton : sur ACCENT, ERROR tombait à
+        # 1.74:1 (clair) / 1.01:1 (sombre) — illisible dans les deux thèmes.
+        src = inspect.getsource(main.configure_app_style)
+        self.assertRegex(src, r'style\.configure\("Danger\.TButton",\s*background=COLOR_CARD')
+        for name, palette in (("clair", main.LIGHT_PALETTE), ("sombre", main.DARK_PALETTE)):
+            ratio = self._contrast(palette["ERROR"], palette["CARD"])
+            self.assertGreaterEqual(ratio, 4.5, f"palette {name} : ERROR sur CARD = {ratio:.2f}:1")
+
+    def test_body_text_meets_aa_on_page_and_card_backgrounds(self):
+        for name, palette in (("clair", main.LIGHT_PALETTE), ("sombre", main.DARK_PALETTE)):
+            for bg_key in ("BG", "CARD"):
+                ratio = self._contrast(palette["TEXT"], palette[bg_key])
+                self.assertGreaterEqual(ratio, 4.5, f"palette {name} : TEXT sur {bg_key} = {ratio:.2f}:1")
+
 class ShoppingListWidgetTests(TempDataMixin, unittest.TestCase):
     """Instancie réellement les 3 fenêtres liste de courses (Toutes les
     recettes, Planning, Nouveau menu) pour vérifier que le coût total et le

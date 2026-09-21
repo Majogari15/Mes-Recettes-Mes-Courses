@@ -5779,6 +5779,7 @@ LIGHT_PALETTE = {
     "ACCENT_LIGHT": "#F3D9C4",  # fonds légers accentués
     "GREEN": "#5C8A57",        # vert sauge — validations, favoris, succès
     "ERROR": "#B4483A",        # rouge terracotta foncé — erreurs/avertissements
+    "ON_ACCENT": "#FFFFFF",    # texte sur un fond ACCENT/ACCENT_DARK (boutons...)
 }
 
 DARK_PALETTE = {
@@ -5792,6 +5793,11 @@ DARK_PALETTE = {
     "ACCENT_LIGHT": "#4A3B2C",  # fonds légers accentués
     "GREEN": "#7CB273",        # vert sauge, plus lumineux
     "ERROR": "#E0897A",        # rouge corail, plus lumineux
+    # Blanc illisible sur ACCENT/ACCENT_DARK en sombre (contraste mesuré
+    # 2.65:1 et 2.00:1, sous le seuil WCAG AA de 4.5:1) : on reprend la
+    # couleur de fond sombre, qui offre un contraste correct (6.2:1/8.2:1)
+    # sans changer la teinte de l'accent lui-même.
+    "ON_ACCENT": "#211F1C",
 }
 
 COLOR_BG = LIGHT_PALETTE["BG"]
@@ -5804,6 +5810,7 @@ COLOR_ACCENT_DARK = LIGHT_PALETTE["ACCENT_DARK"]
 COLOR_ACCENT_LIGHT = LIGHT_PALETTE["ACCENT_LIGHT"]
 COLOR_GREEN = LIGHT_PALETTE["GREEN"]
 COLOR_ERROR = LIGHT_PALETTE["ERROR"]
+COLOR_ON_ACCENT = LIGHT_PALETTE["ON_ACCENT"]
 
 
 def apply_palette(dark):
@@ -5812,6 +5819,7 @@ def apply_palette(dark):
     ttk et la base d'options Tk reflètent les nouvelles couleurs."""
     global COLOR_BG, COLOR_CARD, COLOR_BORDER, COLOR_TEXT, COLOR_TEXT_MUTED
     global COLOR_ACCENT, COLOR_ACCENT_DARK, COLOR_ACCENT_LIGHT, COLOR_GREEN, COLOR_ERROR
+    global COLOR_ON_ACCENT
     palette = DARK_PALETTE if dark else LIGHT_PALETTE
     COLOR_BG = palette["BG"]
     COLOR_CARD = palette["CARD"]
@@ -5823,6 +5831,7 @@ def apply_palette(dark):
     COLOR_ACCENT_LIGHT = palette["ACCENT_LIGHT"]
     COLOR_GREEN = palette["GREEN"]
     COLOR_ERROR = palette["ERROR"]
+    COLOR_ON_ACCENT = palette["ON_ACCENT"]
 
 
 def get_dark_mode_preference():
@@ -6870,7 +6879,7 @@ def configure_app_style(root):
     style.configure("TCheckbutton", background=COLOR_BG, foreground=COLOR_TEXT)
     style.map("TCheckbutton", background=[("active", COLOR_BG)])
 
-    style.configure("TButton", background=COLOR_ACCENT, foreground="white",
+    style.configure("TButton", background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT,
                      font=base_font, padding=(12, 7), borderwidth=0, relief="flat")
     # Keyboard/accessibility: keep a visible focus state and generous rows.
     style.map("TButton", relief=[("focus", "solid")])
@@ -6896,10 +6905,10 @@ def configure_app_style(root):
                      padding=(12, 6), font=base_font)
     style.map("TNotebook.Tab",
               background=[("selected", COLOR_ACCENT)],
-              foreground=[("selected", "white")])
+              foreground=[("selected", COLOR_ON_ACCENT)])
 
     style.configure("TScrollbar", background=COLOR_ACCENT, troughcolor=COLOR_BG,
-                     bordercolor=COLOR_BG, arrowcolor="white")
+                     bordercolor=COLOR_BG, arrowcolor=COLOR_ON_ACCENT)
     style.map("TScrollbar", background=[("active", COLOR_ACCENT_DARK)])
 
     style.configure("TSeparator", background=COLOR_BORDER)
@@ -6924,8 +6933,11 @@ def configure_app_style(root):
     style.configure("Card.TFrame", background=COLOR_CARD)
     style.configure("Card.TLabel", background=COLOR_CARD, foreground=COLOR_TEXT)
     style.configure("Hero.TButton", font=("Segoe UI", sf(11), "bold"), padding=(16, 10))
-    style.configure("Danger.TButton", foreground=COLOR_ERROR, padding=(12, 7))
-    style.map("Danger.TButton", foreground=[("active", COLOR_ERROR)])
+    # Fond dédié (comme Secondary.TButton) plutôt que d'hériter du fond ACCENT
+    # de TButton : texte ERROR sur fond ACCENT tombait à 1.74:1/1.01:1
+    # (clair/sombre), bien en dessous du seuil WCAG AA de 4.5:1.
+    style.configure("Danger.TButton", background=COLOR_CARD, foreground=COLOR_ERROR, padding=(12, 7))
+    style.map("Danger.TButton", background=[("active", COLOR_ACCENT_LIGHT)], foreground=[("active", COLOR_ERROR)])
     style.configure("Title.TLabel", font=("Segoe UI", sf(19), "bold"), foreground=COLOR_TEXT)
     style.configure("Section.TLabel", font=("Segoe UI", sf(12), "bold"), foreground=COLOR_ACCENT_DARK)
     style.configure("Muted.TLabel", foreground=COLOR_TEXT_MUTED)
@@ -6941,7 +6953,7 @@ def configure_app_style(root):
     root.option_add("*Listbox.Background", COLOR_CARD)
     root.option_add("*Listbox.Foreground", COLOR_TEXT)
     root.option_add("*Listbox.selectBackground", COLOR_ACCENT)
-    root.option_add("*Listbox.selectForeground", "white")
+    root.option_add("*Listbox.selectForeground", COLOR_ON_ACCENT)
     root.option_add("*Listbox.borderWidth", 1)
     root.option_add("*Listbox.relief", "solid")
     root.option_add("*Listbox.highlightThickness", 0)
@@ -6956,9 +6968,9 @@ def configure_app_style(root):
     root.option_add("*Canvas.highlightThickness", 0)
 
     root.option_add("*Button.Background", COLOR_ACCENT)
-    root.option_add("*Button.Foreground", "white")
+    root.option_add("*Button.Foreground", COLOR_ON_ACCENT)
     root.option_add("*Button.activeBackground", COLOR_ACCENT_DARK)
-    root.option_add("*Button.activeForeground", "white")
+    root.option_add("*Button.activeForeground", COLOR_ON_ACCENT)
     root.option_add("*Button.relief", "flat")
     root.option_add("*Button.borderWidth", 0)
     root.option_add("*Button.padX", 10)
@@ -7290,9 +7302,9 @@ class App(APP_TK_BASE):
         hero = tk.Frame(content, background=COLOR_ACCENT)
         hero.pack(fill="x")
         tk.Label(hero, text=t("home_banner_title"), font=("Segoe UI", sf(22), "bold"),
-                 background=COLOR_ACCENT, foreground="white").pack(pady=(20, 2))
+                 background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT).pack(pady=(20, 2))
         tk.Label(hero, text=t("home_banner_subtitle"), font=("Segoe UI", sf(10)),
-                 background=COLOR_ACCENT, foreground="white").pack(pady=(0, 18))
+                 background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT).pack(pady=(0, 18))
 
         main = ttk.Frame(content)
         main.pack(fill="x", padx=max(24, gs(34)), pady=22)
