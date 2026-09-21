@@ -177,7 +177,10 @@ class IntegrationTests(unittest.TestCase):
                         'print_cancelling','print_page_progress','print_failed_path','print_reader_opened'):
                 self.assertIn(key,catalog)
         root=Path(main.__file__).parent
-        self.assertIn('pypdfium2==5.3.0',(root/'requirements.txt').read_text(encoding="utf-8"))
+        # Version non codée en dur : seul le pin exact ("==", pas une plage)
+        # compte ici, pas le numéro précis (mis à jour au fil des bumps de
+        # dépendance).
+        self.assertRegex((root/'requirements.txt').read_text(encoding="utf-8"), r'(?m)^pypdfium2==\S+$')
         script=(root/'Construire_le_exe.bat').read_text(encoding="utf-8")
         self.assertIn('--collect-all=pypdfium2_raw',script)
 
