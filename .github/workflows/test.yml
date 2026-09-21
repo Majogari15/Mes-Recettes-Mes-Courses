@@ -35,8 +35,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Matrice réduite de 6 à 2 combinaisons (une par OS, sur la version la
+        # plus récente) : les runners hébergés GitHub Actions se bloquaient
+        # au démarrage plusieurs fois par session (surtout sur les jambes
+        # 3.10/3.11), obligeant à annuler/relancer manuellement à répétition
+        # — un vrai bug de leur infrastructure (le même job réussit
+        # instantanément à la relance, code identique), pas un problème de
+        # compatibilité Python détecté par ces jambes. Réduit d'autant le
+        # temps CI et le risque de tomber sur un runner coincé. À élargir de
+        # nouveau si un jour un problème spécifique à 3.10/3.11 est suspecté.
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.12"]
 
     steps:
       - uses: actions/checkout@v7
