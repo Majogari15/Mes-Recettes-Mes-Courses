@@ -392,6 +392,40 @@ class ContrastAccessibilityTests(unittest.TestCase):
                 ratio = self._contrast(palette["TEXT"], palette[bg_key])
                 self.assertGreaterEqual(ratio, 4.5, f"palette {name} : TEXT sur {bg_key} = {ratio:.2f}:1")
 
+    def test_secondary_text_colors_meet_aa_on_their_real_backgrounds(self):
+        # Étend l'audit de contraste au-delà des boutons (déjà couverts
+        # ci-dessus) : TEXT_MUTED, ACCENT_DARK utilisé comme texte, et GREEN
+        # sont utilisés respectivement 70, 28 et plusieurs fois dans
+        # configure_app_style()/les fenêtres (légendes, libellés de section,
+        # pastilles de tag, validations) sur BG, CARD et ACCENT_LIGHT — trois
+        # fonds jamais vérifiés jusqu'ici. Mesuré avant correction : jusqu'à
+        # 2.98:1 (TEXT_MUTED sur ACCENT_LIGHT en clair), tous sous le seuil
+        # WCAG AA 4.5:1 pour du texte normal.
+        combos = [
+            ("TEXT_MUTED", "BG"), ("TEXT_MUTED", "CARD"), ("TEXT_MUTED", "ACCENT_LIGHT"),
+            ("ACCENT_DARK", "BG"), ("ACCENT_DARK", "CARD"), ("ACCENT_DARK", "ACCENT_LIGHT"),
+            ("GREEN", "BG"), ("GREEN", "CARD"),
+        ]
+        for name, palette in (("clair", main.LIGHT_PALETTE), ("sombre", main.DARK_PALETTE)):
+            for fg_key, bg_key in combos:
+                ratio = self._contrast(palette[fg_key], palette[bg_key])
+                self.assertGreaterEqual(
+                    ratio, 4.5,
+                    f"palette {name} : {fg_key} sur {bg_key} = {ratio:.2f}:1 (minimum WCAG AA 4.5:1)"
+                )
+
+    def test_danger_button_hover_text_meets_aa(self):
+        # Danger.TButton passe au survol sur ACCENT_LIGHT (voir
+        # configure_app_style) avec le texte ERROR par-dessus — un état
+        # jamais mesuré par test_danger_button_text_meets_aa_on_its_own_background
+        # ci-dessus, qui ne couvre que l'état au repos (fond CARD).
+        for name, palette in (("clair", main.LIGHT_PALETTE), ("sombre", main.DARK_PALETTE)):
+            ratio = self._contrast(palette["ERROR"], palette["ACCENT_LIGHT"])
+            self.assertGreaterEqual(
+                ratio, 4.5,
+                f"palette {name} : ERROR sur ACCENT_LIGHT (survol Danger.TButton) = {ratio:.2f}:1"
+            )
+
 class ShoppingListWidgetTests(TempDataMixin, unittest.TestCase):
     """Instancie réellement les 3 fenêtres liste de courses (Toutes les
     recettes, Planning, Nouveau menu) pour vérifier que le coût total et le

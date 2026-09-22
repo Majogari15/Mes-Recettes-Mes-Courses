@@ -5805,12 +5805,21 @@ LIGHT_PALETTE = {
     "CARD": "#FFFFFF",         # fond des zones "carte"
     "BORDER": "#E8DCC8",       # bordures discrètes
     "TEXT": "#332B22",         # texte principal, brun très foncé
-    "TEXT_MUTED": "#8A7D68",   # texte secondaire
+    # TEXT_MUTED, ACCENT_DARK (utilisé comme couleur de texte, pas seulement
+    # de fond), GREEN et ERROR sont assombris par rapport à leur teinte
+    # d'origine (même teinte/saturation, luminosité réduite) : mesurés à
+    # 2.98-4.36:1 sur les fonds BG/CARD/ACCENT_LIGHT réellement utilisés
+    # (ex. pastille de tag ACCENT_DARK sur ACCENT_LIGHT, texte "pas de
+    # photo" TEXT_MUTED sur ACCENT_LIGHT), sous le seuil WCAG AA 4.5:1 pour
+    # du texte normal. ACCENT (couleur de marque principale) n'est pas
+    # touché : lui n'est utilisé qu'en fond sous du texte ON_ACCENT, déjà
+    # couvert par les tests existants.
+    "TEXT_MUTED": "#685F4F",   # texte secondaire
     "ACCENT": "#D97B3F",       # orange terracotta — actions principales
-    "ACCENT_DARK": "#B8622C",  # survol / pression
+    "ACCENT_DARK": "#934E23",  # survol / pression
     "ACCENT_LIGHT": "#F3D9C4",  # fonds légers accentués
-    "GREEN": "#5C8A57",        # vert sauge — validations, favoris, succès
-    "ERROR": "#B4483A",        # rouge terracotta foncé — erreurs/avertissements
+    "GREEN": "#456842",        # vert sauge — validations, favoris, succès
+    "ERROR": "#A54235",        # rouge terracotta foncé — erreurs/avertissements
     "ON_ACCENT": "#FFFFFF",    # texte sur un fond ACCENT/ACCENT_DARK (boutons...)
 }
 
@@ -5819,12 +5828,16 @@ DARK_PALETTE = {
     "CARD": "#2C2A25",         # fond des zones "carte"
     "BORDER": "#43403A",       # bordures discrètes
     "TEXT": "#EFE8DB",         # texte principal, crème clair
-    "TEXT_MUTED": "#AB9F8C",   # texte secondaire
+    # TEXT_MUTED et ERROR sont légèrement éclaircis par rapport à leur
+    # teinte d'origine (même teinte, luminosité augmentée) : mesurés à
+    # 4.11-4.13:1 sur ACCENT_LIGHT (pastille de tag TEXT_MUTED, texte du
+    # survol de Danger.TButton), tout juste sous le seuil WCAG AA 4.5:1.
+    "TEXT_MUTED": "#B2A796",   # texte secondaire
     "ACCENT": "#E08A4F",       # orange terracotta, plus lumineux sur fond sombre
     "ACCENT_DARK": "#F0A868",  # survol / pression (plus clair que ACCENT en sombre)
     "ACCENT_LIGHT": "#4A3B2C",  # fonds légers accentués
     "GREEN": "#7CB273",        # vert sauge, plus lumineux
-    "ERROR": "#E0897A",        # rouge corail, plus lumineux
+    "ERROR": "#E39487",        # rouge corail, plus lumineux
     # Blanc illisible sur ACCENT/ACCENT_DARK en sombre (contraste mesuré
     # 2.65:1 et 2.00:1, sous le seuil WCAG AA de 4.5:1) : on reprend la
     # couleur de fond sombre, qui offre un contraste correct (6.2:1/8.2:1)
