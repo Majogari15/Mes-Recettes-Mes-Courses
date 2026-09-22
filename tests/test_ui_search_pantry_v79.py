@@ -300,6 +300,13 @@ class RecipeCardKeyboardNavigationTests(AppWindowTestBase):
         win = main.ManageRecipesWindow(self.app)
         self.addCleanup(win.destroy)
         win._toggle_view()
+        # bbox() ne renvoie une géométrie qu'une fois le nouveau Treeview
+        # réellement dessiné : update_idletasks()/update() forcent ce cycle
+        # de layout (sans eux, bbox() renvoie '' de façon fiable sur les
+        # runners Windows CI, alors que ça passe sans sur une machine avec
+        # un vrai affichage déjà à jour par d'autres évènements).
+        win.update_idletasks()
+        win.update()
         self.assertEqual(win.view_mode, "list")
         self.assertTrue(win.tree.bind("<Button-1>"))
         self.assertFalse(win.tree.bind("<Double-Button-1>"))
