@@ -1,5 +1,6 @@
 import tkinter as tk
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import main
@@ -273,6 +274,46 @@ class RecipeCardKeyboardNavigationTests(AppWindowTestBase):
             win._on_card_activate(idx)
 
         self.assertEqual(opened, [idx])
+
+    def test_single_click_on_a_recipe_card_opens_it_directly(self):
+        # Auparavant il fallait double-cliquer une carte pour l'ouvrir (un
+        # seul clic ne faisait que la sélectionner) — un seul clic doit
+        # maintenant à la fois sélectionner (bordure d'accent) ET ouvrir la
+        # recette, sans avoir à double-cliquer.
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        idx, card = win._grid_items[0]
+        self.assertTrue(card.bind("<Button-1>"))
+        self.assertFalse(card.bind("<Double-Button-1>"))
+
+        opened = []
+        with patch.object(win, "_open_index", lambda i: opened.append(i)):
+            win._select_and_open_grid_index(idx)
+
+        self.assertEqual(opened, [idx])
+        self.assertEqual(win._context_index, idx)
+        self.assertEqual(str(card.cget("highlightbackground")), main.COLOR_ACCENT)
+
+    def test_single_click_on_a_list_row_opens_it_directly(self):
+        # Même correction que pour la vue grille, côté vue liste (Treeview) :
+        # un seul clic sur une ligne doit l'ouvrir, sans double-cliquer.
+        win = main.ManageRecipesWindow(self.app)
+        self.addCleanup(win.destroy)
+        win._toggle_view()
+        self.assertEqual(win.view_mode, "list")
+        self.assertTrue(win.tree.bind("<Button-1>"))
+        self.assertFalse(win.tree.bind("<Double-Button-1>"))
+        first_row = win.tree.get_children()[0]
+        bbox = win.tree.bbox(first_row)
+        self.assertTrue(bbox, "la première ligne doit être visible pour ce test")
+        fake_event = SimpleNamespace(y=bbox[1] + bbox[3] // 2)
+
+        opened = []
+        with patch.object(win, "_open_index", lambda i: opened.append(i)):
+            win._on_tree_row_click(fake_event)
+
+        self.assertEqual(opened, [int(first_row)])
+        self.assertEqual(win.tree.selection(), (first_row,))
 
 
 def _find_widget(root, predicate):

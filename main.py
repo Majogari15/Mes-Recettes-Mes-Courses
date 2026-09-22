@@ -10126,7 +10126,7 @@ class ManageRecipesWindow(tk.Toplevel):
             name = ("⭐ " if r.get("favorite") else "") + ("💭 " if r.get("wishlist") else "") + r.get("name", "")
             self.tree.insert("", "end", iid=str(idx), values=(name, translate_category_name(r.get("category", "Autre")), total_text,
                             translate_difficulty_name(r.get("difficulty", "Facile")), stars, int(r.get("times_cooked", 0) or 0)))
-        self.tree.bind("<Double-Button-1>", lambda e: self.open_selected())
+        self.tree.bind("<Button-1>", self._on_tree_row_click)
         self.tree.bind("<Return>", lambda e: self.open_selected())
         self.tree.bind("<Button-3>", self._show_tree_context)
 
@@ -10267,24 +10267,27 @@ class ManageRecipesWindow(tk.Toplevel):
                     lab.bind("<Button-1>", lambda e, value=tag: self._filter_by_tag(value))
 
             for widget in (card, photo_box, photo, body, title_label):
-                widget.bind("<Button-1>", lambda e, i=idx: self._select_grid_index(i))
-                widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
+                # Un seul clic sélectionne et ouvre directement (plus besoin
+                # de double-cliquer) : _select_grid_index garde son rôle pour
+                # que la bordure de sélection soit déjà à jour au retour de
+                # la fiche recette.
+                widget.bind("<Button-1>", lambda e, i=idx: self._select_and_open_grid_index(i))
                 widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
                 widget.bind("<Enter>", lambda e, i=idx, c=card: self._on_card_hover_enter(i, c))
                 widget.bind("<Leave>", lambda e, i=idx, c=card: self._on_card_hover_leave(i, c))
             # Bind all non-tag labels inside body to opening/context as well.
             for widget in body.winfo_children():
                 if isinstance(widget, tk.Label) and widget.master is body:
-                    widget.bind("<Double-Button-1>", lambda e, i=idx: self._open_index(i))
+                    widget.bind("<Button-1>", lambda e, i=idx: self._select_and_open_grid_index(i))
                     widget.bind("<Button-3>", lambda e, i=idx: self._show_context(e, i))
                     widget.bind("<Enter>", lambda e, i=idx, c=card: self._on_card_hover_enter(i, c))
                     widget.bind("<Leave>", lambda e, i=idx, c=card: self._on_card_hover_leave(i, c))
 
             # Navigation clavier : la carte elle-même est l'unique arrêt de
             # tabulation (ses enfants ne prennent jamais le focus). Entrée
-            # et Espace ouvrent la recette, comme un double-clic ; les
-            # flèches déplacent le focus vers la carte adjacente, comme dans
-            # une vraie grille.
+            # et Espace ouvrent la recette, comme un clic ; les flèches
+            # déplacent le focus vers la carte adjacente, comme dans une
+            # vraie grille.
             card.bind("<FocusIn>", lambda e, i=idx, c=card: self._on_card_hover_enter(i, c))
             card.bind("<FocusOut>", lambda e, i=idx, c=card: self._on_card_hover_leave(i, c))
             card.bind("<Return>", lambda e, i=idx: self._on_card_activate(i))
@@ -10323,6 +10326,21 @@ class ManageRecipesWindow(tk.Toplevel):
             color = COLOR_ACCENT if i == idx else COLOR_BORDER
             card.configure(highlightbackground=color, highlightcolor=color,
                            highlightthickness=2 if i == idx else 1)
+
+    def _select_and_open_grid_index(self, idx):
+        self._select_grid_index(idx)
+        self._open_index(idx)
+
+    def _on_tree_row_click(self, event):
+        # Ouverture en un seul clic (plus besoin de double-cliquer) :
+        # identify_row plutôt que self.tree.selection() pour ne pas dépendre
+        # de l'ordre entre notre binding et la sélection par défaut de ttk
+        # sur ce même clic.
+        row = self.tree.identify_row(event.y)
+        if row:
+            self.tree.selection_set(row)
+            self.tree.focus(row)
+            self._open_index(int(row))
 
     def _show_tree_context(self, event):
         row = self.tree.identify_row(event.y)
