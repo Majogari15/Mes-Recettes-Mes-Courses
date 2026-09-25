@@ -6,6 +6,7 @@ import unittest
 import zipfile
 from pathlib import Path
 from tkinter import ttk
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import main
@@ -689,6 +690,84 @@ class HomeRecipesCountCardRefreshTests(TempDataMixin, unittest.TestCase):
             self.app.recipes_count_label.cget("text"),
             main.t("home_primary_recipes_sub", count=1),
         )
+
+
+class ImportUrlClipboardTests(TempDataMixin, unittest.TestCase):
+    """Étape 1/2 de l'amélioration de l'import par lien (comparaison avec
+    l'app mobile) : coller/détecter le lien depuis le presse-papiers, accès
+    direct au navigateur — jamais d'import déclenché sans clic explicite."""
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.app.withdraw()
+        self.addCleanup(self.app.destroy)
+        self.win = main.ImportFromUrlWindow(self.app)
+        self.addCleanup(self.win.destroy)
+        self.win.update()
+
+    def test_extract_url_finds_link_inside_surrounding_text(self):
+        self.assertEqual(
+            main.ImportFromUrlWindow._extract_url("Regarde cette recette : https://exemple.fr/plat (top !)"),
+            "https://exemple.fr/plat",
+        )
+        self.assertIsNone(main.ImportFromUrlWindow._extract_url("pas de lien ici"))
+
+    def test_paste_button_fills_the_entry_from_clipboard(self):
+        with patch.object(self.win, "clipboard_get", return_value="https://exemple.fr/tarte"):
+            self.win._paste_clipboard_url()
+        self.assertEqual(self.win.url_entry.get(), "https://exemple.fr/tarte")
+
+    def test_paste_button_warns_when_clipboard_has_no_url(self):
+        with patch.object(self.win, "clipboard_get", return_value="du texte sans lien"), \
+             patch.object(main.messagebox, "showinfo") as mock_showinfo:
+            self.win._paste_clipboard_url()
+        mock_showinfo.assert_called_once()
+        self.assertEqual(self.win.url_entry.get(), "")
+
+    def test_focus_in_shows_a_banner_for_a_new_clipboard_url_without_filling_the_entry(self):
+        # Jamais d'action automatique sur un simple retour de focus — la
+        # détection ne fait qu'afficher un bandeau, l'utilisateur doit
+        # cliquer "Utiliser ce lien" lui-même.
+        with patch.object(self.win, "clipboard_get", return_value="https://exemple.fr/soupe"):
+            self.win._on_window_focus_in(SimpleNamespace(widget=self.win))
+        self.win.update()
+        self.assertEqual(self.win.url_entry.get(), "")
+        self.assertIn("exemple.fr/soupe", self.win.clipboard_banner_label.cget("text"))
+        self.assertTrue(self.win.clipboard_banner.winfo_ismapped())
+
+        self.win._use_detected_clipboard_url()
+        self.assertEqual(self.win.url_entry.get(), "https://exemple.fr/soupe")
+        self.assertFalse(self.win.clipboard_banner.winfo_ismapped())
+
+    def test_focus_in_from_a_child_widget_is_ignored(self):
+        with patch.object(self.win, "clipboard_get", return_value="https://exemple.fr/soupe"):
+            self.win._on_window_focus_in(SimpleNamespace(widget=self.win.url_entry))
+        self.assertFalse(self.win.clipboard_banner.winfo_ismapped())
+
+    def test_same_url_is_not_reannounced_twice(self):
+        with patch.object(self.win, "clipboard_get", return_value="https://exemple.fr/soupe"):
+            self.win._on_window_focus_in(SimpleNamespace(widget=self.win))
+            self.win.clipboard_banner.pack_forget()
+            self.win._on_window_focus_in(SimpleNamespace(widget=self.win))
+        self.assertFalse(self.win.clipboard_banner.winfo_ismapped())
+
+    def test_search_button_opens_the_default_browser(self):
+        with patch.object(main.webbrowser, "open") as mock_open:
+            self.win._open_web_search()
+        mock_open.assert_called_once_with("https://www.google.com")
 
 
 if __name__ == "__main__":

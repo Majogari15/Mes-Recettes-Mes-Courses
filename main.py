@@ -19060,9 +19060,37 @@ class ImportFromUrlWindow(tk.Toplevel):
 
         ttk.Label(self, text=t("importurl_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
         ttk.Label(self, text=t("importurl_intro"), justify="center", font=("Segoe UI", sf(9)), wraplength=640).pack(pady=(0, 10))
+
+        # Étape 1/2 (comparaison avec l'app mobile) : coller/détecter le
+        # lien depuis le presse-papiers plutôt que devoir taper/coller à la
+        # main dans le champ, et un accès direct au navigateur pour aller
+        # chercher une recette. Jamais d'import automatique sans que
+        # l'utilisateur clique lui-même — un copier accidentel d'une autre
+        # URL ne doit jamais déclencher un import à son insu.
+        shortcuts = ttk.Frame(self)
+        shortcuts.pack(fill="x", padx=20, pady=(0, 8))
+        ttk.Button(shortcuts, text=t("importurl_paste_button"),
+                   command=self._paste_clipboard_url).pack(side="left")
+        ttk.Button(shortcuts, text=t("importurl_search_button"),
+                   command=self._open_web_search).pack(side="left", padx=(8, 0))
+
+        self._last_seen_clipboard_url = None
+        self.clipboard_banner = ttk.Frame(self)
+        self.clipboard_banner_label = ttk.Label(
+            self.clipboard_banner, text="", foreground=COLOR_ACCENT_DARK,
+            font=("Segoe UI", sf(9), "bold"), wraplength=520, justify="left"
+        )
+        self.clipboard_banner_label.pack(side="left", padx=(20, 8))
+        ttk.Button(self.clipboard_banner, text=t("importurl_use_detected_button"),
+                   style="Secondary.TButton", command=self._use_detected_clipboard_url).pack(side="left")
+        # Empaqueté seulement quand un lien est détecté (voir
+        # _check_clipboard_for_url) — invisible tant qu'il n'y a rien à
+        # proposer, pas un espace vide en permanence.
+
         self.url_entry = ttk.Entry(self, width=70)
         self.url_entry.pack(pady=5, padx=20, fill="x")
         self.url_entry.bind("<Return>", lambda e: self.fetch())
+        self.bind("<FocusIn>", self._on_window_focus_in)
 
         action = ttk.Frame(self)
         action.pack(fill="x", padx=20, pady=5)
@@ -19095,6 +19123,60 @@ class ImportFromUrlWindow(tk.Toplevel):
         self.import_button = ttk.Button(bottom, text=t("importurl_confirm_button"), style="Primary.TButton",
                                         command=self.confirm_import, state="disabled")
         self.import_button.pack(side="right")
+
+    @staticmethod
+    def _extract_url(text):
+        """Repère une URL http(s) dans un texte quelconque (le presse-
+        papiers peut contenir davantage que la seule adresse — un lien
+        partagé accompagné d'un titre, par exemple)."""
+        match = re.search(r"https?://\S+", (text or "").strip())
+        return match.group(0).rstrip(".,;)") if match else None
+
+    def _read_clipboard_url(self):
+        try:
+            content = self.clipboard_get()
+        except tk.TclError:
+            return None
+        return self._extract_url(content)
+
+    def _paste_clipboard_url(self):
+        url = self._read_clipboard_url()
+        if not url:
+            messagebox.showinfo(t("common_info"), t("importurl_clipboard_no_url"), parent=self)
+            return
+        self.clipboard_banner.pack_forget()
+        self.url_entry.delete(0, tk.END)
+        self.url_entry.insert(0, url)
+        self._last_seen_clipboard_url = url
+
+    def _open_web_search(self):
+        webbrowser.open("https://www.google.com")
+
+    def _on_window_focus_in(self, event):
+        # Ne réagit qu'au focus de la fenêtre elle-même, pas de chacun de
+        # ses widgets enfants (qui reçoivent aussi <FocusIn> en cascade).
+        if event.widget is not self:
+            return
+        self._check_clipboard_for_url()
+
+    def _check_clipboard_for_url(self):
+        url = self._read_clipboard_url()
+        current_entry = self.url_entry.get().strip()
+        if not url or url == self._last_seen_clipboard_url or url == current_entry:
+            return
+        self._last_seen_clipboard_url = url
+        display = url if len(url) <= 70 else url[:67] + "…"
+        self.clipboard_banner_label.config(
+            text=t("importurl_clipboard_detected", url=display)
+        )
+        self.clipboard_banner.pack(fill="x", padx=0, pady=(0, 8), before=self.url_entry)
+
+    def _use_detected_clipboard_url(self):
+        if not self._last_seen_clipboard_url:
+            return
+        self.url_entry.delete(0, tk.END)
+        self.url_entry.insert(0, self._last_seen_clipboard_url)
+        self.clipboard_banner.pack_forget()
 
     def fetch(self):
         url = self.url_entry.get().strip()
