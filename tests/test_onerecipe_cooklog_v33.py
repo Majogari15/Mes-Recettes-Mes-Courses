@@ -268,5 +268,47 @@ class OneRecipeCookLogV33Tests(OneRecipeWindowTestBase):
         self.assertLess(narrow_wrap, wide_wrap)
 
 
+class CookLogEntryDialogCancelTests(OneRecipeWindowTestBase):
+    """Un clic accidentel sur "J'ai cuisiné ça" comptait jusqu'ici toujours
+    comme une cuisson réelle (skip() appelait on_done avec des champs
+    vides), y compris en fermant la fenêtre via ✕ — aucun vrai moyen
+    d'annuler. Vérifie le nouveau bouton "Annuler" et la fermeture ✕."""
+
+    def _make_dialog(self):
+        calls = []
+        dialog = main.CookLogEntryDialog(
+            self.app, "Poulet rôti", lambda *a, **k: calls.append((a, k)), persons=4
+        )
+        self.addCleanup(lambda: dialog.destroy() if dialog.winfo_exists() else None)
+        return dialog, calls
+
+    def test_cancel_does_not_call_on_done(self):
+        dialog, calls = self._make_dialog()
+        dialog.cancel()
+        self.assertEqual(calls, [])
+        self.assertFalse(dialog.winfo_exists())
+
+    def test_skip_still_calls_on_done_with_empty_fields(self):
+        # Comportement volontairement inchangé : "Passer" enregistre bien
+        # la cuisson (juste sans notes), contrairement à "Annuler".
+        dialog, calls = self._make_dialog()
+        dialog.skip()
+        self.assertEqual(len(calls), 1)
+        args, _kwargs = calls[0]
+        self.assertEqual(args, ("", "", None, 0, 4))
+
+    def test_closing_the_window_cancels_instead_of_recording_a_cooking(self):
+        # Garde-fou contre une régression du câblage lui-même (ex. un futur
+        # changement qui relierait à nouveau ✕ à skip()) : on invoque la
+        # vraie commande Tcl enregistrée par self.protocol(...), pas
+        # dialog.cancel() directement.
+        dialog, calls = self._make_dialog()
+        bound_command = dialog.protocol("WM_DELETE_WINDOW")
+        self.assertTrue(bound_command)
+        dialog.tk.call(bound_command)
+        self.assertEqual(calls, [])
+        self.assertFalse(dialog.winfo_exists())
+
+
 if __name__ == "__main__":
     unittest.main()

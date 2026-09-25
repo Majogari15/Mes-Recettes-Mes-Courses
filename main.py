@@ -16145,8 +16145,18 @@ class CookLogEntryDialog(tk.Toplevel):
             btn_frame, text=t("cooklogentry_skip_button"),
             style="Secondary.TButton", command=self.skip
         ).grid(row=0, column=1, padx=5)
+        ttk.Button(
+            btn_frame, text=t("cooklogentry_cancel_button"),
+            style="Secondary.TButton", command=self.cancel
+        ).grid(row=0, column=2, padx=5)
 
-        self.protocol("WM_DELETE_WINDOW", self.skip)
+        # Fermer la fenêtre (✕) équivalait jusqu'ici à "Passer" : un clic
+        # accidentel sur "J'ai cuisiné ça" comptait donc quand même comme
+        # une cuisson (journal + décompte garde-manger), sans façon de
+        # revenir en arrière. Désormais ✕ annule vraiment, comme le nouveau
+        # bouton "Annuler" — rien n'est enregistré tant que "Enregistrer" ou
+        # "Passer" n'a pas été cliqué explicitement.
+        self.protocol("WM_DELETE_WINDOW", self.cancel)
 
     def choose_photo(self):
         path = filedialog.askopenfilename(
@@ -16197,6 +16207,11 @@ class CookLogEntryDialog(tk.Toplevel):
                 t("common_error"), t("cooklogentry_save_failed", error=exc), parent=self
             )
             return
+        self.destroy()
+
+    def cancel(self):
+        # N'appelle jamais on_done : contrairement à skip(), rien n'est
+        # enregistré (ni journal de cuisson, ni décompte garde-manger).
         self.destroy()
 
 
