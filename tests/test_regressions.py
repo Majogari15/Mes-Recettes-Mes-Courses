@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import tempfile
@@ -187,6 +188,67 @@ class CoreRegressionTests(TempDataMixin, unittest.TestCase):
         main.build_shared_backup_zip(str(out))
         with zipfile.ZipFile(out, "r") as z:
             self.assertIn("images/cook.jpg", z.namelist())
+
+    def test_shared_backup_exports_cook_log_full_for_mobile(self):
+        # L'app mobile ne lit que "cook_log_full" (photo en data URL base64),
+        # jamais "cook_log" natif Windows (photo = nom de fichier) : sans ce
+        # champ, notes/photos/notation du journal de cuisine étaient perdues
+        # à l'import côté mobile.
+        photo_bytes = b"\xff\xd8\xff-fake-jpeg-bytes"
+        (Path(main.IMAGES_DIR) / "cook.jpg").write_bytes(photo_bytes)
+        r = self.recipe(cook_log=[{
+            "date": "2026-01-01T12:00:00", "note": "Un peu trop cuit",
+            "comment": "", "photo": "cook.jpg", "rating": 4, "persons": 2,
+        }])
+        main.save_recipes([r])
+        main.save_ingredients(["Farine"])
+        out = self.base / "shared.zip"
+        main.build_shared_backup_zip(str(out))
+        with zipfile.ZipFile(out, "r") as z:
+            recipes = json.loads(z.read("recipes.json").decode("utf-8"))
+        entry = recipes[0]["cook_log_full"][0]
+        self.assertEqual(entry["note"], "Un peu trop cuit")
+        self.assertEqual(entry["rating"], 4)
+        self.assertTrue(entry["photo"].startswith("data:image/jpeg;base64,"))
+        decoded = base64.b64decode(entry["photo"].split(",", 1)[1])
+        self.assertEqual(decoded, photo_bytes)
+
+    def test_restore_shared_zip_converts_mobile_cook_log_full(self):
+        # Sens inverse : un zip produit par l'app mobile (cook_log_full,
+        # photo en data URL) doit devenir un cook_log natif Windows exploitable
+        # par le journal de cuisine (photo = vrai fichier dans images/).
+        photo_bytes = b"\x89PNG-fake-png-bytes"
+        data_url = "data:image/png;base64," + base64.b64encode(photo_bytes).decode("ascii")
+        mobile_recipe = self.recipe(rid="mobile-r1")
+        mobile_recipe["cook_log_full"] = [{
+            "date": "2026-02-02T08:00:00", "note": "Parfait", "photo": data_url,
+        }]
+        out = self.base / "from_mobile.zip"
+        with zipfile.ZipFile(out, "w") as z:
+            z.writestr("recipes.json", json.dumps([mobile_recipe]))
+        main.restore_from_shared_zip(str(out), merge=False)
+        [imported] = main.load_recipes()
+        entry = imported["cook_log"][0]
+        self.assertEqual(entry["note"], "Parfait")
+        self.assertNotIn("cook_log_full", imported)
+        photo_path = Path(main.IMAGES_DIR) / entry["photo"]
+        self.assertEqual(photo_path.read_bytes(), photo_bytes)
+
+    def test_shared_backup_reinjects_ingredient_price_for_mobile(self):
+        # _normalize_shared_override retire "price" (il vit normalement dans
+        # ingredient_prices.json, que l'app mobile ne lit pas) : sans
+        # réinjection, un prix personnalisé disparaissait silencieusement à
+        # l'export vers l'app mobile.
+        main.save_ingredient_overrides({"farine": {"allergens": ["gluten"]}})
+        main.save_ingredient_prices({"farine": {"name": "Farine", "price": 1.5, "unit": "kg"}})
+        main.save_recipes([self.recipe()])
+        main.save_ingredients(["Farine"])
+        out = self.base / "shared.zip"
+        main.build_shared_backup_zip(str(out))
+        with zipfile.ZipFile(out, "r") as z:
+            overrides = json.loads(z.read("ingredient_custom_data.json").decode("utf-8"))
+        self.assertEqual(overrides["farine"]["price"], {"amount": 1.5, "unit": "kg"})
+        self.assertEqual(overrides["farine"]["allergens"], ["gluten"])
 
     def test_shared_backup_importable_when_renamed_to_txt(self):
         # L'application mobile renomme ce zip en ".txt" avant de le

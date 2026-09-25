@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog, font as tkfont
+import base64
 import copy
 import csv
 import difflib
@@ -12083,6 +12084,65 @@ def validate_backup_payloads(parsed):
 # risquant de mélanger des plannings incohérents.
 # ---------------------------------------------------------------------------
 
+_COOK_LOG_PHOTO_MIME_BY_EXT = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "webp": "image/webp", "gif": "image/gif", "bmp": "image/bmp",
+}
+_COOK_LOG_PHOTO_EXT_BY_MIME_SUBTYPE = {
+    "jpeg": ".jpg", "jpg": ".jpg", "png": ".png",
+    "webp": ".webp", "gif": ".gif", "bmp": ".bmp",
+}
+
+
+def _cook_log_entry_to_shared(entry):
+    """Convertit une entrée cook_log Windows (photo = nom de fichier dans
+    images/) vers le format partagé avec l'app mobile (photo = data URL
+    base64), seul format que l'app mobile sait lire pour le journal de
+    cuisine détaillé (voir recipeFromSharedFormat côté mobile, champ
+    cook_log_full)."""
+    photo = None
+    fname = safe_image_filename(entry.get("photo")) if isinstance(entry, dict) else None
+    if fname:
+        path = image_store_path(fname)
+        if path and os.path.isfile(path):
+            try:
+                with open(path, "rb") as f:
+                    data = f.read()
+            except OSError:
+                data = None
+            if data is not None:
+                ext = os.path.splitext(fname)[1].lower().lstrip(".")
+                mime = _COOK_LOG_PHOTO_MIME_BY_EXT.get(ext, "image/jpeg")
+                photo = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+    return {
+        "date": entry.get("date", ""),
+        "note": entry.get("note", ""),
+        "comment": entry.get("comment", ""),
+        "rating": entry.get("rating", 0),
+        "persons": entry.get("persons"),
+        "photo": photo,
+    }
+
+
+def _decode_data_url_image(value):
+    """Décode une data URL image (data:image/xxx;base64,....) en (octets,
+    extension). Retourne None si la valeur n'est pas une data URL image
+    valide (c'est le format utilisé par l'app mobile pour les photos du
+    journal de cuisine dans le zip partagé)."""
+    if not isinstance(value, str) or not value.startswith("data:image/"):
+        return None
+    match = re.match(r"^data:image/([a-zA-Z0-9.+-]+);base64,(.+)$", value, re.DOTALL)
+    if not match:
+        return None
+    subtype, b64_data = match.groups()
+    try:
+        data = base64.b64decode(b64_data, validate=True)
+    except ValueError:
+        return None
+    ext = _COOK_LOG_PHOTO_EXT_BY_MIME_SUBTYPE.get(subtype.lower(), ".jpg")
+    return data, ext
+
+
 def _normalize_shared_override(record):
     """Convertit une surcharge ingrédient vers le format partagé canonique."""
     if not isinstance(record, dict):
@@ -12108,17 +12168,46 @@ def build_shared_backup_zip(zip_path):
     for r in recipes:
         referenced_images.update(get_all_recipe_image_refs(r))
 
+    # Copie enrichie pour l'app mobile uniquement : cook_log_full (photos en
+    # data URL base64) est ajouté à côté de cook_log natif (photos en nom de
+    # fichier), que l'app mobile ne sait pas lire. cook_log natif reste
+    # inchangé pour rester compatible avec l'app Windows elle-même.
+    shared_recipes = []
+    for r in recipes:
+        r2 = copy.deepcopy(r)
+        cook_log = r2.get("cook_log") or []
+        if cook_log:
+            r2["cook_log_full"] = [
+                _cook_log_entry_to_shared(entry)
+                for entry in cook_log if isinstance(entry, dict)
+            ]
+        shared_recipes.append(r2)
+
     overrides = load_ingredient_overrides()
     shared_overrides = {
         str(name).strip().lower(): _normalize_shared_override(record)
         for name, record in overrides.items()
         if str(name).strip()
     }
+    # Le prix, retiré ci-dessus par _normalize_shared_override (il vit
+    # normalement dans ingredient_prices.json, le stockage natif Windows),
+    # est réinjecté ici au format que l'app mobile lit réellement
+    # ({"amount":, "unit":} imbriqué dans ingredient_custom_data.json) :
+    # elle ne connaît pas ingredient_prices.json et ignorerait silencieusement
+    # ce fichier, perdant les prix personnalisés sans cette réinjection.
+    for key, price_record in load_ingredient_prices().items():
+        if not isinstance(price_record, dict):
+            continue
+        amount = price_record.get("price")
+        unit = price_record.get("unit")
+        if amount is None or not unit:
+            continue
+        shared_overrides.setdefault(key, {})["price"] = {"amount": amount, "unit": unit}
 
     tmp_path = str(zip_path) + ".tmp"
     try:
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("recipes.json", json.dumps(recipes, ensure_ascii=False, indent=2, allow_nan=False))
+            zf.writestr("recipes.json", json.dumps(shared_recipes, ensure_ascii=False, indent=2, allow_nan=False))
             zf.writestr("ingredients.json", json.dumps(load_ingredients(), ensure_ascii=False, indent=2, allow_nan=False))
             zf.writestr("pantry.json", json.dumps(load_pantry(), ensure_ascii=False, indent=2, allow_nan=False))
             zf.writestr("ingredient_custom_data.json", json.dumps(shared_overrides, ensure_ascii=False, indent=2, allow_nan=False))
@@ -12192,6 +12281,36 @@ def restore_from_shared_zip(zip_path, merge):
         imported_recipes = validate_recipes_payload(read_json("recipes.json", []), assign_ids=True)
         if merge:
             prepare_recipe_merge(imported_recipes, load_recipes())
+
+        # cook_log_full (écrit par l'app mobile, photos en data URL base64)
+        # -> cook_log natif Windows (photos en nom de fichier dans images/).
+        # Les octets décodés sont gardés de côté (cook_log_image_writes) et
+        # écrits sur disque seulement dans _apply_shared_changes, comme le
+        # reste des photos importées — jamais avant que tout soit validé.
+        cook_log_image_writes = {}
+        for recipe in imported_recipes:
+            cook_log_full = recipe.pop("cook_log_full", None)
+            if not isinstance(cook_log_full, list) or not cook_log_full:
+                continue
+            new_cook_log = []
+            for entry in cook_log_full:
+                if not isinstance(entry, dict):
+                    continue
+                photo_filename = None
+                decoded = _decode_data_url_image(entry.get("photo"))
+                if decoded:
+                    data, ext = decoded
+                    photo_filename = f"{uuid.uuid4().hex}{ext}"
+                    cook_log_image_writes[photo_filename] = data
+                new_cook_log.append({
+                    "date": entry.get("date") or "",
+                    "note": entry.get("note") or "",
+                    "comment": entry.get("comment") or "",
+                    "photo": photo_filename,
+                    "rating": max(0, min(5, int(entry.get("rating", 0) or 0))),
+                    "persons": entry.get("persons"),
+                })
+            recipe["cook_log"] = new_cook_log
 
         imported_ingredients = validate_ingredients_list_payload(read_json("ingredients.json", []))
 
@@ -12288,6 +12407,10 @@ def restore_from_shared_zip(zip_path, merge):
                     pass
             with open(dest_path, "wb") as out:
                 out.write(payload)
+
+        for fname, data in cook_log_image_writes.items():
+            with open(os.path.join(IMAGES_DIR, fname), "wb") as out:
+                out.write(data)
 
         if "recipes.json" in names:
             if merge:
