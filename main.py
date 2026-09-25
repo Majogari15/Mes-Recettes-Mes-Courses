@@ -7676,8 +7676,18 @@ class App(APP_TK_BASE):
         daily_recipe = get_daily_recipe(self.recipes)
         if daily_recipe is not None:
             ttk.Label(main, text=t("home_daily_recipe_title"), style="Section.TLabel").pack(anchor="w", pady=(gs(SPACE_LG), gs(SPACE_SM)))
-            daily = tk.Frame(main, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
-            daily.pack(fill="x")
+            # Ombre/élévation (POC scopé à cette seule carte, la plus visible
+            # de l'accueil) : Tkinter n'a pas d'ombre portée native, donc
+            # technique classique — un fond plus soutenu (COLOR_BORDER, déjà
+            # utilisé comme contour de cette carte, donc garanti visible sur
+            # COLOR_CARD dans les 3 palettes sans nouveau token à vérifier)
+            # qui dépasse en bas/à droite d'une carte au padding asymétrique.
+            # Pas de calcul de hauteur manuel ni de .place() : la carte reste
+            # en pack normal, donc toujours dimensionnée par son contenu.
+            daily_wrap = tk.Frame(main, background=COLOR_BORDER)
+            daily_wrap.pack(fill="x")
+            daily = tk.Frame(daily_wrap, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1, cursor="hand2")
+            daily.pack(fill="x", padx=(0, gs(4)), pady=(0, gs(4)))
             left = ttk.Frame(daily, style="Card.TFrame")
             left.pack(side="left", fill="both", expand=True, padx=gs(SPACE_MD), pady=gs(SPACE_MD))
             star = "⭐ " if daily_recipe.get("favorite") else ""
