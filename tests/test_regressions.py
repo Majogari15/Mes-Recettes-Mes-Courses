@@ -426,6 +426,46 @@ class ContrastAccessibilityTests(unittest.TestCase):
                 f"palette {name} : ERROR sur ACCENT_LIGHT (survol Danger.TButton) = {ratio:.2f}:1"
             )
 
+    def test_treeview_field_is_not_left_on_default_white(self):
+        # Bug réel révélé par le mode Contraste élevé : Treeview n'avait
+        # jamais de fieldbackground stylé (fond système blanc par défaut).
+        # En contraste élevé, COLOR_TEXT devient blanc -> texte invisible
+        # sur ce fond resté blanc. Vérifie que le champ suit désormais la
+        # palette active, pas seulement dans un thème où ça "passait" par
+        # coïncidence.
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(root.destroy)
+        root.withdraw()
+        style = main.configure_app_style(root)
+        self.assertEqual(style.lookup("Treeview", "fieldbackground"), main.COLOR_CARD)
+        self.assertEqual(style.lookup("Treeview", "foreground"), main.COLOR_TEXT)
+        self.assertEqual(style.lookup("Treeview", "background"), main.COLOR_CARD)
+
+    def test_high_contrast_palette_meets_aa_on_all_its_real_backgrounds(self):
+        # Mode accessibilité "Contraste élevé" (voir apply_palette/
+        # toggle_high_contrast) : même exigence que les palettes clair/sombre
+        # ci-dessus, sur toutes les combinaisons réellement utilisées dans le
+        # code (boutons, texte secondaire, pastilles de tag, survol Danger).
+        palette = main.HIGH_CONTRAST_PALETTE
+        combos = [
+            ("ON_ACCENT", "ACCENT"), ("ON_ACCENT", "ACCENT_DARK"),
+            ("ERROR", "CARD"), ("ERROR", "BG"), ("ERROR", "ACCENT_LIGHT"),
+            ("TEXT", "BG"), ("TEXT", "CARD"), ("TEXT", "ACCENT_LIGHT"),
+            ("TEXT_MUTED", "BG"), ("TEXT_MUTED", "CARD"), ("TEXT_MUTED", "ACCENT_LIGHT"),
+            ("ACCENT_DARK", "BG"), ("ACCENT_DARK", "CARD"), ("ACCENT_DARK", "ACCENT_LIGHT"),
+            ("GREEN", "BG"), ("GREEN", "CARD"),
+            ("BORDER", "BG"),
+        ]
+        for fg_key, bg_key in combos:
+            ratio = self._contrast(palette[fg_key], palette[bg_key])
+            self.assertGreaterEqual(
+                ratio, 4.5,
+                f"contraste élevé : {fg_key} sur {bg_key} = {ratio:.2f}:1 (minimum WCAG AA 4.5:1)"
+            )
+
 class ShoppingListWidgetTests(TempDataMixin, unittest.TestCase):
     """Instancie réellement les 3 fenêtres liste de courses (Toutes les
     recettes, Planning, Nouveau menu) pour vérifier que le coût total et le

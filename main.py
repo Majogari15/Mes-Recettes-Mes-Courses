@@ -5845,6 +5845,27 @@ DARK_PALETTE = {
     "ON_ACCENT": "#211F1C",
 }
 
+# Mode accessibilité "Contraste élevé" (indépendant du choix clair/sombre,
+# comme le mode Texte agrandi) : noir/blanc/jaune, tous les textes vérifiés
+# à au moins 4.5:1 sur chacun de leurs fonds réels (ERROR sur ACCENT_LIGHT
+# est le plus juste, à 5.0:1 — voir ContrastAccessibilityTests). ACCENT_DARK
+# distinct de ACCENT (cyan vs jaune, pas seulement plus sombre) pour que le
+# survol des boutons reste visible : sur fond noir, les deux seraient
+# autrement indiscernables l'un de l'autre en simple luminosité.
+HIGH_CONTRAST_PALETTE = {
+    "BG": "#000000",
+    "CARD": "#000000",
+    "BORDER": "#FFFFFF",
+    "TEXT": "#FFFFFF",
+    "TEXT_MUTED": "#CCCCCC",
+    "ACCENT": "#FFFF00",
+    "ACCENT_DARK": "#00FFFF",
+    "ACCENT_LIGHT": "#333333",
+    "GREEN": "#4CD137",
+    "ERROR": "#FF7A7A",
+    "ON_ACCENT": "#000000",
+}
+
 COLOR_BG = LIGHT_PALETTE["BG"]
 COLOR_CARD = LIGHT_PALETTE["CARD"]
 COLOR_BORDER = LIGHT_PALETTE["BORDER"]
@@ -5858,14 +5879,21 @@ COLOR_ERROR = LIGHT_PALETTE["ERROR"]
 COLOR_ON_ACCENT = LIGHT_PALETTE["ON_ACCENT"]
 
 
-def apply_palette(dark):
+def apply_palette(dark, high_contrast=False):
     """Met à jour les constantes de couleur globales selon le thème choisi.
-    Doit être suivi d'un appel à configure_app_style() pour que les styles
-    ttk et la base d'options Tk reflètent les nouvelles couleurs."""
+    high_contrast, indépendant de dark (comme le mode Texte agrandi), impose
+    la palette noir/blanc/jaune quel que soit le choix clair/sombre — dark
+    reste mémorisé pour qu'on retrouve le bon thème en désactivant le
+    contraste élevé. Doit être suivi d'un appel à configure_app_style() pour
+    que les styles ttk et la base d'options Tk reflètent les nouvelles
+    couleurs."""
     global COLOR_BG, COLOR_CARD, COLOR_BORDER, COLOR_TEXT, COLOR_TEXT_MUTED
     global COLOR_ACCENT, COLOR_ACCENT_DARK, COLOR_ACCENT_LIGHT, COLOR_GREEN, COLOR_ERROR
     global COLOR_ON_ACCENT
-    palette = DARK_PALETTE if dark else LIGHT_PALETTE
+    if high_contrast:
+        palette = HIGH_CONTRAST_PALETTE
+    else:
+        palette = DARK_PALETTE if dark else LIGHT_PALETTE
     COLOR_BG = palette["BG"]
     COLOR_CARD = palette["CARD"]
     COLOR_BORDER = palette["BORDER"]
@@ -5886,6 +5914,16 @@ def get_dark_mode_preference():
 def set_dark_mode_preference(value):
     settings = load_settings()
     settings["dark_mode"] = bool(value)
+    save_settings(settings)
+
+
+def get_high_contrast_preference():
+    return bool(load_settings().get("high_contrast", False))
+
+
+def set_high_contrast_preference(value):
+    settings = load_settings()
+    settings["high_contrast"] = bool(value)
     save_settings(settings)
 
 
@@ -6997,8 +7035,18 @@ def configure_app_style(root):
                      font=base_font, padding=(12, 7), borderwidth=0, relief="flat")
     # Keyboard/accessibility: keep a visible focus state and generous rows.
     style.map("TButton", relief=[("focus", "solid")])
-    style.configure("Treeview", rowheight=max(gs(28), sf(28)))
-    style.configure("Treeview.Heading", font=("Segoe UI", sf(10), "bold"))
+    # background/fieldbackground/foreground n'étaient jamais stylés ici :
+    # le Treeview gardait le blanc système par défaut. Invisible en
+    # particulier en mode Contraste élevé, où COLOR_TEXT devient blanc
+    # (texte blanc sur fond blanc) — bug réel révélé par ce mode, pas
+    # seulement un manque de finition.
+    style.configure("Treeview", rowheight=max(gs(28), sf(28)),
+                     background=COLOR_CARD, fieldbackground=COLOR_CARD, foreground=COLOR_TEXT)
+    style.map("Treeview",
+              background=[("selected", COLOR_ACCENT)],
+              foreground=[("selected", COLOR_ON_ACCENT)])
+    style.configure("Treeview.Heading", font=("Segoe UI", sf(10), "bold"),
+                     background=COLOR_ACCENT_LIGHT, foreground=COLOR_TEXT)
     style.map("TButton",
               background=[("active", COLOR_ACCENT_DARK), ("disabled", "#D8CBB8")],
               foreground=[("disabled", "#F4EEE3")])
@@ -7189,7 +7237,8 @@ class App(APP_TK_BASE):
         self.resizable(True, True)
 
         self.dark_mode = get_dark_mode_preference()
-        apply_palette(self.dark_mode)
+        self.high_contrast = get_high_contrast_preference()
+        apply_palette(self.dark_mode, self.high_contrast)
         configure_app_style(self)
         self.configure(background=COLOR_BG)
         install_select_all_bindings(self)
@@ -7297,23 +7346,50 @@ class App(APP_TK_BASE):
     def open_donate_page(self):
         webbrowser.open("https://buymeacoffee.com/majogari")
 
+    def _active_palette(self):
+        """Palette actuellement affichée, selon dark_mode ET high_contrast
+        (ce dernier prioritaire, comme dans apply_palette)."""
+        if self.high_contrast:
+            return dict(HIGH_CONTRAST_PALETTE)
+        return dict(DARK_PALETTE if self.dark_mode else LIGHT_PALETTE)
+
     def toggle_dark_mode(self):
         """Bascule entre thème clair et sombre : met à jour la palette, les
         styles ttk (effet immédiat sur toutes les fenêtres déjà ouvertes),
         puis reconstruit entièrement la page d'accueil pour que ses widgets
         Tkinter bruts (bannière, cartes...) reflètent aussi les nouvelles
         couleurs. Les couleurs explicites des fenêtres secondaires sont
-        remplacées sans fermer ces fenêtres."""
-        old_palette = dict(DARK_PALETTE if self.dark_mode else LIGHT_PALETTE)
+        remplacées sans fermer ces fenêtres. Si le mode Contraste élevé est
+        actif, la palette affichée ne change pas immédiatement (elle reste
+        prioritaire) — seule la préférence clair/sombre mémorisée change,
+        pour être appliquée quand le contraste élevé sera désactivé."""
+        old_palette = self._active_palette()
         self.dark_mode = not self.dark_mode
         set_dark_mode_preference(self.dark_mode)
-        apply_palette(self.dark_mode)
-        new_palette = dict(DARK_PALETTE if self.dark_mode else LIGHT_PALETTE)
+        apply_palette(self.dark_mode, self.high_contrast)
+        new_palette = self._active_palette()
         configure_app_style(self)
         self.configure(background=COLOR_BG)
         # Ne détruit que les widgets propres à la page d'accueil : les
         # fenêtres secondaires (Toplevel) déjà ouvertes — comme les
         # minuteurs en cours — ne doivent surtout pas être affectées.
+        for child in self.winfo_children():
+            if not isinstance(child, tk.Toplevel):
+                child.destroy()
+        self._build_home_ui()
+        _ui_recolor_open_windows(self, old_palette, new_palette)
+        _ui_refresh_open_windows(self)
+
+    def toggle_high_contrast(self):
+        """Bascule le mode Contraste élevé (accessibilité), indépendant du
+        thème clair/sombre — même mécanique que toggle_dark_mode."""
+        old_palette = self._active_palette()
+        self.high_contrast = not self.high_contrast
+        set_high_contrast_preference(self.high_contrast)
+        apply_palette(self.dark_mode, self.high_contrast)
+        new_palette = self._active_palette()
+        configure_app_style(self)
+        self.configure(background=COLOR_BG)
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):
                 child.destroy()
@@ -7444,6 +7520,7 @@ class App(APP_TK_BASE):
         settings_menu = tk.Menu(settings_btn, tearoff=False)
         settings_menu.add_command(label=t("home_light_theme") if self.dark_mode else t("home_dark_theme"), command=self.toggle_dark_mode)
         settings_menu.add_command(label=t("home_large_text_off") if self.large_text else t("home_large_text_on"), command=self.toggle_large_text)
+        settings_menu.add_command(label=t("home_high_contrast_off") if self.high_contrast else t("home_high_contrast_on"), command=self.toggle_high_contrast)
         settings_menu.add_separator()
         settings_menu.add_command(label=t("home_btn_import_export"), command=self.open_import_export)
         settings_menu.add_command(label=t("diagnostic_button"), command=lambda: DiagnosticWindow(self))

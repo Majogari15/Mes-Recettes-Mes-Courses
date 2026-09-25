@@ -115,6 +115,29 @@ class OpenWindowRefreshTests(TempDataMixin, unittest.TestCase):
         self.assertNotEqual(before, after)
         self.assertEqual(str(after), main.COLOR_BG)
 
+    @_retry_once_on_ci_flake
+    def test_toggle_high_contrast_recolors_already_open_window(self):
+        # Même mécanique que toggle_dark_mode, mode indépendant (voir
+        # apply_palette) : la palette noir/blanc/jaune remplace le thème
+        # clair/sombre actif, sans perdre la préférence dark_mode mémorisée.
+        self.assertFalse(self.app.high_contrast)
+        before = self.diag.cget("background")
+        self.app.toggle_high_contrast()
+        after = self.diag.cget("background")
+        self.assertTrue(self.app.high_contrast)
+        self.assertNotEqual(before, after)
+        self.assertEqual(str(after), main.COLOR_BG)
+        self.assertEqual(main.COLOR_BG, main.HIGH_CONTRAST_PALETTE["BG"])
+
+        # Désactivation : revient au thème clair/sombre mémorisé (pas figé
+        # sur la palette contraste élevé).
+        dark_mode_before_disable = self.app.dark_mode
+        self.app.toggle_high_contrast()
+        self.assertFalse(self.app.high_contrast)
+        self.assertEqual(self.app.dark_mode, dark_mode_before_disable)
+        expected = main.DARK_PALETTE if self.app.dark_mode else main.LIGHT_PALETTE
+        self.assertEqual(main.COLOR_BG, expected["BG"])
+
     def test_toggle_large_text_rescales_already_open_window_font(self):
         style = ttk.Style(self.app)
         before_font = tkfont.Font(root=self.app, font=style.lookup("TButton", "font"))
