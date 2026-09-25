@@ -760,6 +760,88 @@ def ask_yes_no(title, message, parent=None, **kwargs):
     return result["value"]
 
 
+def ask_merge_duplicate_ingredients(parent, duplicate_display):
+    """Fenêtre à 2 choix (au lieu d'un simple avertissement bloquant) pour
+    un ingrédient saisi plusieurs fois dans une recette : "Laisser tel
+    quel" ou "Fusionner" (quantités additionnées, voir
+    merge_duplicate_ingredients). Retourne "keep", "merge", ou None si
+    annulé (✕/Échap) — annuler ne doit jamais silencieusement choisir l'une
+    des deux options à la place de l'utilisateur (même principe que le
+    bouton Annuler de CookLogEntryDialog)."""
+    root = parent if parent is not None else tk._default_root
+    dialog = tk.Toplevel(root)
+    dialog.title(t("recipeform_duplicate_ingredient_title"))
+    dialog.resizable(False, False)
+    if root is not None:
+        dialog.transient(root)
+    result = {"value": None}
+
+    def _answer(value):
+        result["value"] = value
+        dialog.destroy()
+
+    body = ttk.Frame(dialog, padding=20)
+    body.pack(fill="both", expand=True)
+    ttk.Label(
+        body, text=t("recipeform_duplicate_ingredient_message", list=duplicate_display),
+        wraplength=420, justify="left"
+    ).pack(anchor="w")
+
+    btn_frame = ttk.Frame(dialog, padding=(20, 0, 20, 16))
+    btn_frame.pack(fill="x")
+    merge_btn = ttk.Button(
+        btn_frame, text=t("recipeform_merge_duplicates_button"),
+        style="Primary.TButton", command=lambda: _answer("merge")
+    )
+    merge_btn.pack(side="right")
+    keep_btn = ttk.Button(
+        btn_frame, text=t("recipeform_keep_duplicates_button"),
+        style="Secondary.TButton", command=lambda: _answer("keep")
+    )
+    keep_btn.pack(side="right", padx=(0, 8))
+
+    dialog.protocol("WM_DELETE_WINDOW", lambda: _answer(None))
+    dialog.bind("<Escape>", lambda e: _answer(None))
+
+    dialog.update_idletasks()
+    try:
+        if root is not None and root.winfo_viewable():
+            x = root.winfo_rootx() + (root.winfo_width() - dialog.winfo_width()) // 2
+            y = root.winfo_rooty() + (root.winfo_height() - dialog.winfo_height()) // 3
+            dialog.geometry(f"+{max(0, x)}+{max(0, y)}")
+    except tk.TclError:
+        pass
+
+    dialog.grab_set()
+    merge_btn.focus_set()
+    dialog.wait_window()
+    return result["value"]
+
+
+def merge_duplicate_ingredients(ingredients):
+    """Fusionne les lignes d'ingrédients qui partagent le même nom ET la
+    même unité (quantités additionnées) ; garde l'ordre de première
+    apparition. Un même nom avec des unités différentes (ex. "Farine" en
+    grammes ET en kilos) n'est volontairement PAS fusionné — additionner
+    des unités différentes serait faux, donc ces lignes restent séparées.
+    Quantité nulle (ingrédient sans quantité précisée) traitée comme
+    absente : la quantité connue l'emporte plutôt que d'annuler la somme."""
+    merged = []
+    index_by_key = {}
+    for ing in ingredients:
+        key = (ingredient_sort_key(ing["name"]), ing["unit"])
+        if key in index_by_key:
+            existing = merged[index_by_key[key]]
+            if existing["quantity"] is None:
+                existing["quantity"] = ing["quantity"]
+            elif ing["quantity"] is not None:
+                existing["quantity"] = existing["quantity"] + ing["quantity"]
+        else:
+            index_by_key[key] = len(merged)
+            merged.append(dict(ing))
+    return merged
+
+
 def confirm_backup_preview(parent, zip_path):
     try:
         summary = inspect_backup_archive(zip_path)
@@ -9864,11 +9946,11 @@ class RecipeFormWindow(tk.Toplevel):
                 seen_keys.add(key)
         if duplicate_names:
             duplicate_display = ", ".join(translate_ingredient_name(n) for n in duplicate_names)
-            if not ask_yes_no(
-                t("recipeform_duplicate_ingredient_title"),
-                t("recipeform_duplicate_ingredient_message", list=duplicate_display)
-            ):
+            choice = ask_merge_duplicate_ingredients(self, duplicate_display)
+            if choice is None:
                 return
+            if choice == "merge":
+                ingredients = merge_duplicate_ingredients(ingredients)
 
         # Construit la liste finale des photos : celles déjà enregistrées qui
         # n'ont pas été retirées, plus celles nouvellement choisies (copiées

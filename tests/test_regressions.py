@@ -544,5 +544,108 @@ class ShoppingListWidgetTests(TempDataMixin, unittest.TestCase):
     def test_menu_form_window_shows_cost_and_sort(self):
         self._assert_cost_and_sort_shown(main.MenuFormWindow(self.app, manager=None, menu_index=None))
 
+
+class MergeDuplicateIngredientsTests(unittest.TestCase):
+    """merge_duplicate_ingredients() : fonction pure, pas besoin de Tk."""
+
+    def test_same_name_and_unit_are_summed(self):
+        merged = main.merge_duplicate_ingredients([
+            {"name": "Farine", "quantity": 100, "unit": "Gr"},
+            {"name": "Farine", "quantity": 50, "unit": "Gr"},
+        ])
+        self.assertEqual(merged, [{"name": "Farine", "quantity": 150, "unit": "Gr"}])
+
+    def test_same_name_different_unit_stays_separate(self):
+        # Additionner des grammes et des kilos donnerait un nombre faux :
+        # volontairement pas fusionné.
+        merged = main.merge_duplicate_ingredients([
+            {"name": "Farine", "quantity": 200, "unit": "Gr"},
+            {"name": "Farine", "quantity": 1, "unit": "Kilo"},
+        ])
+        self.assertEqual(len(merged), 2)
+
+    def test_none_quantity_does_not_cancel_the_known_quantity(self):
+        merged = main.merge_duplicate_ingredients([
+            {"name": "Sel", "quantity": None, "unit": "pièce"},
+            {"name": "Sel", "quantity": 2, "unit": "pièce"},
+        ])
+        self.assertEqual(merged, [{"name": "Sel", "quantity": 2, "unit": "pièce"}])
+
+    def test_order_of_first_appearance_is_preserved(self):
+        merged = main.merge_duplicate_ingredients([
+            {"name": "Sucre", "quantity": 1, "unit": "Kilo"},
+            {"name": "Farine", "quantity": 1, "unit": "Kilo"},
+            {"name": "Sucre", "quantity": 1, "unit": "Kilo"},
+        ])
+        self.assertEqual([i["name"] for i in merged], ["Sucre", "Farine"])
+        self.assertEqual(merged[0]["quantity"], 2)
+
+
+class RecipeFormDuplicateIngredientDialogTests(TempDataMixin, unittest.TestCase):
+    """save_recipe() proposait jusqu'ici seulement "enregistrer quand même
+    ?" (Oui/Non) face à un ingrédient en double — remplacé par un vrai
+    choix Laisser tel quel / Fusionner, avec une vraie annulation (✕) qui
+    n'enregistre rien, comme pour CookLogEntryDialog."""
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.app.withdraw()
+        self.addCleanup(self.app.destroy)
+        main.save_ingredients(["Farine"])
+        self.app.refresh_ingredients()
+
+    def _make_form_with_duplicate_farine(self):
+        form = main.RecipeFormWindow(self.app)
+        self.addCleanup(form.destroy)
+        form.name_entry.insert(0, "Gâteau")
+        name_e, qty_e, _unit_e, _custom_e = form.ingredient_rows[0]
+        name_e.insert(0, "Farine")
+        qty_e.delete(0, tk.END)
+        qty_e.insert(0, "100")
+        form.add_ingredient_row("Farine", "50", "Gr")
+        return form
+
+    def test_choosing_merge_sums_the_quantities_before_saving(self):
+        form = self._make_form_with_duplicate_farine()
+        with patch.object(main, "ask_merge_duplicate_ingredients", return_value="merge"):
+            form.save_recipe()
+
+        recipes = main.load_recipes()
+        saved = next(r for r in recipes if r["name"] == "Gâteau")
+        self.assertEqual(len(saved["ingredients"]), 1)
+        self.assertEqual(saved["ingredients"][0]["quantity"], 150)
+
+    def test_choosing_keep_leaves_both_lines_untouched(self):
+        form = self._make_form_with_duplicate_farine()
+        with patch.object(main, "ask_merge_duplicate_ingredients", return_value="keep"):
+            form.save_recipe()
+
+        recipes = main.load_recipes()
+        saved = next(r for r in recipes if r["name"] == "Gâteau")
+        self.assertEqual(len(saved["ingredients"]), 2)
+        self.assertEqual([i["quantity"] for i in saved["ingredients"]], [100, 50])
+
+    def test_cancelling_the_dialog_does_not_save_anything(self):
+        form = self._make_form_with_duplicate_farine()
+        with patch.object(main, "ask_merge_duplicate_ingredients", return_value=None):
+            form.save_recipe()
+
+        self.assertEqual(main.load_recipes(), [])
+        self.assertTrue(form.winfo_exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
