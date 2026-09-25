@@ -5283,6 +5283,25 @@ def _decompress_recipe_page(raw, content_encoding):
     return raw
 
 
+def _fetch_recipe_reader_text(url):
+    """Repli texte pour fetch_recipe_from_url (voir son commentaire) :
+    demande à Jina AI Reader (service tiers gratuit, r.jina.ai) une version
+    texte/markdown nettoyée de la page. Timeout court et taille plafonnée
+    comme le téléchargement direct — ce n'est qu'un repli, pas la voie
+    principale."""
+    reader_url = "https://r.jina.ai/" + url
+    request = urllib.request.Request(
+        reader_url, headers={"User-Agent": "Mozilla/5.0", "Accept": "text/plain"}
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        length = response.headers.get("Content-Length")
+        if length and int(length) > MAX_WEB_PAGE_BYTES:
+            raise RuntimeError("Réponse du service de secours trop volumineuse.")
+        raw = _read_response_limited(response, MAX_WEB_PAGE_BYTES)
+        charset = response.headers.get_content_charset() or "utf-8"
+        return raw.decode(charset, errors="replace")
+
+
 def _download_recipe_page(request):
     """Retry once on transient failures, never on 403 access denials."""
     for attempt in range(2):
@@ -5383,12 +5402,27 @@ def fetch_recipe_from_url(url):
         recipe_data = _extract_microdata_recipe(page_html)
 
     if recipe_data is None:
-        raise RuntimeError(
-            "Aucune recette structurée n'a été trouvée sur cette page.\n\n"
-            "Cet import fonctionne avec les sites qui utilisent le format "
-            "standard « Schema.org Recipe » (la plupart des grands sites de "
-            "cuisine). Vous pouvez toujours créer la recette manuellement."
-        )
+        # Repli texte (comparé à l'app mobile, qui fait de même via Jina AI
+        # Reader avant ses propres services de secours) : certains sites ne
+        # publient aucune donnée structurée Schema.org. r.jina.ai renvoie
+        # une version texte/markdown nettoyée de la page, réanalysée par le
+        # même analyseur que l'import OCR photo (parse_photo_ocr_recipe) —
+        # moins précis qu'une vraie extraction Schema.org, mais mieux que
+        # rien (l'utilisateur revoit et corrige avant d'enregistrer, comme
+        # pour l'import OCR). L'adresse collée est alors transmise à ce
+        # service tiers, mentionné dans importurl_intro.
+        try:
+            reader_text = _fetch_recipe_reader_text(url)
+        except Exception as exc:
+            log_internal_error("import_url_reader_fallback", exc)
+            reader_text = None
+        if reader_text:
+            fallback = parse_photo_ocr_recipe(reader_text)
+            if fallback.get("ingredients"):
+                return fallback
+
+    if recipe_data is None:
+        raise RuntimeError(t("importurl_no_structured_recipe"))
 
     def clean_text(value):
         if isinstance(value, list):
@@ -7730,6 +7764,15 @@ class App(APP_TK_BASE):
             sub_lbl = tk.Label(card, text=subtitle, background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
                                font=("Segoe UI", sf(9)), cursor="hand2")
             sub_lbl.pack(padx=gs(SPACE_MD), pady=(0, gs(SPACE_MD)))
+            # refresh_recipes() mettait déjà à jour self.recipes et le pied
+            # de page, mais jamais ce sous-titre de carte : après un import
+            # (ou tout ajout de recette hors reconstruction complète de
+            # l'accueil), "Mes Recettes" restait figé sur le compte
+            # d'ouverture jusqu'au prochain changement de thème (qui
+            # reconstruit tout _build_home_ui). Gardée en référence pour
+            # être mise à jour en place, sans reconstruire toute la page.
+            if col == 0:
+                self.recipes_count_label = sub_lbl
             for w in (card, title_lbl, sub_lbl):
                 w.bind("<Button-1>", lambda e, c=command: c())
             # Ces 4 cartes sont les entrées principales de navigation de
@@ -7913,6 +7956,8 @@ class App(APP_TK_BASE):
     def refresh_recipes(self):
         self.recipes = load_recipes()
         self.footer.config(text=t("home_footer_recipe_count", count=len(self.recipes)))
+        if hasattr(self, "recipes_count_label") and self.recipes_count_label.winfo_exists():
+            self.recipes_count_label.config(text=t("home_primary_recipes_sub", count=len(self.recipes)))
         # Synchronise les fiches ouvertes avec la recette fraîchement
         # rechargée (notamment après une cuisson enregistrée depuis le mode
         # cuisine), afin d'éviter une fiche restée en mémoire.

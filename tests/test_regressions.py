@@ -647,5 +647,49 @@ class RecipeFormDuplicateIngredientDialogTests(TempDataMixin, unittest.TestCase)
         self.assertTrue(form.winfo_exists())
 
 
+class HomeRecipesCountCardRefreshTests(TempDataMixin, unittest.TestCase):
+    """Le sous-titre de la carte "Mes Recettes" (accueil) était figé sur le
+    compte au moment de la construction de la page : après un import par
+    lien (ou tout ajout hors reconstruction complète de l'accueil),
+    l'utilisateur voyait toujours "0 recette(s)" tant qu'il ne changeait
+    pas de thème. refresh_recipes() doit maintenant la mettre à jour."""
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.app.withdraw()
+        self.addCleanup(self.app.destroy)
+
+    def test_refresh_recipes_updates_the_home_card_subtitle(self):
+        self.assertEqual(
+            self.app.recipes_count_label.cget("text"),
+            main.t("home_primary_recipes_sub", count=0),
+        )
+
+        main.save_recipes([{
+            "id": "r1", "name": "Pâtes carbonara", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [],
+        }])
+        self.app.refresh_recipes()
+
+        self.assertEqual(
+            self.app.recipes_count_label.cget("text"),
+            main.t("home_primary_recipes_sub", count=1),
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

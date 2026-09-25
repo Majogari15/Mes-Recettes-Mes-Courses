@@ -75,6 +75,28 @@ class ImportTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.fetch_html('<html><body><p>Pas une recette</p></body></html>')
 
+    def test_falls_back_to_reader_text_when_no_structured_data(self):
+        # Comparaison avec l'app mobile (qui fait de même via Jina AI
+        # Reader) : si aucune donnée structurée n'est trouvée, on retente
+        # via une version texte de la page, réanalysée par le même
+        # analyseur que l'import OCR photo (parse_photo_ocr_recipe, dont le
+        # format de sortie exact est testé ailleurs) — ici on vérifie
+        # seulement le branchement : texte de secours -> analyseur OCR ->
+        # utilisé si des ingrédients en ressortent.
+        fake_parsed = {"name": "Tarte aux pommes", "ingredients": [{"name": "Farine", "quantity": 50, "unit": "g"}],
+                       "description": "", "prep_time": "", "cook_time": "", "default_persons": 4,
+                       "quantity_basis": "per_person", "ocr_warnings": []}
+        with patch.object(main, "_fetch_recipe_reader_text", return_value="texte quelconque"), \
+             patch.object(main, "parse_photo_ocr_recipe", return_value=fake_parsed) as mocked_parse:
+            r = self.fetch_html('<html><body><p>Pas une recette</p></body></html>')
+        mocked_parse.assert_called_once_with("texte quelconque")
+        self.assertEqual(r, fake_parsed)
+
+    def test_reader_fallback_failure_still_raises_the_normal_error(self):
+        with patch.object(main, "_fetch_recipe_reader_text", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                self.fetch_html('<html><body><p>Pas une recette</p></body></html>')
+
     def test_request_sends_browser_like_headers(self):
         # Une requête ne portant que User-Agent est parfois jugée suspecte
         # par les protections anti-robot de certains sites et bloquée avec
