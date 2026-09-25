@@ -43,3 +43,7 @@ drafts/
 import_temp/
 
 *.tmp
+
+# --- Réglages Claude Code locaux (pas destinés à être réutilisés ailleurs) ---
+/CLAUDE.md
+/.claude/
