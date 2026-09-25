@@ -7465,6 +7465,78 @@ class App(APP_TK_BASE):
         else:
             self.open_quick_search()
 
+    def _home_tool_groups(self):
+        """Groupes de raccourcis "Plus d'outils" de la page d'accueil —
+        extrait de _build_home_ui pour être réutilisé tel quel par la
+        Command Palette (get_command_palette_actions), sans dupliquer la
+        liste des clés i18n ni des commandes."""
+        return [
+            (
+                t("home_tools_create_import"),
+                [
+                    (t("home_btn_add_recipe"), self.open_add_recipe),
+                    (t("home_btn_import_url"), self.open_import_from_url),
+                    (t("home_btn_import_photo"), self.open_import_from_photo),
+                    (t("home_btn_import_qr"), self.open_import_from_qr),
+                ],
+            ),
+            (
+                t("home_tools_recipes_ingredients"),
+                [
+                    (t("home_btn_view_one_recipe"), self.open_one_recipe),
+                    (t("home_btn_compare_recipes"), self.open_compare_recipes),
+                    (t("home_btn_manage_ingredients"), self.open_manage_ingredients),
+                    (t("home_btn_ingredient_search"), self.open_ingredient_search),
+                    (t("home_btn_what_can_i_cook"), self.open_what_can_i_cook),
+                    (t("home_btn_unit_converter"), self.open_unit_converter),
+                ],
+            ),
+            (
+                t("home_tools_organization"),
+                [
+                    (t("home_btn_weekly_history"), self.open_weekly_plan_history),
+                    (t("home_btn_menus"), self.open_menus),
+                ],
+            ),
+            (
+                t("home_tools_data"),
+                [
+                    (t("home_btn_statistics"), self.open_statistics),
+                    (t("home_btn_export_cookbook"), self.open_cookbook_export),
+                    (t("home_btn_trash"), self.open_trash),
+                ],
+            ),
+        ]
+
+    def get_command_palette_actions(self):
+        """Liste plate (libellé, commande) pour la Command Palette (Ctrl+K,
+        QuickSearchWindow) : les 4 cartes principales, tous les outils de
+        "Plus d'outils", et les bascules de Paramètres — tout ce qui est
+        atteignable depuis l'accueil, sans y retourner."""
+        actions = [
+            (t("home_primary_recipes"), self.open_manage_recipes),
+            (t("home_primary_shopping"), self.open_all_recipes),
+            (t("home_primary_planning"), self.open_weekly_plan),
+            (t("home_primary_pantry"), self.open_pantry),
+        ]
+        for _group_title, items in self._home_tool_groups():
+            actions.extend(items)
+        actions.append((t("home_btn_import_export"), self.open_import_export))
+        actions.append((t("diagnostic_button"), lambda: DiagnosticWindow(self)))
+        actions.append((
+            t("keyboard_shortcuts"),
+            lambda: messagebox.showinfo(t("keyboard_shortcuts"), t("keyboard_shortcuts_text"), parent=self)
+        ))
+        actions.append((t("home_light_theme") if self.dark_mode else t("home_dark_theme"), self.toggle_dark_mode))
+        actions.append((
+            t("home_large_text_off") if self.large_text else t("home_large_text_on"), self.toggle_large_text
+        ))
+        actions.append((
+            t("home_high_contrast_off") if self.high_contrast else t("home_high_contrast_on"),
+            self.toggle_high_contrast
+        ))
+        return actions
+
     def _build_home_ui(self):
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):
@@ -7711,43 +7783,7 @@ class App(APP_TK_BASE):
         tools_grid.columnconfigure(0, weight=1, uniform="toolgroups")
         tools_grid.columnconfigure(1, weight=1, uniform="toolgroups")
 
-        tool_groups = [
-            (
-                t("home_tools_create_import"),
-                [
-                    (t("home_btn_add_recipe"), self.open_add_recipe),
-                    (t("home_btn_import_url"), self.open_import_from_url),
-                    (t("home_btn_import_photo"), self.open_import_from_photo),
-                    (t("home_btn_import_qr"), self.open_import_from_qr),
-                ],
-            ),
-            (
-                t("home_tools_recipes_ingredients"),
-                [
-                    (t("home_btn_view_one_recipe"), self.open_one_recipe),
-                    (t("home_btn_compare_recipes"), self.open_compare_recipes),
-                    (t("home_btn_manage_ingredients"), self.open_manage_ingredients),
-                    (t("home_btn_ingredient_search"), self.open_ingredient_search),
-                    (t("home_btn_what_can_i_cook"), self.open_what_can_i_cook),
-                    (t("home_btn_unit_converter"), self.open_unit_converter),
-                ],
-            ),
-            (
-                t("home_tools_organization"),
-                [
-                    (t("home_btn_weekly_history"), self.open_weekly_plan_history),
-                    (t("home_btn_menus"), self.open_menus),
-                ],
-            ),
-            (
-                t("home_tools_data"),
-                [
-                    (t("home_btn_statistics"), self.open_statistics),
-                    (t("home_btn_export_cookbook"), self.open_cookbook_export),
-                    (t("home_btn_trash"), self.open_trash),
-                ],
-            ),
-        ]
+        tool_groups = self._home_tool_groups()
 
         for group_index, (group_title, items) in enumerate(tool_groups):
             row = group_index // 2
@@ -8669,6 +8705,11 @@ class RecipeFormWindow(tk.Toplevel):
                   font=("Segoe UI", sf(9), "bold")).grid(row=0, column=3)
 
         self.ingredient_rows = []
+        # Parallèle à ingredient_rows (même index), pour le glisser-déposer :
+        # le conteneur externe de chaque ligne (poignée + boutons + la ligne
+        # elle-même), à re-empaqueter dans le nouvel ordre au lâcher.
+        self.ingredient_row_wrappers = []
+        self._ingredient_drag_index = None
         if self.editing and self.existing_recipe["ingredients"]:
             for ing in self.existing_recipe["ingredients"]:
                 self.add_ingredient_row(ing["name"], ing["quantity"], ing["unit"])
@@ -9487,8 +9528,30 @@ class RecipeFormWindow(tk.Toplevel):
         if has_controls:
             self.add_ingredient_button.pack_forget()
 
-        row = ttk.Frame(self.rows_frame)
-        row.pack(fill="x", pady=2)
+        # wrapper : conteneur stable pour le réordonnancement (glisser-
+        # déposer ou boutons ↑/↓) — row garde sa grille interne (colonnes
+        # nom/quantité/unité/autre) totalement inchangée.
+        wrapper = ttk.Frame(self.rows_frame)
+        wrapper.pack(fill="x", pady=2)
+        self.ingredient_row_wrappers.append(wrapper)
+
+        handle = ttk.Label(wrapper, text="⠿", width=2, cursor="fleur",
+                            font=("Segoe UI", sf(11)), anchor="center")
+        handle.pack(side="left", padx=(0, 2))
+        move_frame = ttk.Frame(wrapper)
+        move_frame.pack(side="left", padx=(0, 4))
+        up_btn = ttk.Button(move_frame, text="↑", width=2,
+                             command=lambda w=wrapper: self._move_ingredient_row(w, -1))
+        up_btn.pack(side="top")
+        down_btn = ttk.Button(move_frame, text="↓", width=2,
+                               command=lambda w=wrapper: self._move_ingredient_row(w, 1))
+        down_btn.pack(side="top")
+        handle.bind("<ButtonPress-1>", lambda e, w=wrapper: self._on_ingredient_drag_start(e, w))
+        handle.bind("<B1-Motion>", self._on_ingredient_drag_motion)
+        handle.bind("<ButtonRelease-1>", self._on_ingredient_drag_release)
+
+        row = ttk.Frame(wrapper)
+        row.pack(side="left", fill="x", expand=True)
         values = list(self.ingredient_names)
         if name and name not in values:
             values = sorted(values + [name], key=ingredient_sort_key)
@@ -9553,6 +9616,69 @@ class RecipeFormWindow(tk.Toplevel):
                     self.canvas.yview_moveto(min(1.0, target_top / total_height))
             except (tk.TclError, ZeroDivisionError):
                 pass
+
+    def _repack_ingredient_rows(self):
+        """Réaffiche toutes les lignes d'ingrédients dans l'ordre courant de
+        ingredient_row_wrappers, bouton "+ Ajouter" toujours en dernier."""
+        self.add_ingredient_button.pack_forget()
+        for wrapper in self.ingredient_row_wrappers:
+            wrapper.pack_forget()
+        for wrapper in self.ingredient_row_wrappers:
+            wrapper.pack(fill="x", pady=2)
+        self.add_ingredient_button.pack(pady=10)
+
+    def _move_ingredient_row(self, wrapper, delta):
+        """Équivalent clavier/souris du glisser-déposer (boutons ↑/↓) :
+        échange la ligne avec sa voisine immédiate, sans effet en bout de
+        liste."""
+        old_index = self.ingredient_row_wrappers.index(wrapper)
+        new_index = old_index + delta
+        if not (0 <= new_index < len(self.ingredient_row_wrappers)):
+            return
+        self.ingredient_row_wrappers[old_index], self.ingredient_row_wrappers[new_index] = (
+            self.ingredient_row_wrappers[new_index], self.ingredient_row_wrappers[old_index]
+        )
+        self.ingredient_rows[old_index], self.ingredient_rows[new_index] = (
+            self.ingredient_rows[new_index], self.ingredient_rows[old_index]
+        )
+        self._repack_ingredient_rows()
+
+    def _on_ingredient_drag_start(self, _event, wrapper):
+        self._ingredient_drag_index = self.ingredient_row_wrappers.index(wrapper)
+
+    def _on_ingredient_drag_motion(self, event):
+        """Réordonne en direct pendant le glisser : dès que le curseur
+        franchit la limite verticale d'une ligne voisine, la ligne
+        transportée prend sa place (comme la plupart des listes
+        réordonnables par glisser-déposer)."""
+        if self._ingredient_drag_index is None or not self.ingredient_row_wrappers:
+            return
+        y_root = event.y_root
+        target_index = self._ingredient_drag_index
+        for i, w in enumerate(self.ingredient_row_wrappers):
+            try:
+                top = w.winfo_rooty()
+                bottom = top + w.winfo_height()
+            except tk.TclError:
+                continue
+            if top <= y_root <= bottom:
+                target_index = i
+                break
+        else:
+            if y_root < self.ingredient_row_wrappers[0].winfo_rooty():
+                target_index = 0
+            else:
+                target_index = len(self.ingredient_row_wrappers) - 1
+        if target_index != self._ingredient_drag_index:
+            wrapper = self.ingredient_row_wrappers.pop(self._ingredient_drag_index)
+            row_tuple = self.ingredient_rows.pop(self._ingredient_drag_index)
+            self.ingredient_row_wrappers.insert(target_index, wrapper)
+            self.ingredient_rows.insert(target_index, row_tuple)
+            self._ingredient_drag_index = target_index
+            self._repack_ingredient_rows()
+
+    def _on_ingredient_drag_release(self, _event):
+        self._ingredient_drag_index = None
 
     def add_new_ingredient_global(self):
         new_name = simpledialog.askstring(
@@ -14171,8 +14297,11 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
 
 
 class QuickSearchWindow(tk.Toplevel):
-    """Recherche rapide de recette, accessible depuis n'importe quelle
-    fenêtre de l'application via le raccourci Ctrl+K."""
+    """Command Palette (recherche de recette + actions/paramètres de
+    l'appli), accessible depuis n'importe quelle fenêtre via Ctrl+K.
+    Les actions (préfixées "⚡") apparaissent avant les recettes."""
+
+    ACTION_PREFIX = "⚡ "
 
     def __init__(self, app):
         super().__init__(app)
@@ -14212,6 +14341,7 @@ class QuickSearchWindow(tk.Toplevel):
         self.listbox.bind("<Return>", lambda e: self._open_selected())
         self.listbox.bind("<Double-Button-1>", lambda e: self._open_selected())
 
+        self.matched_actions = []
         self.matched_names = []
         self._populate()
 
@@ -14221,7 +14351,19 @@ class QuickSearchWindow(tk.Toplevel):
     def _populate(self):
         self.listbox.delete(0, tk.END)
         search = self.search_entry.get().strip()
+        search_lower = search.lower()
         search_key = ingredient_sort_key(search) if search else ""
+
+        # Actions (Command Palette) d'abord : toutes si la recherche est
+        # vide (liste explorable dès l'ouverture), filtrées par sous-chaîne
+        # sinon — même principe simple que la recherche de recette.
+        self.matched_actions = [
+            (label, command) for label, command in self.app.get_command_palette_actions()
+            if not search_lower or search_lower in label.lower()
+        ]
+        for label, _command in self.matched_actions:
+            self.listbox.insert(tk.END, f"{self.ACTION_PREFIX}{label}")
+
         self.matched_names = []
         self.fuzzy_hint_label.configure(text="")
         for recipe in self.app.recipes:
@@ -14241,25 +14383,45 @@ class QuickSearchWindow(tk.Toplevel):
                 for recipe in suggestions:
                     self.listbox.insert(tk.END, format_recipe_list_label(recipe))
                     self.matched_names.append(recipe["name"])
-        if not self.matched_names:
+        if not self.matched_actions and not self.matched_names:
             self.listbox.insert(tk.END, t("quicksearch_no_results"))
+
+    def _item_at(self, index):
+        """("action", (label, command)) ou ("recipe", name) pour l'index
+        donné de la liste combinée (actions puis recettes), ou None."""
+        if index < len(self.matched_actions):
+            return ("action", self.matched_actions[index])
+        recipe_index = index - len(self.matched_actions)
+        if 0 <= recipe_index < len(self.matched_names):
+            return ("recipe", self.matched_names[recipe_index])
+        return None
+
+    def _activate(self, kind, payload):
+        if kind == "action":
+            _label, command = payload
+            self.destroy()
+            command()
+        else:
+            self.destroy()
+            OneRecipeWindow(self.app, initial_recipe_name=payload)
 
     def _open_selected(self):
         sel = self.listbox.curselection()
-        if not sel or sel[0] >= len(self.matched_names):
+        if not sel:
             return
-        name = self.matched_names[sel[0]]
-        self.destroy()
-        OneRecipeWindow(self.app, initial_recipe_name=name)
+        item = self._item_at(sel[0])
+        if item is None:
+            return
+        self._activate(*item)
 
     def _open_first_or_selected(self):
         sel = self.listbox.curselection()
         if sel:
             self._open_selected()
-        elif self.matched_names:
-            name = self.matched_names[0]
-            self.destroy()
-            OneRecipeWindow(self.app, initial_recipe_name=name)
+            return
+        item = self._item_at(0)
+        if item is not None:
+            self._activate(*item)
 
 
 class OneRecipeWindow(tk.Toplevel):

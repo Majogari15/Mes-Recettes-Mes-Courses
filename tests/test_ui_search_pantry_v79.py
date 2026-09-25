@@ -129,6 +129,69 @@ class QuickSearchFuzzyFallbackTests(AppWindowTestBase):
         self.assertEqual(win.fuzzy_hint_label.cget("text"), "")
 
 
+class CommandPaletteTests(AppWindowTestBase):
+    """Ctrl+K (QuickSearchWindow) étendu en Command Palette : les actions
+    de l'appli (pages, bascules Paramètres) doivent apparaître à côté des
+    recettes, filtrables et activables comme elles."""
+
+    def setUp(self):
+        super().setUp()
+        main.save_recipes([{
+            "id": "r1", "name": "Pâtes carbonara", "default_persons": 4,
+            "category": "Plat", "difficulty": "Facile", "images": [],
+            "ingredients": [], "steps": [], "tags": [],
+        }])
+        self.app.refresh_recipes()
+
+    def test_empty_query_lists_every_action_alongside_recipes(self):
+        win = main.QuickSearchWindow(self.app)
+        self.addCleanup(win.destroy)
+
+        labels = [label for label, _command in win.matched_actions]
+        self.assertIn(main.t("home_primary_recipes"), labels)
+        self.assertEqual(len(win.matched_actions), len(self.app.get_command_palette_actions()))
+        self.assertIn("Pâtes carbonara", win.matched_names)
+        # Les actions sont listées avant les recettes dans la liste combinée.
+        first_row = win.listbox.get(0)
+        self.assertTrue(first_row.startswith(win.ACTION_PREFIX))
+
+    def test_query_filters_actions_by_label_substring(self):
+        win = main.QuickSearchWindow(self.app)
+        self.addCleanup(win.destroy)
+        win.search_entry.delete(0, tk.END)
+        win.search_entry.insert(0, "sombre")
+        win._populate()
+
+        labels = [label for label, _command in win.matched_actions]
+        self.assertEqual(labels, [main.t("home_dark_theme")])
+        self.assertEqual(win.matched_names, [])  # aucune recette ne contient "sombre"
+
+    def test_selecting_an_action_runs_its_command_and_closes_the_palette(self):
+        win = main.QuickSearchWindow(self.app)
+        self.addCleanup(win.destroy)
+        win.search_entry.delete(0, tk.END)
+        win.search_entry.insert(0, "sombre")
+        win._populate()
+        self.assertFalse(self.app.dark_mode)
+
+        win.listbox.selection_set(0)
+        win._open_selected()
+
+        self.assertTrue(self.app.dark_mode)  # toggle_dark_mode() a bien été appelé
+        self.assertFalse(win.winfo_exists())
+
+    def test_enter_with_no_selection_runs_the_first_combined_result(self):
+        win = main.QuickSearchWindow(self.app)
+        win.search_entry.delete(0, tk.END)
+        win.search_entry.insert(0, "sombre")
+        win._populate()
+
+        win._open_first_or_selected()
+
+        self.assertTrue(self.app.dark_mode)
+        self.assertFalse(win.winfo_exists())
+
+
 class RecipeCardHoverTests(AppWindowTestBase):
     def setUp(self):
         super().setUp()

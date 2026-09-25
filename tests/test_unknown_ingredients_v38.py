@@ -223,5 +223,94 @@ class RecipeFormIngredientResolutionTests(TempDataMixin, unittest.TestCase):
         self.assertIn("Fruit du dragon", main.load_ingredients())
 
 
+class RecipeFormIngredientReorderTests(TempDataMixin, unittest.TestCase):
+    """Glisser-déposer / boutons ↑↓ pour réordonner les ingrédients d'une
+    recette (RecipeFormWindow) : instancie de vrais widgets plutôt que
+    d'inspecter le texte source."""
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(self.app.destroy)
+        self.app.withdraw()
+
+    def _names_in_order(self, form):
+        return [name_e.get() for name_e, _q, _u, _c in form.ingredient_rows]
+
+    def test_move_down_button_swaps_row_with_its_neighbor(self):
+        main.save_ingredients(["Farine", "Lait", "Sucre"])
+        self.app.refresh_ingredients()
+        form = main.RecipeFormWindow(self.app)
+        self.addCleanup(form.destroy)
+        form.ingredient_rows[0][0].insert(0, "Farine")  # ligne unique créée par __init__
+        form.add_ingredient_row("Lait", "", "")
+        form.add_ingredient_row("Sucre", "", "")
+        self.assertEqual(self._names_in_order(form), ["Farine", "Lait", "Sucre"])
+
+        first_wrapper = form.ingredient_row_wrappers[0]
+        form._move_ingredient_row(first_wrapper, 1)
+
+        self.assertEqual(self._names_in_order(form), ["Lait", "Farine", "Sucre"])
+        # La liste utilisée à l'enregistrement doit refléter le nouvel ordre.
+        self.assertIs(form.ingredient_row_wrappers[1], first_wrapper)
+
+    def test_move_up_from_first_row_has_no_effect(self):
+        main.save_ingredients(["Farine", "Lait"])
+        self.app.refresh_ingredients()
+        form = main.RecipeFormWindow(self.app)
+        self.addCleanup(form.destroy)
+        form.ingredient_rows[0][0].insert(0, "Farine")
+        form.add_ingredient_row("Lait", "", "")
+
+        form._move_ingredient_row(form.ingredient_row_wrappers[0], -1)
+
+        self.assertEqual(self._names_in_order(form), ["Farine", "Lait"])
+
+    def test_dragging_past_a_lower_row_reorders_live(self):
+        # Simule le curseur franchissant la ligne du bas pendant le
+        # glisser : appelle directement les gestionnaires réels (comme pour
+        # les autres interactions souris de cette suite), avec la position
+        # écran réelle de la 3e ligne — winfo_rooty() exige que la fenêtre
+        # soit réellement mappée/à jour.
+        main.save_ingredients(["Farine", "Lait", "Sucre"])
+        self.app.refresh_ingredients()
+        form = main.RecipeFormWindow(self.app)
+        self.addCleanup(form.destroy)
+        form.ingredient_rows[0][0].insert(0, "Farine")
+        form.add_ingredient_row("Lait", "", "")
+        form.add_ingredient_row("Sucre", "", "")
+        # Sans onglet sélectionné, son contenu n'est jamais mappé
+        # (winfo_ismapped=0, hauteur figée à 1) même une fois la fenêtre
+        # affichée — comme le serait forcément l'onglet Ingrédients pour un
+        # vrai utilisateur en train d'y glisser une ligne.
+        form.form_notebook.select(form.tab_ingredients)
+        form.update()
+
+        wrapper0 = form.ingredient_row_wrappers[0]
+        wrapper2 = form.ingredient_row_wrappers[2]
+        form._on_ingredient_drag_start(SimpleNamespace(), wrapper0)
+        target_y = wrapper2.winfo_rooty() + wrapper2.winfo_height() // 2
+        form._on_ingredient_drag_motion(SimpleNamespace(y_root=target_y))
+        form.update()
+
+        self.assertEqual(self._names_in_order(form), ["Lait", "Sucre", "Farine"])
+        self.assertEqual(form._ingredient_drag_index, 2)
+
+        form._on_ingredient_drag_release(SimpleNamespace())
+        self.assertIsNone(form._ingredient_drag_index)
+
+
 if __name__ == "__main__":
     unittest.main()
