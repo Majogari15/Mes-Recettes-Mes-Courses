@@ -1,6 +1,9 @@
+import functools
 import gc
 import os
 import sys
+import time
+import tkinter as tk
 
 import pytest
 
@@ -12,6 +15,31 @@ import pytest
 # plus courant (y compris en CI). L'ajouter ici une fois pour toutes évite
 # cette erreur de collecte sans toucher aux tests eux-mêmes.
 sys.path.insert(0, os.path.dirname(__file__))
+
+# Runners Windows de GitHub : la lecture des fichiers Tcl échoue parfois un
+# instant à la création d'une fenêtre (« Can't find a usable init.tcl »,
+# « couldn't read file ... No error » — antivirus du runner). Le test était
+# alors ignoré au hasard. Réessai court, limité à ces erreurs passagères :
+# toute autre TclError reste immédiate.
+_TCL_ERREURS_PASSAGERES = ("usable init.tcl", "couldn't read file", "No error")
+
+
+def _avec_reessai_tcl(init, essais=3, pause=0.5):
+    @functools.wraps(init)
+    def _init(self, *args, **kwargs):
+        for essai in range(essais):
+            try:
+                return init(self, *args, **kwargs)
+            except tk.TclError as exc:
+                if essai == essais - 1 or not any(m in str(exc) for m in _TCL_ERREURS_PASSAGERES):
+                    raise
+                time.sleep(pause)
+    _init._avec_reessai_tcl = True
+    return _init
+
+
+if not getattr(tk.Tk.__init__, "_avec_reessai_tcl", False):
+    tk.Tk.__init__ = _avec_reessai_tcl(tk.Tk.__init__)
 
 _DIALOG_NAMES = (
     "showinfo", "showwarning", "showerror",

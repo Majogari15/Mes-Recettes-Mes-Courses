@@ -137,6 +137,30 @@ class TkReleasedInMainThreadTests(TempDataMixin, unittest.TestCase):
         self.assertIsNone(ref())
 
 
+class TclTransientInitRetryTests(unittest.TestCase):
+    def test_transient_tcl_error_is_retried_other_errors_are_not(self):
+        import conftest
+        self.assertTrue(getattr(tk.Tk.__init__, "_avec_reessai_tcl", False))
+        calls = []
+
+        def flaky(self_, fail_times, message):
+            calls.append(1)
+            if len(calls) <= fail_times:
+                raise tk.TclError(message)
+            return "ok"
+        init = conftest._avec_reessai_tcl(flaky, essais=3, pause=0)
+        self.assertEqual(init(None, 2, "Can't find a usable init.tcl in the following directories:"), "ok")
+        self.assertEqual(len(calls), 3)
+        calls.clear()
+        with self.assertRaises(tk.TclError):
+            init(None, 5, "couldn't read file \"x\": No error")
+        self.assertEqual(len(calls), 3)
+        calls.clear()
+        with self.assertRaises(tk.TclError):
+            init(None, 1, "no display name and no $DISPLAY environment variable")
+        self.assertEqual(len(calls), 1)
+
+
 class PendingAfterCancelTests(unittest.TestCase):
     def setUp(self):
         try:
