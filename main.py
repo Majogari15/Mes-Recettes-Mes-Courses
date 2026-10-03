@@ -2324,6 +2324,91 @@ def set_pantry_item(name, quantity, unit, threshold=None, expiration_date=None):
     return pantry
 
 
+def add_pantry_quantity(name, delta, unit):
+    """Ajoute ``delta`` à un article du garde-manger (créé s'il n'existe pas),
+    sans toucher à son seuil ni à sa date de péremption."""
+    pantry = load_pantry()
+    existing = pantry.get(ingredient_sort_key(name))
+    if existing:
+        quantity = float(existing.get("quantity", 0) or 0) + delta
+        return set_pantry_item(existing["name"], quantity, existing.get("unit") or unit,
+                               existing.get("threshold"), existing.get("expiration_date"))
+    return set_pantry_item(name, delta, unit)
+
+
+# --- Code-barres (garde-manger) ---------------------------------------------
+BARCODE_TYPES = ("EAN13", "EAN8", "UPCA", "UPCE")
+
+
+def normalize_barcode(value):
+    """Code EAN/UPC en chiffres seuls, ou None si la longueur est impossible."""
+    digits = re.sub(r"\D", "", value or "")
+    return digits if len(digits) in (8, 12, 13, 14) else None
+
+
+def decode_barcode_image(path):
+    """Premier code-barres produit (EAN/UPC) lisible sur une photo, ou None."""
+    if not QRCODE_READER_AVAILABLE or not PIL_AVAILABLE:
+        return None
+    with Image.open(path) as image:
+        results = decode_barcodes(image.convert("L"))
+    for result in results:
+        if getattr(result, "type", "") in BARCODE_TYPES:
+            code = normalize_barcode(result.data.decode("ascii", "ignore"))
+            if code:
+                return code
+    return None
+
+
+def lookup_open_food_facts(code, timeout=10):
+    """Nom du produit sur Open Food Facts (base collaborative ouverte), ou
+    None si inconnu. Seul le code-barres est envoyé."""
+    url = (f"https://world.openfoodfacts.org/api/v2/product/{urllib.parse.quote(code)}.json"
+           "?fields=product_name,product_name_fr,product_name_en,product_name_es,product_name_de,quantity")
+    request = urllib.request.Request(url, headers={"User-Agent": f"MesRecettesMesCourses/{APP_VERSION} (Windows)"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    product = data.get("product") if data.get("status") == 1 else None
+    if not product:
+        return None
+    name = (product.get(f"product_name_{CURRENT_LANGUAGE}") or product.get("product_name")
+            or product.get("product_name_fr") or "").strip()
+    if not name:
+        return None
+    return {"name": name, "quantity": (product.get("quantity") or "").strip()}
+
+
+def guess_known_ingredient(product_name, ingredient_names):
+    """Ingrédient connu correspondant au nom commercial d'un produit (ex.
+    « Lait demi-écrémé Lactel » -> « Lait ») : nom exact, sinon le plus long
+    ingrédient connu présent comme mot(s) entier(s) dans le nom du produit."""
+    exact = resolve_ingredient_input(product_name, ingredient_names)
+    if exact:
+        return exact
+    product_key = " " + re.sub(r"[^a-z0-9]+", " ", ingredient_sort_key(product_name)) + " "
+    best = None
+    for name in ingredient_names:
+        key = re.sub(r"[^a-z0-9]+", " ", ingredient_sort_key(name)).strip()
+        if len(key) >= 3 and f" {key} " in product_key and (best is None or len(key) > len(best[0])):
+            best = (key, name)
+    return best[1] if best else None
+
+
+def get_barcode_ingredient(code):
+    record = load_settings().get("barcode_ingredients", {}).get(code)
+    return record if isinstance(record, dict) and record.get("name") else None
+
+
+def remember_barcode_ingredient(code, name, unit):
+    settings = load_settings()
+    mapping = settings.get("barcode_ingredients")
+    if not isinstance(mapping, dict):
+        mapping = {}
+    mapping[code] = {"name": name, "unit": unit}
+    settings["barcode_ingredients"] = mapping
+    save_settings(settings)
+
+
 def parse_pantry_expiration(value):
     """Retourne une date pour les formats YYYY-MM-DD ou JJ/MM/AAAA."""
     value = (value or "").strip()
@@ -2335,6 +2420,79 @@ def parse_pantry_expiration(value):
         except ValueError:
             pass
     return None
+
+
+# Mots-clés indiquant qu'une date proche est une date de péremption (et non
+# de fabrication ou un lot), comparés sans accents ni majuscules — même
+# liste que l'app mobile, anglais inclus (fréquent sur les produits importés).
+EXPIRATION_DATE_KEYWORDS = (
+    "dlc", "ddm", "dluo", "a consommer", "consommer avant", "avant le",
+    "best before", "use by", "sell by", "expiry", "expire", "exp",
+    "fecha de caducidad", "caducidad", "consumir antes", "fecha de consumo",
+    "mindestens haltbar", "verbrauchen bis", "haltbar bis", "mhd",
+)
+EXPIRATION_DATE_KEYWORD_WINDOW = 30
+
+
+def _plain_lower(text_value):
+    decomposed = unicodedata.normalize("NFKD", text_value or "")
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+
+
+def extract_expiration_date_from_ocr_text(text_value, today=None):
+    """Repère la date de péremption la plus probable dans le texte OCR d'une
+    étiquette. Ne sert qu'à préremplir le champ, que l'utilisateur vérifie.
+    Formats : AAAA-MM-JJ, puis JJ/MM/AA(AA) (séparateurs / . -). Un mot-clé
+    de péremption juste avant pèse bien plus qu'une date seulement plausible."""
+    if not text_value:
+        return None
+    today = today or datetime.now().date()
+    min_plausible = today - timedelta(days=60)
+    max_plausible = today + timedelta(days=5 * 365)
+    candidates = []
+
+    def add(match, year, month, day):
+        try:
+            parsed = datetime(year, month, day).date()
+        except ValueError:
+            return
+        preceding = _plain_lower(text_value[max(0, match.start() - EXPIRATION_DATE_KEYWORD_WINDOW):match.start()])
+        score = 1
+        if any(keyword in preceding for keyword in EXPIRATION_DATE_KEYWORDS):
+            score += 100
+        if min_plausible <= parsed <= max_plausible:
+            score += 10
+        candidates.append((score, -match.start(), parsed))
+
+    for m in re.finditer(r"\b(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})\b", text_value):
+        add(m, int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    for m in re.finditer(r"\b(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})\b", text_value):
+        year = int(m.group(3))
+        if len(m.group(3)) == 2:
+            year += 2000
+        elif len(m.group(3)) == 3:
+            continue
+        add(m, year, int(m.group(2)), int(m.group(1)))
+    if not candidates:
+        return None
+    # À score égal, la première date de l'étiquette l'emporte (comme mobile).
+    return max(candidates)[2]
+
+
+def read_expiration_date_from_photo(path):
+    """OCR d'une photo d'étiquette -> date de péremption probable (ou None).
+    Lève RuntimeError si Tesseract n'est pas disponible."""
+    status = current_tesseract_status()
+    if not status.get("ready") or not PIL_AVAILABLE:
+        raise RuntimeError(status.get("reason") or "tesseract_not_found")
+    lang = status.get("required_lang") or "fra"
+    with Image.open(path) as source:
+        image = prepare_image_for_ocr(source, 0, max_dimension=2400)
+    rotation = detect_ocr_rotation(prepare_image_for_ocr(image))
+    if rotation:
+        image = image.rotate(-rotation, expand=True)
+    text_value = pytesseract.image_to_string(prepare_image_for_ocr(image), lang=lang, timeout=25)
+    return extract_expiration_date_from_ocr_text(text_value)
 
 
 def get_expiring_pantry_items(days=5, include_expired=True):
@@ -3216,7 +3374,7 @@ def compute_grouped_totals(recipe_persons_pairs):
         by_rayon.setdefault(rayon, []).append((name.capitalize(), display_qty, display_unit))
 
     grouped_totals = []
-    for rayon in RAYON_ORDER:
+    for rayon in get_rayon_order():
         if rayon in by_rayon:
             items = sorted(by_rayon[rayon], key=lambda x: ingredient_sort_key(x[0]))
             grouped_totals.append((rayon, items))
@@ -3232,11 +3390,37 @@ def grouped_totals_from_flat_items(items):
     for item in items:
         by_rayon.setdefault(item["rayon"], []).append((item["name"], item["quantity"], item["unit"]))
     grouped_totals = []
-    for rayon in RAYON_ORDER:
+    for rayon in get_rayon_order():
         if rayon in by_rayon:
             entries = sorted(by_rayon[rayon], key=lambda x: ingredient_sort_key(x[0]))
             grouped_totals.append((rayon, entries))
     return grouped_totals
+
+
+def get_rayon_order():
+    """Ordre des rayons choisi par l'utilisateur (l'ordre de son magasin),
+    complété par les rayons manquants dans l'ordre par défaut."""
+    saved = load_settings().get("rayon_order")
+    order = list(dict.fromkeys(r for r in saved if r in RAYON_ORDER)) if isinstance(saved, list) else []
+    return order + [r for r in RAYON_ORDER if r not in order]
+
+
+def set_rayon_order(order):
+    settings = load_settings()
+    settings["rayon_order"] = [r for r in dict.fromkeys(order) if r in RAYON_ORDER]
+    save_settings(settings)
+
+
+def get_pantry_order():
+    """Ordre manuel du garde-manger (clés de pantry.json), choisi par glisser-déposer."""
+    saved = load_settings().get("pantry_order")
+    return [str(k) for k in saved] if isinstance(saved, list) else []
+
+
+def set_pantry_order(keys):
+    settings = load_settings()
+    settings["pantry_order"] = list(dict.fromkeys(str(k) for k in keys))
+    save_settings(settings)
 
 
 SAVED_SHOPPING_LISTS_FILE = os.path.join(DATA_DIR, "saved_shopping_lists.json")
@@ -6024,8 +6208,26 @@ def apply_palette(dark, high_contrast=False):
     COLOR_ON_ACCENT = palette["ON_ACCENT"]
 
 
+def detect_system_dark_mode():
+    """Thème sombre choisi dans les paramètres Windows (False hors Windows ou si illisible)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as key:
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        return value == 0
+    except OSError:
+        return False
+
+
 def get_dark_mode_preference():
-    return bool(load_settings().get("dark_mode", False))
+    # Tant que l'utilisateur n'a rien choisi, on suit le réglage de Windows.
+    settings = load_settings()
+    if "dark_mode" not in settings:
+        return detect_system_dark_mode()
+    return bool(settings["dark_mode"])
 
 
 def set_dark_mode_preference(value):
@@ -8152,8 +8354,45 @@ class App(APP_TK_BASE):
         )
         if not paths:
             return
+        self._finish_qr_import(lambda: import_recipe_prefill_from_qr_images(paths))
+
+    def open_import_from_qr_text(self):
+        """Repli quand la lecture d'image échoue : coller le texte obtenu avec
+        une autre application de scan (une ou plusieurs parties)."""
+        dialog = tk.Toplevel(self)
+        dialog.title(t("qrimport_paste_title"))
+        dialog.transient(self)
+        frame = ttk.Frame(dialog, padding=gs(SPACE_MD))
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=t("qrimport_paste_intro"), wraplength=gs(420),
+                  justify="left").pack(anchor="w", pady=(0, gs(SPACE_SM)))
+        text_box = tk.Text(frame, width=60, height=12, wrap="char",
+                           background=COLOR_CARD, foreground=COLOR_TEXT,
+                           insertbackground=COLOR_TEXT, font=("Segoe UI", sf(10)))
+        text_box.pack(fill="both", expand=True)
+        dialog.qr_text_box = text_box
+
+        def submit():
+            values = split_pasted_qr_text(text_box.get("1.0", "end"))
+            dialog.destroy()
+            if not values:
+                return
+            self._finish_qr_import(lambda: import_recipe_prefill_from_qr_texts(values),
+                                   no_code_key="qrimport_paste_no_code")
+
+        dialog.qr_submit = submit
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", pady=(gs(SPACE_SM), 0))
+        ttk.Button(buttons, text=t("common_cancel"), style="Secondary.TButton",
+                   command=dialog.destroy).pack(side="right")
+        ttk.Button(buttons, text=t("qrimport_paste_import_button"), style="Primary.TButton",
+                   command=submit).pack(side="right", padx=(0, gs(SPACE_SM)))
+        text_box.focus_set()
+        return dialog
+
+    def _finish_qr_import(self, read_prefill, no_code_key="qrimport_no_code"):
         try:
-            prefill = import_recipe_prefill_from_qr_images(paths)
+            prefill = read_prefill()
         except QrImportIncompleteError as e:
             messagebox.showwarning(
                 t("qrimport_title"),
@@ -8170,7 +8409,7 @@ class App(APP_TK_BASE):
             messagebox.showerror(t("common_error"), t("qrimport_decode_error", error=e))
             return
         if not prefill:
-            messagebox.showwarning(t("qrimport_title"), t("qrimport_no_code"))
+            messagebox.showwarning(t("qrimport_title"), t(no_code_key))
             return
         self.show_toast(t("qrimport_success_prefill"))
         RecipeFormWindow(self, recipe_index=None, prefill=prefill)
@@ -13045,6 +13284,8 @@ class ImportExportWindow(tk.Toplevel):
                    command=self.import_mobile_qr).pack(side="left", padx=4)
         ttk.Button(qr_row, text=t("importexport_mobile_qr_export"),
                    command=self.choose_recipe_for_qr).pack(side="left", padx=4)
+        ttk.Button(self, text=t("importexport_mobile_qr_paste"), style="Secondary.TButton",
+                   command=self.import_mobile_qr_text).pack(pady=(0, 6))
         ttk.Label(self, text=t("importexport_shared_intro"),
                   justify="center", font=("Segoe UI", sf(8)), wraplength=390).pack(pady=(3, 8))
         ttk.Button(self, text=t("importexport_export_shared_button"),
@@ -13104,6 +13345,10 @@ class ImportExportWindow(tk.Toplevel):
     def import_mobile_qr(self):
         self.destroy()
         self.app.after(50, self.app.open_import_from_qr)
+
+    def import_mobile_qr_text(self):
+        self.destroy()
+        self.app.after(50, self.app.open_import_from_qr_text)
 
     def choose_recipe_for_qr(self):
         self.destroy()
@@ -13488,18 +13733,39 @@ class ShoppingChecklistWindow(tk.Toplevel):
         scrollbar.pack(side="right", fill="y")
 
         self.checks = []
+        # Un cadre par rayon : réordonnables (glisser la poignée ⠿ ou ↑/↓)
+        # pour suivre l'ordre du magasin, mémorisé pour les prochaines listes.
+        self.rayon_frames = []
+        self._rayon_drag_index = None
         for rayon, items in grouped_totals:
-            ttk.Label(rows_frame, text=translate_rayon_name(rayon), font=("Segoe UI", sf(11), "bold")).pack(
-                anchor="w", pady=(12, 3))
+            group = ttk.Frame(rows_frame)
+            header = ttk.Frame(group)
+            header.pack(fill="x", pady=(gs(SPACE_SM), gs(2)))
+            handle = ttk.Label(header, text="⠿", cursor="fleur", font=("Segoe UI", sf(11)),
+                               foreground=COLOR_TEXT_MUTED)
+            handle.pack(side="left", padx=(0, gs(SPACE_XS)))
+            title_lbl = ttk.Label(header, text=translate_rayon_name(rayon), cursor="fleur",
+                                  font=("Segoe UI", sf(11), "bold"))
+            title_lbl.pack(side="left")
+            ttk.Button(header, text="↓", width=3, style="Secondary.TButton",
+                       command=lambda g=group: self._move_rayon(g, 1)).pack(side="right")
+            ttk.Button(header, text="↑", width=3, style="Secondary.TButton",
+                       command=lambda g=group: self._move_rayon(g, -1)).pack(side="right", padx=(0, gs(SPACE_XS)))
+            for widget in (handle, title_lbl):
+                widget.bind("<ButtonPress-1>", lambda e, g=group: self._on_rayon_drag_start(e, g))
+                widget.bind("<B1-Motion>", self._on_rayon_drag_motion)
+                widget.bind("<ButtonRelease-1>", self._on_rayon_drag_release)
             for name, qty, unit in items:
                 unit_display = f" {translate_unit_name(unit)}" if unit else ""
                 var = tk.BooleanVar()
                 lbl_text = f"{translate_ingredient_name(name)} : {qty}{unit_display}"
-                chk = ttk.Checkbutton(rows_frame, text=lbl_text, variable=var,
+                chk = ttk.Checkbutton(group, text=lbl_text, variable=var,
                                        command=lambda: None)
                 chk.pack(anchor="w", padx=10, pady=1)
                 self.checks.append((var, chk, lbl_text))
                 var.trace_add("write", lambda *args, v=var, c=chk: self._update_style(v, c))
+            group.pack(fill="x")
+            self.rayon_frames.append((rayon, group))
 
         btn_frame = ttk.Frame(self)
         btn_frame.pack(pady=10)
@@ -13532,6 +13798,56 @@ class ShoppingChecklistWindow(tk.Toplevel):
     def uncheck_all(self):
         for var, chk, text in self.checks:
             var.set(False)
+
+    def _group_index(self, group):
+        return [g for _r, g in self.rayon_frames].index(group)
+
+    def _apply_rayon_order(self):
+        """Réaffiche les rayons dans l'ordre courant (cases cochées conservées)
+        et mémorise cet ordre, complété des rayons absents de cette liste à
+        leur position actuelle."""
+        for _rayon, group in self.rayon_frames:
+            group.pack_forget()
+        for _rayon, group in self.rayon_frames:
+            group.pack(fill="x")
+        shown = [r for r, _g in self.rayon_frames]
+        remaining = [r for r in get_rayon_order() if r not in shown]
+        set_rayon_order(shown + remaining)
+
+    def _move_rayon(self, group, delta):
+        old_index = self._group_index(group)
+        new_index = old_index + delta
+        if not (0 <= new_index < len(self.rayon_frames)):
+            return
+        frames = self.rayon_frames
+        frames[old_index], frames[new_index] = frames[new_index], frames[old_index]
+        self._apply_rayon_order()
+
+    def _on_rayon_drag_start(self, _event, group):
+        self._rayon_drag_index = self._group_index(group)
+
+    def _on_rayon_drag_motion(self, event):
+        if self._rayon_drag_index is None:
+            return
+        target = self._rayon_drag_index
+        for i, (_rayon, group) in enumerate(self.rayon_frames):
+            top = group.winfo_rooty()
+            if top <= event.y_root <= top + group.winfo_height():
+                target = i
+                break
+        if target != self._rayon_drag_index:
+            moved = self.rayon_frames.pop(self._rayon_drag_index)
+            self.rayon_frames.insert(target, moved)
+            self._rayon_drag_index = target
+            for _rayon, group in self.rayon_frames:
+                group.pack_forget()
+            for _rayon, group in self.rayon_frames:
+                group.pack(fill="x")
+
+    def _on_rayon_drag_release(self, _event):
+        if self._rayon_drag_index is not None:
+            self._rayon_drag_index = None
+            self._apply_rayon_order()
 
 
 class ExportFormatDialog(tk.Toplevel):
@@ -13788,7 +14104,7 @@ class ShoppingCartRenderMixin:
         for i, item in enumerate(self.current_items):
             by_rayon.setdefault(item["rayon"], []).append(i)
         grouped = []
-        for rayon in RAYON_ORDER:
+        for rayon in get_rayon_order():
             if rayon in by_rayon:
                 idxs = sorted(by_rayon[rayon], key=lambda i: ingredient_sort_key(self.current_items[i]["name"]))
                 grouped.append((rayon, idxs))
@@ -16926,6 +17242,25 @@ def import_recipe_prefill_from_qr_images(paths):
         value = _decode_qr_image_file(path)
         if value:
             decoded_values.append(value)
+    return import_recipe_prefill_from_qr_texts(decoded_values)
+
+
+def split_pasted_qr_text(text_value):
+    """Découpe un texte collé (obtenu via une autre appli de scan) en contenus
+    de QR : chaque partie d'un QR multi-parties commence par MULTI_QR_PREFIX|,
+    un QR simple est gardé entier (il peut contenir des retours à la ligne)."""
+    text_value = (text_value or "").strip()
+    if not text_value:
+        return []
+    marker = MULTI_QR_PREFIX + "|"
+    if marker not in text_value:
+        return [text_value]
+    # Seuls les retours à la ligne séparateurs sont retirés : un espace en
+    # fin de morceau fait partie du contenu vérifié par la somme de contrôle.
+    return [marker + part.strip("\r\n") for part in text_value.split(marker) if part.strip()]
+
+
+def import_recipe_prefill_from_qr_texts(decoded_values):
     if not decoded_values:
         return None
 
@@ -17322,43 +17657,57 @@ class PantryWindow(tk.Toplevel):
         self.unit_options=RecipeFormWindow.UNIT_OPTIONS[:-1]+["boîte","paquet","rouleau","bouteille"]
         self.unit_combo=ttk.Combobox(add,values=[translate_unit_name(u) for u in self.unit_options],width=13); self.unit_combo.set(translate_unit_name("pièce"))
         self.threshold_entry=ttk.Entry(add,width=7)
-        self.expiration_entry=ttk.Entry(add,width=12)
+        expiration_box=ttk.Frame(add)
+        self.expiration_entry=ttk.Entry(expiration_box,width=12); self.expiration_entry.pack(side="left")
+        self.expiration_photo_button=ttk.Button(expiration_box,text="📷",width=3,style="Secondary.TButton",command=self.read_expiration_from_photo)
+        self.expiration_photo_button.pack(side="left",padx=(gs(SPACE_XS),0)); add_tooltip(self.expiration_photo_button,t("pantry_expiration_photo_tooltip"))
         if compact:
             ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=4,pady=4,sticky="e"); self.name_entry.grid(row=0,column=1,padx=4,sticky="ew")
             ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=4); self.qty_entry.grid(row=0,column=3,padx=4)
             self.unit_combo.grid(row=0,column=4,padx=4)
             ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=4,pady=4,sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=4,sticky="w")
-            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=4,pady=4,sticky="e"); self.expiration_entry.grid(row=1,column=3,padx=4,sticky="w")
+            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=4,pady=4,sticky="e"); expiration_box.grid(row=1,column=3,padx=4,sticky="w")
             ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=2,column=0,columnspan=2,padx=4,pady=4,sticky="ew")
             ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=2,column=2,columnspan=3,padx=4,pady=4,sticky="ew")
+            ttk.Button(add,text=t("pantry_barcode_button"),style="Secondary.TButton",command=self.open_barcode_dialog).grid(row=3,column=0,columnspan=5,padx=4,pady=(0,4),sticky="ew")
             add.columnconfigure(1,weight=1)
         else:
             ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=5,pady=6,sticky="e"); self.name_entry.grid(row=0,column=1,padx=5)
             ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=5); self.qty_entry.grid(row=0,column=3,padx=5); self.unit_combo.grid(row=0,column=4,padx=5)
             ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=5,pady=6,sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=5,sticky="w")
-            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=5,pady=6,sticky="e"); self.expiration_entry.grid(row=1,column=3,padx=5,sticky="w")
+            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=5,pady=6,sticky="e"); expiration_box.grid(row=1,column=3,padx=5,sticky="w")
             ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=1,column=4,padx=5)
-            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=0,column=5,rowspan=2,padx=8)
+            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=0,column=5,padx=8,pady=(6,2),sticky="ew")
+            ttk.Button(add,text=t("pantry_barcode_button"),style="Secondary.TButton",command=self.open_barcode_dialog).grid(row=1,column=5,padx=8,pady=(2,6),sticky="ew")
         self.name_entry.bind("<KeyRelease>",lambda e:self._on_name_entry_keyrelease(e)); self.name_entry.bind("<FocusIn>",lambda e:self._on_name_entry_focus_in(e)); self.name_entry.bind("<FocusOut>",lambda e:self._on_name_entry_focus_out(e))
         tools=ttk.Frame(self); tools.pack(fill="x",padx=15,pady=(0,6))
         self.search_var=tk.StringVar(); ent=ttk.Entry(tools,textvariable=self.search_var,width=22); ent.bind("<KeyRelease>",lambda e:self._populate())
         self.filter_combo=ttk.Combobox(tools,state="readonly",width=17,values=[t("pantry_filter_all"),t("pantry_filter_low"),t("pantry_filter_expiring"),t("pantry_filter_expired")]); self.filter_combo.set(t("pantry_filter_all")); self.filter_combo.bind("<<ComboboxSelected>>",lambda e:self._populate())
-        self.sort_combo=ttk.Combobox(tools,state="readonly",width=15,values=[t("pantry_sort_name"),t("pantry_sort_expiry"),t("pantry_sort_status")]); self.sort_combo.set(t("pantry_sort_name")); self.sort_combo.bind("<<ComboboxSelected>>",lambda e:self._populate())
+        self.sort_combo=ttk.Combobox(tools,state="readonly",width=15,values=[t("pantry_sort_name"),t("pantry_sort_expiry"),t("pantry_sort_status"),t("pantry_sort_manual")]); self.sort_combo.set(t("pantry_sort_name")); self.sort_combo.bind("<<ComboboxSelected>>",lambda e:self._populate())
+        # Tri manuel : glisser une ligne, ou ↑/↓ sur la ligne sélectionnée.
+        move_box=ttk.Frame(tools)
+        self.move_up_button=ttk.Button(move_box,text="↑",width=3,style="Secondary.TButton",command=lambda:self._move_selected(-1))
+        self.move_down_button=ttk.Button(move_box,text="↓",width=3,style="Secondary.TButton",command=lambda:self._move_selected(1))
+        self.move_up_button.pack(side="left"); self.move_down_button.pack(side="left",padx=(gs(SPACE_XS),0))
         if compact:
             ttk.Label(tools,text=t("pantry_search_label")).grid(row=0,column=0,sticky="w"); ent.grid(row=0,column=1,padx=(4,10),sticky="ew")
             ttk.Label(tools,text=t("pantry_filter_label")).grid(row=0,column=2,sticky="w"); self.filter_combo.grid(row=0,column=3,padx=4,sticky="ew")
             ttk.Label(tools,text=t("pantry_sort_label")).grid(row=1,column=0,sticky="w",pady=(4,0)); self.sort_combo.grid(row=1,column=1,padx=(4,10),pady=(4,0),sticky="ew")
+            move_box.grid(row=1,column=2,columnspan=2,sticky="w",pady=(4,0))
             tools.columnconfigure(1,weight=1); tools.columnconfigure(3,weight=1)
         else:
             ttk.Label(tools,text=t("pantry_search_label")).pack(side="left"); ent.pack(side="left",padx=(4,12))
             ttk.Label(tools,text=t("pantry_filter_label")).pack(side="left"); self.filter_combo.pack(side="left",padx=4)
             ttk.Label(tools,text=t("pantry_sort_label")).pack(side="left",padx=(12,0)); self.sort_combo.pack(side="left",padx=4)
+            move_box.pack(side="left",padx=(4,0))
         frame=ttk.Frame(self); frame.pack(fill="both",expand=True,padx=15,pady=(0,8))
         cols=("name","qty","threshold","expiry","status","section"); self.tree=ttk.Treeview(frame,columns=cols,show="headings",selectmode="browse")
         specs=(("name",t("pantry_col_name"),260,"w"),("qty",t("pantry_col_qty"),110,"center"),("threshold",t("pantry_col_threshold"),100,"center"),("expiry",t("pantry_col_expiry"),120,"center"),("status",t("pantry_col_status"),160,"center"),("section",t("pantry_col_section"),150,"w"))
         for c,txt,w,a in specs:self.tree.heading(c,text=txt);self.tree.column(c,width=gs(w),anchor=a)
         sb=ttk.Scrollbar(frame,orient="vertical",command=self.tree.yview); self.tree.configure(yscrollcommand=sb.set); self.tree.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")
         self.tree.bind("<<TreeviewSelect>>",lambda e:self._load_selected_for_edit())
+        self._drag_iid=None
+        self.tree.bind("<ButtonPress-1>",self._on_tree_press,add="+"); self.tree.bind("<B1-Motion>",self._on_tree_drag); self.tree.bind("<ButtonRelease-1>",self._on_tree_release,add="+")
         btn=ttk.Frame(self); btn.pack(pady=(0,10),fill="x",padx=15)
         for c in range(2 if compact else 4): btn.columnconfigure(c,weight=1)
         actions=[
@@ -17380,7 +17729,7 @@ class PantryWindow(tk.Toplevel):
         return "ok",t("pantry_status_ok")
     def _populate(self):
         for iid in self.tree.get_children():self.tree.delete(iid)
-        pantry=load_pantry(); all_entries=list(pantry.values()); low=sum(1 for e in all_entries if self._status_for(e)[0]=="low"); exp=sum(1 for e in all_entries if self._status_for(e)[0] in ("expiring","expired")); self.summary_label.configure(text=t("pantry_summary",count=len(all_entries),low=low,expiring=exp))
+        pantry=load_pantry(); all_entries=list(pantry.values()); key_of={id(v):k for k,v in pantry.items()}; low=sum(1 for e in all_entries if self._status_for(e)[0]=="low"); exp=sum(1 for e in all_entries if self._status_for(e)[0] in ("expiring","expired")); self.summary_label.configure(text=t("pantry_summary",count=len(all_entries),low=low,expiring=exp))
         q=ingredient_sort_key(self.search_var.get()) if hasattr(self,"search_var") else ""; f=self.filter_combo.get() if hasattr(self,"filter_combo") else t("pantry_filter_all")
         entries=[]
         for e in all_entries:
@@ -17393,11 +17742,136 @@ class PantryWindow(tk.Toplevel):
         sortv=self.sort_combo.get() if hasattr(self,"sort_combo") else t("pantry_sort_name")
         if sortv==t("pantry_sort_expiry"): entries.sort(key=lambda e:(parse_pantry_expiration(e.get("expiration_date")) or datetime.max.date(),ingredient_sort_key(e.get("name",""))))
         elif sortv==t("pantry_sort_status"): entries.sort(key=lambda e:({"expired":0,"expiring":1,"low":2,"ok":3}[self._status_for(e)[0]],ingredient_sort_key(e.get("name",""))))
-        else: entries.sort(key=lambda e:ingredient_sort_key(e.get("name","")))
-        self.pantry_entries_ordered=entries; self._entry_by_iid={}
+        elif sortv!=t("pantry_sort_manual"): entries.sort(key=lambda e:ingredient_sort_key(e.get("name","")))
+        # Ordre manuel complet (tous les articles, filtre ignoré) : sert à
+        # réinsérer un réordonnancement fait sur une vue filtrée.
+        order={k:i for i,k in enumerate(get_pantry_order())}
+        def manual_key(e): return (order.get(key_of[id(e)],len(order)),ingredient_sort_key(e.get("name","")))
+        self._manual_full_order=[key_of[id(e)] for e in sorted(all_entries,key=manual_key)]
+        if sortv==t("pantry_sort_manual"): entries.sort(key=manual_key)
+        manual=sortv==t("pantry_sort_manual")
+        for b in (self.move_up_button,self.move_down_button): b.state(["!disabled"] if manual else ["disabled"])
+        self.pantry_entries_ordered=entries; self._entry_by_iid={}; self._key_by_iid={}
         for i,e in enumerate(entries):
-            iid=str(i); self._entry_by_iid[iid]=e; qty=e.get("quantity",0); qtytxt=str(int(qty)) if isinstance(qty,(int,float)) and float(qty).is_integer() else str(round(float(qty),2)); unit=translate_unit_name(e.get("unit","")); thr=e.get("threshold"); thrtxt="—" if thr is None else str(thr); expiry=parse_pantry_expiration(e.get("expiration_date")); exptxt=expiry.strftime("%d/%m/%Y") if expiry else "—"; status=self._status_for(e)[1]; section=translate_rayon_name(get_ingredient_rayon(e.get("name","")))
+            iid=str(i); self._entry_by_iid[iid]=e; self._key_by_iid[iid]=key_of[id(e)]; qty=e.get("quantity",0); qtytxt=str(int(qty)) if isinstance(qty,(int,float)) and float(qty).is_integer() else str(round(float(qty),2)); unit=translate_unit_name(e.get("unit","")); thr=e.get("threshold"); thrtxt="—" if thr is None else str(thr); expiry=parse_pantry_expiration(e.get("expiration_date")); exptxt=expiry.strftime("%d/%m/%Y") if expiry else "—"; status=self._status_for(e)[1]; section=translate_rayon_name(get_ingredient_rayon(e.get("name","")))
             self.tree.insert("","end",iid=iid,values=(translate_ingredient_name(e.get("name","")).capitalize(),f"{qtytxt} {unit}".strip(),thrtxt,exptxt,status,section))
+    def open_barcode_dialog(self):
+        """Code saisi, tapé par une douchette USB (agit comme un clavier) ou lu
+        sur une photo. Code déjà connu : +1 directement. Sinon recherche
+        Open Food Facts et préremplissage du formulaire, à confirmer."""
+        dialog=tk.Toplevel(self); dialog.title(t("pantry_barcode_title")); dialog.transient(self)
+        frame=ttk.Frame(dialog,padding=gs(SPACE_MD)); frame.pack(fill="both",expand=True)
+        ttk.Label(frame,text=t("pantry_barcode_intro"),wraplength=gs(420),justify="left").pack(anchor="w",pady=(0,gs(SPACE_SM)))
+        code_entry=ttk.Entry(frame,width=24,font=("Segoe UI",sf(12))); code_entry.pack(fill="x")
+        status=ttk.Label(frame,text="",foreground=COLOR_TEXT_MUTED,wraplength=gs(420)); status.pack(anchor="w",pady=(gs(SPACE_XS),0))
+        def submit(_event=None):
+            code=normalize_barcode(code_entry.get())
+            if not code:
+                status.configure(text=t("pantry_barcode_invalid")); return
+            dialog.destroy(); self.handle_barcode(code)
+        def from_photo():
+            path=filedialog.askopenfilename(parent=dialog,title=t("pantry_barcode_title"),
+                                            filetypes=[(t("qrimport_filetypes"),"*.png *.jpg *.jpeg *.bmp *.webp"),("Tous les fichiers","*.*")])
+            if not path: return
+            try: code=decode_barcode_image(path)
+            except Exception as exc:
+                log_internal_error("pantry_barcode_photo",exc); code=None
+            if not code:
+                status.configure(text=t("pantry_barcode_not_read")); return
+            code_entry.delete(0,tk.END); code_entry.insert(0,code); submit()
+        code_entry.bind("<Return>",submit)
+        buttons=ttk.Frame(frame); buttons.pack(fill="x",pady=(gs(SPACE_SM),0))
+        if QRCODE_READER_AVAILABLE:
+            ttk.Button(buttons,text=t("pantry_barcode_photo_button"),style="Secondary.TButton",command=from_photo).pack(side="left")
+        ttk.Button(buttons,text=t("common_cancel"),style="Secondary.TButton",command=dialog.destroy).pack(side="right")
+        ttk.Button(buttons,text=t("pantry_barcode_search_button"),style="Primary.TButton",command=submit).pack(side="right",padx=(0,gs(SPACE_SM)))
+        code_entry.focus_set()
+        dialog.barcode_entry=code_entry; dialog.barcode_submit=submit; dialog.barcode_status=status
+        return dialog
+    def handle_barcode(self,code):
+        known=get_barcode_ingredient(code)
+        if known:
+            pantry=add_pantry_quantity(known["name"],1,known.get("unit") or "pièce"); self._populate()
+            entry=pantry.get(ingredient_sort_key(known["name"]),{})
+            qty=entry.get("quantity",1); qty=int(qty) if float(qty).is_integer() else round(float(qty),2)
+            messagebox.showinfo(t("pantry_barcode_title"),t("pantry_barcode_incremented",name=translate_ingredient_name(known["name"]),quantity=qty,unit=translate_unit_name(entry.get("unit",""))),parent=self)
+            return
+        self.configure(cursor="watch"); results=queue.Queue(maxsize=1)
+        def work():
+            try: results.put(("ok",lookup_open_food_facts(code)))
+            except Exception as exc: results.put(("error",exc))
+        threading.Thread(target=work,daemon=True).start()
+        self.after(100,lambda:self._poll_barcode_lookup(code,results))
+    def _poll_barcode_lookup(self,code,results):
+        if not self.winfo_exists(): return
+        try: kind,value=results.get_nowait()
+        except queue.Empty:
+            self.after(100,lambda:self._poll_barcode_lookup(code,results)); return
+        self._apply_barcode_lookup(code,kind,value)
+    def _apply_barcode_lookup(self,code,kind,value):
+        self.configure(cursor=""); self._pending_barcode=code
+        self.name_entry.delete(0,tk.END); self.qty_entry.delete(0,tk.END); self.qty_entry.insert(0,"1")
+        if kind=="error": log_internal_error("pantry_barcode_lookup",value)
+        if kind!="ok" or not value:
+            messagebox.showinfo(t("pantry_barcode_title"),t("pantry_barcode_unknown_product",code=code),parent=self)
+            self.name_entry.focus_set(); return
+        guess=guess_known_ingredient(value["name"],self.app.ingredient_names)
+        self.name_entry.insert(0,translate_ingredient_name(guess) if guess else value["name"])
+        self.unit_combo.set(translate_unit_name("pièce"))
+        detail=f"{value['name']} ({value['quantity']})" if value.get("quantity") else value["name"]
+        messagebox.showinfo(t("pantry_barcode_title"),t("pantry_barcode_found",product=detail),parent=self)
+        self.name_entry.focus_set()
+    def read_expiration_from_photo(self):
+        """Préremplit la date de péremption depuis une photo d'étiquette (OCR
+        hors du thread Tk). Le résultat reste à vérifier avant d'enregistrer."""
+        path=filedialog.askopenfilename(parent=self,title=t("pantry_expiration_photo_title"),
+                                        filetypes=[(t("qrimport_filetypes"),"*.png *.jpg *.jpeg *.bmp *.webp"),("Tous les fichiers","*.*")])
+        if not path: return
+        self.expiration_photo_button.state(["disabled"]); self.configure(cursor="watch")
+        results=queue.Queue(maxsize=1)
+        def work():
+            try: results.put(("ok",read_expiration_date_from_photo(path)))
+            except Exception as exc: results.put(("error",exc))
+        threading.Thread(target=work,daemon=True).start()
+        self.after(100,lambda:self._poll_expiration_photo(results))
+    def _poll_expiration_photo(self,results):
+        if not self.winfo_exists(): return
+        try: kind,value=results.get_nowait()
+        except queue.Empty:
+            self.after(100,lambda:self._poll_expiration_photo(results)); return
+        self._apply_expiration_photo_result(kind,value)
+    def _apply_expiration_photo_result(self,kind,value):
+        self.expiration_photo_button.state(["!disabled"]); self.configure(cursor="")
+        if kind=="error":
+            log_internal_error("pantry_expiration_photo",value)
+            messagebox.showerror(t("common_module_missing"),t("importphoto_ocr_tesseract_missing_detail"),parent=self); return
+        if value is None:
+            messagebox.showwarning(t("pantry_expiration_photo_title"),t("pantry_expiration_photo_none"),parent=self); return
+        self.expiration_entry.delete(0,tk.END); self.expiration_entry.insert(0,value.strftime("%d/%m/%Y"))
+        messagebox.showinfo(t("pantry_expiration_photo_title"),t("pantry_expiration_photo_found",date=value.strftime("%d/%m/%Y")),parent=self)
+    def _is_manual_sort(self):
+        return self.sort_combo.get()==t("pantry_sort_manual")
+    def _save_manual_order(self):
+        """Réinsère l'ordre visible (éventuellement filtré) dans l'ordre complet."""
+        visible=[self._key_by_iid[iid] for iid in self.tree.get_children()]
+        full=list(self._manual_full_order); shown=set(visible)
+        for pos,key in zip([i for i,k in enumerate(full) if k in shown],visible): full[pos]=key
+        self._manual_full_order=full; set_pantry_order(full)
+    def _move_selected(self,delta):
+        sel=self.tree.selection()
+        if not sel or not self._is_manual_sort(): return
+        new_index=self.tree.index(sel[0])+delta
+        if 0<=new_index<len(self.tree.get_children()):
+            self.tree.move(sel[0],"",new_index); self.tree.see(sel[0]); self._save_manual_order()
+    def _on_tree_press(self,event):
+        self._drag_iid=self.tree.identify_row(event.y) if self._is_manual_sort() else None
+    def _on_tree_drag(self,event):
+        if not self._drag_iid: return
+        target=self.tree.identify_row(event.y)
+        if target and target!=self._drag_iid: self.tree.move(self._drag_iid,"",self.tree.index(target))
+    def _on_tree_release(self,_event):
+        if self._drag_iid:
+            self._drag_iid=None; self._save_manual_order()
     def _shopping_qty(self,e):
         threshold=e.get("threshold")
         if threshold is not None and float(threshold)>float(e.get("quantity",0) or 0): return max(float(threshold)-float(e.get("quantity",0) or 0),1)
@@ -17582,6 +18056,11 @@ class PantryWindow(tk.Toplevel):
             expiration = expiration_date.isoformat()
         unit = resolve_unit_input_best_effort(self.unit_combo.get().strip(), self.unit_options)
         set_pantry_item(canonical, quantity, unit, threshold, expiration)
+        # Article venant d'un code-barres : mémorise le choix, le prochain
+        # scan de ce code ajoutera directement 1 à cet ingrédient.
+        if getattr(self, "_pending_barcode", None):
+            remember_barcode_ingredient(self._pending_barcode, canonical, unit)
+            self._pending_barcode = None
         self._populate()
         self.name_entry.delete(0, tk.END)
         self.qty_entry.delete(0, tk.END)

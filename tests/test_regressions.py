@@ -250,6 +250,12 @@ class CoreRegressionTests(TempDataMixin, unittest.TestCase):
         self.assertEqual(overrides["farine"]["price"], {"amount": 1.5, "unit": "kg"})
         self.assertEqual(overrides["farine"]["allergens"], ["gluten"])
 
+    def test_dark_mode_follows_system_until_user_chooses(self):
+        with patch.object(main, "detect_system_dark_mode", return_value=True):
+            self.assertTrue(main.get_dark_mode_preference())
+            main.set_dark_mode_preference(False)
+            self.assertFalse(main.get_dark_mode_preference())
+
     def test_shared_backup_importable_when_renamed_to_txt(self):
         # L'application mobile renomme ce zip en ".txt" avant de le
         # partager (Chromium refuse ".zip" dans son Web Share API, mais

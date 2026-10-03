@@ -1,3 +1,4 @@
+import datetime
 import tkinter as tk
 import unittest
 from types import SimpleNamespace
@@ -501,6 +502,236 @@ class RecipeFormRatingStarsAccessibilityTests(AppWindowTestBase):
 
         star.event_generate("<FocusOut>")
         self.assertEqual(str(star.cget("style")), "TLabel")
+
+
+class ShoppingRayonOrderTests(AppWindowTestBase):
+    def _grouped(self):
+        recipe = {"id": "r1", "name": "Mix", "default_persons": 1, "ingredients": [
+            {"name": "Tomate", "quantity": 1, "unit": "pièce"},
+            {"name": "Lait", "quantity": 10, "unit": "cl"},
+            {"name": "Farine", "quantity": 100, "unit": "Gr"},
+        ]}
+        return main.compute_grouped_totals([(recipe, 1)])
+
+    def test_saved_rayon_order_drives_grouping_and_ignores_unknown_values(self):
+        main.set_rayon_order(["Épicerie", "Inconnu", "Crèmerie"])
+        order = main.get_rayon_order()
+        self.assertEqual(order[:2], ["Épicerie", "Crèmerie"])
+        self.assertEqual(sorted(order), sorted(main.RAYON_ORDER))
+        rayons = [rayon for rayon, _items in self._grouped()]
+        # Farine = Boulangerie & Pâtisserie : pas d'Épicerie dans cette liste,
+        # Crèmerie passe donc en tête, le reste suit l'ordre par défaut.
+        self.assertEqual(rayons, ["Crèmerie", "Fruits & Légumes", "Boulangerie & Pâtisserie"])
+
+    def test_checklist_move_button_reorders_and_remembers(self):
+        win = main.ShoppingChecklistWindow(self.app, self._grouped())
+        self.addCleanup(win.destroy)
+        win.update_idletasks()
+        first_rayon, first_group = win.rayon_frames[0]
+        win.checks[0][0].set(True)
+        win._move_rayon(first_group, 1)
+        self.assertEqual(win.rayon_frames[1][0], first_rayon)
+        self.assertTrue(win.checks[0][0].get())
+        self.assertEqual(main.get_rayon_order().index(first_rayon), 1)
+        # Bout de liste : sans effet.
+        win._move_rayon(win.rayon_frames[0][1], -1)
+        self.assertEqual(win.rayon_frames[1][0], first_rayon)
+
+    def test_checklist_drag_reorders_on_release(self):
+        win = main.ShoppingChecklistWindow(self.app, self._grouped())
+        self.addCleanup(win.destroy)
+        win.deiconify()
+        win.update_idletasks()
+        win.update()
+        dragged_rayon, dragged = win.rayon_frames[0]
+        _last_rayon, last = win.rayon_frames[-1]
+        win._on_rayon_drag_start(None, dragged)
+        y = last.winfo_rooty() + last.winfo_height() // 2
+        win._on_rayon_drag_motion(SimpleNamespace(y_root=y))
+        win._on_rayon_drag_release(None)
+        self.assertEqual(win.rayon_frames[-1][0], dragged_rayon)
+        self.assertEqual(
+            [r for r in main.get_rayon_order() if r in {r2 for r2, _ in win.rayon_frames}],
+            [r for r, _ in win.rayon_frames],
+        )
+
+
+class PantryManualSortTests(AppWindowTestBase):
+    def setUp(self):
+        super().setUp()
+        main.save_pantry({
+            "farine": {"name": "Farine", "quantity": 1, "unit": "Kilo", "threshold": None},
+            "lait": {"name": "Lait", "quantity": 1, "unit": "L", "threshold": None},
+            "sucre": {"name": "Sucre", "quantity": 1, "unit": "Kilo", "threshold": None},
+        })
+        self.win = main.PantryWindow(self.app)
+        self.addCleanup(self.win.destroy)
+        self.win.sort_combo.set(main.t("pantry_sort_manual"))
+        self.win._populate()
+
+    def _names(self):
+        return [self.win._entry_by_iid[iid]["name"] for iid in self.win.tree.get_children()]
+
+    def test_move_buttons_reorder_and_persist_across_reopen(self):
+        self.assertEqual(self._names(), ["Farine", "Lait", "Sucre"])
+        sucre = self.win.tree.get_children()[2]
+        self.win.tree.selection_set(sucre)
+        self.win._move_selected(-1)
+        self.win._move_selected(-1)
+        self.assertEqual(self._names(), ["Sucre", "Farine", "Lait"])
+        self.win._populate()
+        self.assertEqual(self._names(), ["Sucre", "Farine", "Lait"])
+
+    def test_buttons_disabled_outside_manual_sort(self):
+        self.win.sort_combo.set(main.t("pantry_sort_name"))
+        self.win._populate()
+        self.assertTrue(self.win.move_up_button.instate(["disabled"]))
+        self.win.tree.selection_set(self.win.tree.get_children()[2])
+        self.win._move_selected(-1)
+        self.assertEqual(main.get_pantry_order(), [])
+
+    def test_drag_reorders_rows(self):
+        self.win.deiconify()
+        self.win.update_idletasks()
+        self.win.update()
+        first, _second, third = self.win.tree.get_children()
+        y_first = self.win.tree.bbox(first)[1] + 2
+        y_third = self.win.tree.bbox(third)[1] + 2
+        self.win._on_tree_press(SimpleNamespace(y=y_first))
+        self.win._on_tree_drag(SimpleNamespace(y=y_third))
+        self.win._on_tree_release(None)
+        self.assertEqual(self._names(), ["Lait", "Sucre", "Farine"])
+        self.assertEqual(main.get_pantry_order(), ["lait", "sucre", "farine"])
+
+    def test_reorder_in_filtered_view_keeps_hidden_items_in_place(self):
+        main.set_pantry_order(["farine", "lait", "sucre"])
+        self.win.search_var.set("r")  # farine + sucre (lait masqué)
+        self.win._populate()
+        self.assertEqual(self._names(), ["Farine", "Sucre"])
+        self.win.tree.selection_set(self.win.tree.get_children()[1])
+        self.win._move_selected(-1)
+        self.assertEqual(main.get_pantry_order(), ["sucre", "lait", "farine"])
+
+
+class ExpirationDateOcrTests(AppWindowTestBase):
+    TODAY = datetime.date(2026, 10, 3)
+
+    def test_keyword_beats_earlier_manufacturing_date(self):
+        text = "Fabriqué le 01/09/2026\nLot 4521\nÀ consommer de préférence avant le 15.03.2027"
+        self.assertEqual(main.extract_expiration_date_from_ocr_text(text, self.TODAY),
+                         datetime.date(2027, 3, 15))
+
+    def test_formats_iso_two_digit_year_and_invalid_dates(self):
+        extract = main.extract_expiration_date_from_ocr_text
+        self.assertEqual(extract("MHD 2027-01-31", self.TODAY), datetime.date(2027, 1, 31))
+        self.assertEqual(extract("best before 05/11/26", self.TODAY), datetime.date(2026, 11, 5))
+        self.assertIsNone(extract("31/02/2027 99/99/99", self.TODAY))
+        self.assertIsNone(extract("", self.TODAY))
+        # Sans mot-clé : la date plausible l'emporte sur une date improbable.
+        self.assertEqual(extract("12/12/1999 20/12/2026", self.TODAY), datetime.date(2026, 12, 20))
+
+    def test_real_ocr_on_generated_label(self):
+        if not main.current_tesseract_status().get("ready") or not main.PIL_AVAILABLE:
+            self.skipTest("Tesseract indisponible")
+        from PIL import Image, ImageDraw, ImageFont
+        img = Image.new("RGB", (900, 220), "white")
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.truetype("arial.ttf", 48)
+        except OSError:
+            font = ImageFont.load_default(size=48)
+        draw.text((30, 70), "DLC : 21/11/2026", fill="black", font=font)
+        path = self.base / "etiquette.png"
+        img.save(path)
+        self.assertEqual(main.read_expiration_date_from_photo(str(path)), datetime.date(2026, 11, 21))
+
+    def test_result_fills_entry_and_none_warns(self):
+        win = main.PantryWindow(self.app)
+        self.addCleanup(win.destroy)
+        with patch.object(main.messagebox, "showinfo"):
+            win._apply_expiration_photo_result("ok", datetime.date(2027, 2, 1))
+        self.assertEqual(win.expiration_entry.get(), "01/02/2027")
+        with patch.object(main.messagebox, "showwarning") as warn:
+            win._apply_expiration_photo_result("ok", None)
+        warn.assert_called_once()
+        self.assertEqual(win.expiration_entry.get(), "01/02/2027")
+        self.assertTrue(win.expiration_photo_button.instate(["!disabled"]))
+
+
+def _draw_ean13(code, path):
+    """Dessine un vrai code EAN-13 (tables de codage standard) pour tester le
+    décodage sans dépendance supplémentaire."""
+    from PIL import Image, ImageDraw
+    left_a = ["0001101", "0011001", "0010011", "0111101", "0100011", "0110001", "0101111", "0111011", "0110111", "0001011"]
+    left_b = ["0100111", "0110011", "0011011", "0100001", "0011101", "0111001", "0000101", "0010001", "0001001", "0010111"]
+    right = ["1110010", "1100110", "1101100", "1000010", "1011100", "1001110", "1010000", "1000100", "1001000", "1110100"]
+    parity = ["AAAAAA", "AABABB", "AABBAB", "AABBBA", "ABAABB", "ABBAAB", "ABBBAA", "ABABAB", "ABABBA", "ABBABA"]
+    digits = [int(c) for c in code]
+    bits = "101"
+    for d, p in zip(digits[1:7], parity[digits[0]]):
+        bits += (left_a if p == "A" else left_b)[d]
+    bits += "01010" + "".join(right[d] for d in digits[7:]) + "101"
+    module, quiet = 4, 40
+    img = Image.new("L", (len(bits) * module + 2 * quiet, 160), 255)
+    draw = ImageDraw.Draw(img)
+    for i, bit in enumerate(bits):
+        if bit == "1":
+            draw.rectangle([quiet + i * module, 20, quiet + (i + 1) * module - 1, 140], fill=0)
+    img.save(path)
+
+
+class PantryBarcodeTests(AppWindowTestBase):
+    def setUp(self):
+        super().setUp()
+        main.save_ingredients(["Lait", "Lait de coco", "Sucre"])
+        self.app.refresh_ingredients()
+        self.win = main.PantryWindow(self.app)
+        self.addCleanup(self.win.destroy)
+
+    def test_normalize_and_guess(self):
+        self.assertEqual(main.normalize_barcode(" 3017 6204-22003 "), "3017620422003")
+        self.assertIsNone(main.normalize_barcode("12345"))
+        names = ["Lait", "Lait de coco", "Sucre"]
+        self.assertEqual(main.guess_known_ingredient("Lait demi-écrémé Lactel", names), "Lait")
+        self.assertEqual(main.guess_known_ingredient("LAIT DE COCO bio", names), "Lait de coco")
+        self.assertIsNone(main.guess_known_ingredient("Nutella", names))
+
+    def test_real_barcode_photo_is_decoded(self):
+        if not main.QRCODE_READER_AVAILABLE or not main.PIL_AVAILABLE:
+            self.skipTest("pyzbar indisponible")
+        path = self.base / "ean.png"
+        _draw_ean13("3017620422003", path)
+        self.assertEqual(main.decode_barcode_image(str(path)), "3017620422003")
+
+    def test_found_product_prefills_then_save_remembers_and_next_scan_increments(self):
+        with patch.object(main.messagebox, "showinfo"):
+            self.win._apply_barcode_lookup("3270190207924", "ok",
+                                           {"name": "Lait demi-écrémé UHT", "quantity": "1 L"})
+        self.assertEqual(self.win.name_entry.get(), "Lait")
+        self.win.qty_entry.delete(0, "end")
+        self.win.qty_entry.insert(0, "2")
+        self.win.save_item()
+        self.assertEqual(main.get_barcode_ingredient("3270190207924")["name"], "Lait")
+        with patch.object(main.messagebox, "showinfo") as info:
+            self.win.handle_barcode("3270190207924")
+        self.assertEqual(main.load_pantry()["lait"]["quantity"], 3)
+        self.assertIn("+1", info.call_args.args[1])
+
+    def test_unknown_product_still_remembers_after_save(self):
+        with patch.object(main.messagebox, "showinfo"):
+            self.win._apply_barcode_lookup("12345670", "error", OSError("hors ligne"))
+        self.assertEqual(self.win.name_entry.get(), "")
+        self.win.name_entry.insert(0, "Sucre")
+        self.win.save_item()
+        self.assertEqual(main.get_barcode_ingredient("12345670")["name"], "Sucre")
+
+    def test_dialog_rejects_invalid_code(self):
+        dialog = self.win.open_barcode_dialog()
+        self.addCleanup(lambda: dialog.winfo_exists() and dialog.destroy())
+        dialog.barcode_entry.insert(0, "123")
+        dialog.barcode_submit()
+        self.assertTrue(dialog.winfo_exists())
+        self.assertEqual(dialog.barcode_status.cget("text"), main.t("pantry_barcode_invalid"))
 
 
 if __name__ == "__main__":

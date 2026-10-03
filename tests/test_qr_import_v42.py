@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 import main
+from test_ui_search_pantry_v79 import AppWindowTestBase
 
 
 class QrImportV42Tests(unittest.TestCase):
@@ -71,6 +72,44 @@ class QrImportV42Tests(unittest.TestCase):
     def test_shift_jis_halfwidth_markers_are_repaired(self):
         damaged = "fraîches".encode("utf-8").decode("shift_jis")
         self.assertIn("fraîches", main._qr_chunk_repair_candidates(damaged))
+
+    def test_pasted_multi_part_text_in_any_order_is_imported(self):
+        payload = self._payload()
+        parts = main._split_mobile_qr_parts(payload, max_chunk_bytes=260)
+        self.assertGreater(len(parts), 2)
+        pasted = "\r\n".join(reversed(parts)) + "\n"
+        values = main.split_pasted_qr_text(pasted)
+        self.assertEqual(sorted(values), sorted(parts))
+        prefill = main.import_recipe_prefill_from_qr_texts(values)
+        self.assertEqual(prefill["name"], "Barramundi en croûte persillée & tomates rôties")
+
+    def test_pasted_single_qr_text_is_kept_whole(self):
+        payload = main._recipe_to_mobile_qr_payload(
+            {"name": "Crêpes", "default_persons": 2,
+             "ingredients": [{"name": "Farine", "quantity": 125, "unit": "Gr"}]}, 2)
+        self.assertEqual(main.split_pasted_qr_text("  " + payload + "\n"), [payload])
+        self.assertEqual(main.import_recipe_prefill_from_qr_texts([payload])["name"], "Crêpes")
+        self.assertEqual(main.split_pasted_qr_text("   \n"), [])
+
+
+class QrPasteWindowTests(AppWindowTestBase):
+    def test_paste_dialog_opens_prefilled_recipe_form(self):
+        payload = main._recipe_to_mobile_qr_payload(
+            {"name": "Tarte fine", "default_persons": 4,
+             "ingredients": [{"name": "Pâte feuilletée", "quantity": 1, "unit": "pièce"}]}, 4)
+        dialog = self.app.open_import_from_qr_text()
+        dialog.qr_text_box.insert("1.0", payload)
+        with patch.object(main, "RecipeFormWindow") as form:
+            dialog.qr_submit()
+        prefill = form.call_args.kwargs["prefill"]
+        self.assertEqual(prefill["name"], "Tarte fine")
+
+    def test_paste_dialog_warns_on_unrecognized_text(self):
+        dialog = self.app.open_import_from_qr_text()
+        dialog.qr_text_box.insert("1.0", "pas un QR de recette")
+        with patch.object(main.messagebox, "showwarning") as warn:
+            dialog.qr_submit()
+        self.assertEqual(warn.call_args.args[1], main.t("qrimport_paste_no_code"))
 
 
 if __name__ == "__main__":

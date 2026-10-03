@@ -52,4 +52,9 @@ def _interdire_dialogues_tk_inattendus(monkeypatch):
         if hasattr(main.messagebox, nom):
             monkeypatch.setattr(main.messagebox, nom, _lever(nom), raising=False)
 
+    # Le thème par défaut suit Windows : sans ce figeage, les tests
+    # changeraient de résultat selon le thème de la machine qui les lance.
+    if hasattr(main, "detect_system_dark_mode"):
+        monkeypatch.setattr(main, "detect_system_dark_mode", lambda: False)
+
     yield
