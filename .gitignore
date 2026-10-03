@@ -26,6 +26,9 @@ build/
 dist/
 *.spec
 
+# --- Installateur compilé par Inno Setup (installateur.iss) ---
+/installateur/
+
 # --- Copie portable de Tesseract OCR (optionnelle), fournie localement par
 # le développeur pour être embarquée dans dist/ par Construire_le_exe.bat
 # (voir la section OCR de LISEZ-MOI.md) : trop volumineuse et spécifique à
