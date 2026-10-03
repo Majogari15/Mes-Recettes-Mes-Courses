@@ -658,6 +658,49 @@ class ExpirationDateOcrTests(AppWindowTestBase):
         self.assertTrue(win.expiration_photo_button.instate(["!disabled"]))
 
 
+class NewLanguagesTests(AppWindowTestBase):
+    NEW = ("it", "pt", "id", "no", "sv")
+
+    def test_every_new_language_is_complete_and_switchable(self):
+        for lang in self.NEW:
+            self.assertEqual(set(main.TRANSLATIONS[lang]), set(main.FRENCH_STRINGS), lang)
+            self.app.set_language(lang)
+            self.assertEqual(main.CURRENT_LANGUAGE, lang)
+            self.assertEqual(main.t("common_cancel"), main.TRANSLATIONS[lang]["common_cancel"])
+            self.assertNotEqual(main.translate_unit_name("pièce"), "pièce")
+            self.assertNotEqual(main.translate_rayon_name("Crèmerie"), "Crèmerie")
+            self.assertIn(lang, self.app.flag_photos)
+        self.app.set_language("fr")
+        self.assertEqual(main.t("common_cancel"), "Annuler")
+
+    def test_ingredient_names_are_translated_in_new_languages(self):
+        for lang in self.NEW:
+            translations = main.load_ingredient_translations(lang)
+            self.assertGreater(len(translations), 9000, lang)
+        self.app.set_language("it")
+        self.assertEqual(main.translate_ingredient_name("Tomate").lower(), "pomodoro")
+        self.app.set_language("fr")
+
+    def test_system_language_detection_recognizes_new_languages(self):
+        cases = {"it_IT": "it", "Italian_Italy": "it", "pt_BR": "pt", "Portuguese_Portugal": "pt",
+                 "id_ID": "id", "Indonesian_Indonesia": "id", "nb_NO": "no", "Norwegian_Norway": "no",
+                 "sv_SE": "sv", "Swedish_Sweden": "sv", "en_US": "en", "Spanish_Spain": "es",
+                 "fr_FR": "fr", "ja_JP": "fr"}
+        for code, expected in cases.items():
+            with patch("locale.getlocale", return_value=(code, "UTF-8")):
+                self.assertEqual(main.detect_system_language(), expected, code)
+
+    def test_expiry_keywords_in_new_languages(self):
+        today = datetime.date(2026, 10, 3)
+        for text in ("Prodotto il 01/09/2026 — da consumarsi entro il 12/03/2027",
+                     "Embalado 01/09/2026 Consumir até 12/03/2027",
+                     "Diproduksi 01/09/2026 Baik digunakan sebelum 12/03/2027",
+                     "Pakket 01/09/2026 Best før 12.03.2027",
+                     "Packad 01/09/2026 Bäst före 12.03.2027"):
+            self.assertEqual(main.extract_expiration_date_from_ocr_text(text, today),
+                             datetime.date(2027, 3, 12), text)
+
+
 def _draw_ean13(code, path):
     """Dessine un vrai code EAN-13 (tables de codage standard) pour tester le
     décodage sans dépendance supplémentaire."""

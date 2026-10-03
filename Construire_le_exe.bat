@@ -83,21 +83,11 @@ if errorlevel 1 (
 )
 echo.
 echo Etape 5/5 : Copie des fichiers necessaires a cote de l'executable...
-copy /Y i18n_desktop.json dist\i18n_desktop.json >nul
-copy /Y ingredients_par_defaut.json dist\ingredients_par_defaut.json >nul
-copy /Y valeurs_nutritionnelles.json dist\valeurs_nutritionnelles.json >nul
-copy /Y ingredient_allergenes.json dist\ingredient_allergenes.json >nul
-copy /Y ingredient_substitutions.json dist\ingredient_substitutions.json >nul
-copy /Y ingredient_substitutions_en.json dist\ingredient_substitutions_en.json >nul
-copy /Y ingredient_substitutions_es.json dist\ingredient_substitutions_es.json >nul
-copy /Y ingredient_substitutions_de.json dist\ingredient_substitutions_de.json >nul
-copy /Y ingredient_translations_en.json dist\ingredient_translations_en.json >nul
-copy /Y ingredient_translations_es.json dist\ingredient_translations_es.json >nul
-copy /Y ingredient_translations_de.json dist\ingredient_translations_de.json >nul
-copy /Y flag_fr.png dist\flag_fr.png >nul
-copy /Y flag_uk.png dist\flag_uk.png >nul
-copy /Y flag_es.png dist\flag_es.png >nul
-copy /Y flag_de.png dist\flag_de.png >nul
+rem Textes de l'interface (une langue par fichier) et bases d'ingredients :
+rem dossiers entiers, une langue ou un fichier ajoute est copie sans
+rem modifier ce script.
+xcopy /Y /E /I /Q i18n dist\i18n >nul
+xcopy /Y /E /I /Q data dist\data >nul
 copy /Y LISEZ-MOI.txt dist\LISEZ-MOI.txt >nul
 
 rem Tesseract OCR portable (optionnel) : si un dossier "tesseract-ocr"
@@ -120,7 +110,14 @@ if not exist "dist\Mes Recettes, Mes Courses.exe" (
     pause
     exit /b 1
 )
-for %%F in (i18n_desktop.json ingredients_par_defaut.json valeurs_nutritionnelles.json ingredient_allergenes.json ingredient_substitutions.json ingredient_substitutions_en.json ingredient_substitutions_es.json ingredient_substitutions_de.json ingredient_translations_en.json ingredient_translations_es.json ingredient_translations_de.json flag_fr.png flag_uk.png flag_es.png flag_de.png LISEZ-MOI.txt) do (
+for %%F in (i18n\*.json data\*.json data\*.png) do (
+    if not exist "dist\%%F" (
+        echo [ERREUR] Ressource manquante dans dist : %%F
+        pause
+        exit /b 1
+    )
+)
+for %%F in (LISEZ-MOI.txt) do (
     if not exist "dist\%%F" (
         echo [ERREUR] Ressource manquante dans dist : %%F
         pause

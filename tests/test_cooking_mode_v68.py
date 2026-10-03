@@ -28,7 +28,7 @@ class CookingModeTests(unittest.TestCase):
         self.errors = []
         self.root.report_callback_exception = lambda *args: self.errors.append(args)
         self.clock = SimpleNamespace(value=100.0)
-        strings = json.loads((ROOT/'i18n_desktop.json').read_text(encoding='utf-8'))['fr']
+        strings = json.loads((ROOT/'i18n'/'fr.json').read_text(encoding='utf-8'))
         self.env = dict(tk=tk, ttk=ttk, messagebox=messagebox, math=math, re=re, threading=threading, tkfont=tkfont,
             time=SimpleNamespace(monotonic=lambda: self.clock.value),
             t=lambda key, **kw: strings.get(key, key).format(**kw), sf=lambda v:v, gs=lambda v:v,

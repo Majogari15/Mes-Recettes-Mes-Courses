@@ -70,12 +70,14 @@ class QrExportV44Tests(unittest.TestCase):
             )
 
     def test_new_labels_exist_in_all_supported_languages(self):
-        with open(
-            os.path.join(os.path.dirname(main.__file__), "i18n_desktop.json"),
-            "r",
-            encoding="utf-8",
-        ) as translations_file:
-            translations = json.load(translations_file)
+        languages = {}
+        for language in ("fr", *main.UI_TRANSLATED_LANGUAGES):
+            with open(
+                os.path.join(os.path.dirname(main.__file__), "i18n", f"{language}.json"),
+                "r",
+                encoding="utf-8",
+            ) as translations_file:
+                languages[language] = json.load(translations_file)
         keys = {
             "qrcode_save_single_button",
             "qrcode_save_all_button",
@@ -83,8 +85,7 @@ class QrExportV44Tests(unittest.TestCase):
             "qrcode_overwrite_all_confirm",
             "qrcode_saved_all_message",
         }
-        languages = {"fr": translations["fr"], **translations["translations"]}
-        for language in ("fr", "en", "es", "de"):
+        for language in languages:
             self.assertTrue(keys.issubset(languages[language]), language)
 
 

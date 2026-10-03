@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import tkinter as tk
 import unittest
@@ -16,15 +17,49 @@ from test_regressions import TempDataMixin
 
 class AuditV52Tests(unittest.TestCase):
     def test_all_languages_have_same_keys_and_placeholders(self):
-        catalog = json.loads((ROOT / "i18n_desktop.json").read_text(encoding="utf-8"))
-        french = catalog["fr"]
+        def load(language):
+            return json.loads((ROOT / "i18n" / f"{language}.json").read_text(encoding="utf-8"))
+        french = load("fr")
         def placeholders(value):
             return sorted(re.findall(r"\{[^{}]+\}", value))
-        for language in ("en", "es", "de"):
-            translated = catalog["translations"][language]
+        for language in main.UI_TRANSLATED_LANGUAGES:
+            translated = load(language)
             self.assertEqual(set(french), set(translated), language)
             for key in french:
                 self.assertEqual(placeholders(french[key]), placeholders(translated[key]), f"{language}:{key}")
+
+    def test_every_language_and_bundled_file_is_shipped(self):
+        # Un fichier oublié au packaging ne casse que la version installée :
+        # tout fichier référencé doit exister, et les scripts doivent copier
+        # les dossiers entiers (une langue ajoutée suit automatiquement).
+        for language in ("fr", *main.UI_TRANSLATED_LANGUAGES):
+            self.assertTrue((ROOT / "i18n" / f"{language}.json").is_file(), language)
+        bundled = [main.DEFAULT_INGREDIENTS_FILE, main.NUTRITION_DATA_FILE,
+                   main.INGREDIENT_ALLERGENS_FILE, main.INGREDIENT_SUBSTITUTIONS_FILE,
+                   *main.INGREDIENT_SUBSTITUTIONS_TRANSLATION_FILES.values(),
+                   *main.INGREDIENT_TRANSLATIONS_FILES.values()]
+        for path in bundled + list(main.FLAG_FILES.values()):
+            self.assertTrue(os.path.isfile(path), path)
+            self.assertEqual(os.path.dirname(path), main.BUNDLED_DATA_DIR)
+        self.assertEqual(set(main.FLAG_FILES), set(main.UI_LANGUAGES))
+        self.assertEqual(set(main.INGREDIENT_TRANSLATIONS_FILES), set(main.UI_TRANSLATED_LANGUAGES))
+        build = (ROOT / "Construire_le_exe.bat").read_text(encoding="utf-8")
+        self.assertIn(r"xcopy /Y /E /I /Q i18n dist\i18n", build)
+        self.assertIn(r"xcopy /Y /E /I /Q data dist\data", build)
+        for script in ("installateur.iss", "installateur_store_capture.iss"):
+            text = (ROOT / script).read_text(encoding="utf-8-sig")
+            self.assertIn(r'Source: "dist\i18n\*"; DestDir: "{app}\i18n"', text, script)
+            self.assertIn(r'Source: "dist\data\*"; DestDir: "{app}\data"', text, script)
+
+    def test_ui_languages_are_loaded_only_when_used(self):
+        lazy = main._LazyTranslations()
+        self.assertEqual(dict.__len__(lazy), 0)
+        self.assertIn("en", lazy)
+        self.assertEqual(dict.__len__(lazy), 0)
+        self.assertEqual(lazy["de"]["common_close"], main.TRANSLATIONS["de"]["common_close"])
+        self.assertEqual(list(dict.keys(lazy)), ["de"])
+        self.assertEqual(set(lazy), set(main.UI_TRANSLATED_LANGUAGES))
+        self.assertEqual(lazy.get("xx", {}), {})
 
     def test_home_empty_alert_is_translated(self):
         source = (ROOT / "main.py").read_text(encoding="utf-8")

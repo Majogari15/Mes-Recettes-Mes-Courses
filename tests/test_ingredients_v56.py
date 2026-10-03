@@ -12,16 +12,23 @@ import main
 
 class IngredientDataTests(unittest.TestCase):
     def read(self, filename):
-        return json.loads((ROOT / filename).read_text(encoding='utf-8'))
+        return json.loads((ROOT / 'data' / filename).read_text(encoding='utf-8'))
 
-    def test_all_1030_names_have_complete_records(self):
+    def test_catalogue_names_have_complete_records(self):
+        # Catalogue repris de l'app mobile (~10 000 ingrédients) : chaque nom
+        # a ses allergènes et ses traductions ; quelques-uns n'ont pas de
+        # valeurs nutritionnelles connues (absence assumée, jamais inventée).
         names = self.read('ingredients_par_defaut.json')
-        self.assertEqual(1030, len(names))
-        self.assertEqual(len(names), len(set(names)))
-        for filename in ['valeurs_nutritionnelles.json', 'ingredient_allergenes.json'] + [
-            f'ingredient_translations_{lang}.json' for lang in ('en', 'es', 'de')
+        self.assertGreater(len(names), 9900)
+        self.assertEqual(len(names), len({main.ingredient_sort_key(n) for n in names}))
+        self.assertFalse([n for n in names if 'œ' in n.lower()])
+        for filename in ['ingredient_allergenes.json'] + [
+            f'ingredient_translations_{lang}.json' for lang in ('en', 'es', 'de', 'it', 'pt', 'id', 'no', 'sv')
         ]:
-            self.assertEqual(set(names), set(self.read(filename)))
+            self.assertEqual(set(names), set(self.read(filename)), filename)
+        nutrition = self.read('valeurs_nutritionnelles.json')
+        self.assertTrue(set(nutrition) <= set(names))
+        self.assertLess(len(names) - len(nutrition), 100)
 
     def test_all_nutrients_are_finite_nonnegative(self):
         for name, entry in self.read('valeurs_nutritionnelles.json').items():
@@ -48,13 +55,12 @@ class IngredientDataTests(unittest.TestCase):
         self.assertEqual(63.7, data['Ail en poudre']['carbs_g'])
         self.assertEqual('11023', data['Ail en poudre']['_ciqual']['code'])
         self.assertNotEqual(data['Ail']['kcal'], data['Ail en poudre']['kcal'])
-        audit = self.read('AUDIT_INGREDIENTS_v56.json')
-        sourced = {n for n,v in data.items() if '_ciqual' in v}
-        self.assertEqual(audit['coverage']['ciqual_matches'], len(sourced))
-        self.assertEqual(set(data) - sourced, set(audit['nutrition_still_unverified']))
-        for change in audit['nutrition_changes']:
-            self.assertEqual(change['after'], data[change['ingredient']])
-            self.assertEqual('100g', change['after']['_ciqual']['basis'])
+        # Base reprise du mobile : les anciennes estimations non sourcées
+        # ont été remplacées par des valeurs CIQUAL/USDA/Open Food Facts.
+        sources = ('_ciqual', '_ciqual_extra', '_usda', '_usda_extra', '_openfoodfacts')
+        unsourced = [n for n, v in data.items() if not any(s in v for s in sources)]
+        self.assertLess(len(unsourced), 20, unsourced)
+        self.assertIn('_ciqual', data['Ail des ours'])
 
     def test_translation_fixes(self):
         self.assertEqual('Four-spice blend', self.read('ingredient_translations_en.json')['Quatre épices'])
@@ -98,6 +104,31 @@ class IngredientDataTests(unittest.TestCase):
             with patch.object(main,'CURRENT_LANGUAGE',lang):
                 self.assertNotEqual('Lactose',main.translate_allergen_name('Lactose'))
         self.assertIn('Lactose',main.ALLERGENS)
+
+
+class LargeCatalogueTests(unittest.TestCase):
+    def test_duplicate_scan_skips_catalogue_pairs_but_finds_user_typos(self):
+        catalogue = main.load_default_ingredients()
+        names = catalogue + ['Tomatte', 'Ma sauce maison']
+        pairs = main.find_similar_ingredient_pairs(names, reference_names=catalogue)
+        found = {frozenset((a, b)) for a, b, _r in pairs}
+        self.assertIn(frozenset(('Tomate', 'Tomatte')), found)
+        self.assertTrue(all({a, b} & {'Tomatte', 'Ma sauce maison'} for a, b, _r in pairs))
+        # Sans catalogue de référence, comportement d'origine inchangé.
+        plain = main.find_similar_ingredient_pairs(['Tomate', 'Tomates', 'Beurre'])
+        self.assertEqual([(p[0], p[1]) for p in plain], [('Tomate', 'Tomates')])
+
+    def test_lookup_index_follows_data_changes(self):
+        data = {'échalote': 1}
+        self.assertEqual(main._lookup_ingredient_data(data, 'Echalote'), 1)
+        data['ail des ours'] = 2
+        self.assertEqual(main._lookup_ingredient_data(data, 'Ail des Ours '), 2)
+
+    def test_close_ranking_still_prefers_real_match_in_big_list(self):
+        ranked = main.rank_close_ingredients('Tomatte', main.load_default_ingredients())
+        self.assertEqual(ranked[0][1], 'Tomate')
+        self.assertGreaterEqual(ranked[0][0], 0.75)
+        self.assertEqual(main.rank_close_ingredients('Tomates', ['Tomate', 'Beurre'])[0], (0.98, 'Tomate'))
 
 
 if __name__ == '__main__':

@@ -4,6 +4,7 @@ import base64
 import copy
 import csv
 import difflib
+import functools
 import filecmp
 import gzip
 import html
@@ -463,31 +464,36 @@ def _compute_data_dir(base_dir):
 # est en lecture seule.
 DATA_DIR = _compute_data_dir(BASE_DIR)
 
+# Bases fournies avec l'application (jamais modifiées), regroupées comme
+# dans l'app mobile.
+BUNDLED_DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_FILE = os.path.join(DATA_DIR, "recipes.json")
 INGREDIENTS_FILE = os.path.join(DATA_DIR, "ingredients.json")
-DEFAULT_INGREDIENTS_FILE = os.path.join(BASE_DIR, "ingredients_par_defaut.json")
-NUTRITION_DATA_FILE = os.path.join(BASE_DIR, "valeurs_nutritionnelles.json")
-INGREDIENT_ALLERGENS_FILE = os.path.join(BASE_DIR, "ingredient_allergenes.json")
-INGREDIENT_SUBSTITUTIONS_FILE = os.path.join(BASE_DIR, "ingredient_substitutions.json")
+DEFAULT_INGREDIENTS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredients_par_defaut.json")
+NUTRITION_DATA_FILE = os.path.join(BUNDLED_DATA_DIR, "valeurs_nutritionnelles.json")
+INGREDIENT_ALLERGENS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredient_allergenes.json")
+INGREDIENT_SUBSTITUTIONS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredient_substitutions.json")
 # Fichiers de traduction, par langue autre que le français (langue de
 # référence des données, jamais dans ce dictionnaire). Pour ajouter une
 # langue supplémentaire à l'avenir, il suffit d'ajouter une entrée ici et
 # de fournir les deux fichiers JSON correspondants.
+# Langues de l'interface, dans l'ordre du menu de langue. Le français est la
+# langue de référence des données ; chaque autre langue a ses fichiers
+# i18n/<code>.json, ingredient_translations_<code>.json et
+# ingredient_substitutions_<code>.json (repris de l'app mobile).
+UI_LANGUAGES = ("fr", "en", "es", "de", "it", "pt", "id", "no", "sv")
+LANGUAGE_NAMES = {
+    "fr": "Français", "en": "English", "es": "Español", "de": "Deutsch",
+    "it": "Italiano", "pt": "Português", "id": "Bahasa Indonesia", "no": "Norsk", "sv": "Svenska",
+}
 INGREDIENT_SUBSTITUTIONS_TRANSLATION_FILES = {
-    "en": os.path.join(BASE_DIR, "ingredient_substitutions_en.json"),
-    "es": os.path.join(BASE_DIR, "ingredient_substitutions_es.json"),
-    "de": os.path.join(BASE_DIR, "ingredient_substitutions_de.json"),
+    lang: os.path.join(BUNDLED_DATA_DIR, f"ingredient_substitutions_{lang}.json") for lang in UI_LANGUAGES[1:]
 }
 INGREDIENT_TRANSLATIONS_FILES = {
-    "en": os.path.join(BASE_DIR, "ingredient_translations_en.json"),
-    "es": os.path.join(BASE_DIR, "ingredient_translations_es.json"),
-    "de": os.path.join(BASE_DIR, "ingredient_translations_de.json"),
+    lang: os.path.join(BUNDLED_DATA_DIR, f"ingredient_translations_{lang}.json") for lang in UI_LANGUAGES[1:]
 }
 FLAG_FILES = {
-    "fr": os.path.join(BASE_DIR, "flag_fr.png"),
-    "en": os.path.join(BASE_DIR, "flag_uk.png"),
-    "es": os.path.join(BASE_DIR, "flag_es.png"),
-    "de": os.path.join(BASE_DIR, "flag_de.png"),
+    lang: os.path.join(BUNDLED_DATA_DIR, f"flag_{'uk' if lang == 'en' else lang}.png") for lang in UI_LANGUAGES
 }
 # Codes de langue attendus par Tesseract OCR (différents des codes ISO à 2
 # lettres utilisés partout ailleurs dans l'application) pour l'import de
@@ -500,6 +506,11 @@ TESSERACT_LANG_CODES = {
     "en": "eng",
     "es": "spa",
     "de": "deu",
+    "it": "ita",
+    "pt": "por",
+    "id": "ind",
+    "no": "nor",
+    "sv": "swe",
 }
 
 
@@ -855,8 +866,8 @@ def confirm_backup_preview(parent, zip_path):
 
 
 def load_default_ingredients():
-    """Charge la liste des 1030 ingrédients de cuisine les plus courants,
-    fournie avec l'application (fichier ingredients_par_defaut.json)."""
+    """Charge le catalogue d'ingrédients fourni avec l'application
+    (data/ingredients_par_defaut.json, ~10 000 noms repris de l'app mobile)."""
     if os.path.exists(DEFAULT_INGREDIENTS_FILE):
         try:
             with open(DEFAULT_INGREDIENTS_FILE, "r", encoding="utf-8") as f:
@@ -875,10 +886,13 @@ def normalize_oe(text):
     return text.replace("œ", "oe").replace("Œ", "Oe")
 
 
+@functools.lru_cache(maxsize=200_000)
 def ingredient_sort_key(text):
     """Clé de tri qui ignore les accents (é, è, ê, à, ç...) afin qu'un mot
     comme « Échalote » se classe avec les autres mots en « e », et qui
-    convertit d'abord œ/Œ en oe/Oe pour un classement cohérent avec « o »."""
+    convertit d'abord œ/Œ en oe/Oe pour un classement cohérent avec « o ».
+    Mise en cache : appelée des dizaines de milliers de fois par recherche
+    avec un catalogue de ~10 000 ingrédients."""
     normalized = normalize_oe(text)
     decomposed = unicodedata.normalize("NFD", normalized)
     stripped = "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
@@ -1216,6 +1230,56 @@ RAYON_TRANSLATIONS = {
         "boissons": "Getränke",
         "autre": "Sonstiges",
     },
+    "it": {
+        "fruits & légumes": "Frutta e verdura",
+        "viandes & poissons": "Carne e pesce",
+        "crèmerie": "Latticini",
+        "boulangerie & pâtisserie": "Panetteria e pasticceria",
+        "épicerie": "Alimentari",
+        "herbes & épices": "Erbe e spezie",
+        "boissons": "Bevande",
+        "autre": "Altro",
+    },
+    "pt": {
+        "fruits & légumes": "Frutas e legumes",
+        "viandes & poissons": "Carnes e peixes",
+        "crèmerie": "Laticínios",
+        "boulangerie & pâtisserie": "Padaria e pastelaria",
+        "épicerie": "Mercearia",
+        "herbes & épices": "Ervas e especiarias",
+        "boissons": "Bebidas",
+        "autre": "Outro",
+    },
+    "id": {
+        "fruits & légumes": "Buah & Sayur",
+        "viandes & poissons": "Daging & Ikan",
+        "crèmerie": "Produk Susu",
+        "boulangerie & pâtisserie": "Roti & Kue",
+        "épicerie": "Bahan Pokok",
+        "herbes & épices": "Herba & Rempah",
+        "boissons": "Minuman",
+        "autre": "Lainnya",
+    },
+    "no": {
+        "fruits & légumes": "Frukt og grønt",
+        "viandes & poissons": "Kjøtt og fisk",
+        "crèmerie": "Meieri",
+        "boulangerie & pâtisserie": "Bakeri og konditori",
+        "épicerie": "Dagligvarer",
+        "herbes & épices": "Urter og krydder",
+        "boissons": "Drikke",
+        "autre": "Annet",
+    },
+    "sv": {
+        "fruits & légumes": "Frukt och grönt",
+        "viandes & poissons": "Kött och fisk",
+        "crèmerie": "Mejeri",
+        "boulangerie & pâtisserie": "Bröd och bakverk",
+        "épicerie": "Skafferi",
+        "herbes & épices": "Örter och kryddor",
+        "boissons": "Drycker",
+        "autre": "Övrigt",
+    },
 }
 
 
@@ -1271,6 +1335,56 @@ CATEGORY_TRANSLATIONS = {
         "sauce": "Sauce",
         "autre": "Sonstiges",
     },
+    "it": {
+        "petit-déjeuner": "Colazione",
+        "entrée": "Antipasto",
+        "plat": "Piatto principale",
+        "dessert": "Dolce",
+        "apéro": "Aperitivo",
+        "boisson": "Bevanda",
+        "sauce": "Salsa",
+        "autre": "Altro",
+    },
+    "pt": {
+        "petit-déjeuner": "Pequeno-almoço",
+        "entrée": "Entrada",
+        "plat": "Prato principal",
+        "dessert": "Sobremesa",
+        "apéro": "Aperitivo",
+        "boisson": "Bebida",
+        "sauce": "Molho",
+        "autre": "Outro",
+    },
+    "id": {
+        "petit-déjeuner": "Sarapan",
+        "entrée": "Hidangan pembuka",
+        "plat": "Hidangan utama",
+        "dessert": "Hidangan penutup",
+        "apéro": "Camilan",
+        "boisson": "Minuman",
+        "sauce": "Saus",
+        "autre": "Lainnya",
+    },
+    "no": {
+        "petit-déjeuner": "Frokost",
+        "entrée": "Forrett",
+        "plat": "Hovedrett",
+        "dessert": "Dessert",
+        "apéro": "Aperitiff",
+        "boisson": "Drikke",
+        "sauce": "Saus",
+        "autre": "Annet",
+    },
+    "sv": {
+        "petit-déjeuner": "Frukost",
+        "entrée": "Förrätt",
+        "plat": "Huvudrätt",
+        "dessert": "Efterrätt",
+        "apéro": "Tilltugg",
+        "boisson": "Dryck",
+        "sauce": "Sås",
+        "autre": "Övrigt",
+    },
 }
 
 DIFFICULTY_TRANSLATIONS = {
@@ -1291,6 +1405,36 @@ DIFFICULTY_TRANSLATIONS = {
         "facile": "Einfach",
         "moyen": "Mittel",
         "difficile": "Schwer",
+    },
+    "it": {
+        "très facile": "Molto facile",
+        "facile": "Facile",
+        "moyen": "Media",
+        "difficile": "Difficile",
+    },
+    "pt": {
+        "très facile": "Muito fácil",
+        "facile": "Fácil",
+        "moyen": "Média",
+        "difficile": "Difícil",
+    },
+    "id": {
+        "très facile": "Sangat mudah",
+        "facile": "Mudah",
+        "moyen": "Sedang",
+        "difficile": "Sulit",
+    },
+    "no": {
+        "très facile": "Veldig lett",
+        "facile": "Lett",
+        "moyen": "Middels",
+        "difficile": "Vanskelig",
+    },
+    "sv": {
+        "très facile": "Mycket lätt",
+        "facile": "Lätt",
+        "moyen": "Medel",
+        "difficile": "Svår",
     },
 }
 
@@ -1384,6 +1528,56 @@ SORT_OPTION_TRANSLATIONS = {
         "plus cuisinées": "Am häufigsten gekocht",
         "dernière cuisson": "Zuletzt gekocht",
     },
+    "it": {
+        "nom (a-z)": "Nome (A-Z)",
+        "temps de préparation": "Tempo di preparazione",
+        "temps total": "Tempo totale",
+        "difficulté": "Difficoltà",
+        "note": "Valutazione",
+        "ajoutées récemment": "Aggiunte di recente",
+        "plus cuisinées": "Più cucinate",
+        "dernière cuisson": "Ultima volta cucinata",
+    },
+    "pt": {
+        "nom (a-z)": "Nome (A-Z)",
+        "temps de préparation": "Tempo de preparação",
+        "temps total": "Tempo total",
+        "difficulté": "Dificuldade",
+        "note": "Avaliação",
+        "ajoutées récemment": "Adicionadas recentemente",
+        "plus cuisinées": "Mais cozinhadas",
+        "dernière cuisson": "Última vez cozinhada",
+    },
+    "id": {
+        "nom (a-z)": "Nama (A-Z)",
+        "temps de préparation": "Waktu persiapan",
+        "temps total": "Total waktu",
+        "difficulté": "Tingkat kesulitan",
+        "note": "Penilaian",
+        "ajoutées récemment": "Baru ditambahkan",
+        "plus cuisinées": "Paling sering dimasak",
+        "dernière cuisson": "Terakhir dimasak",
+    },
+    "no": {
+        "nom (a-z)": "Navn (A-Å)",
+        "temps de préparation": "Forberedelsestid",
+        "temps total": "Total tid",
+        "difficulté": "Vanskelighetsgrad",
+        "note": "Vurdering",
+        "ajoutées récemment": "Nylig lagt til",
+        "plus cuisinées": "Mest laget",
+        "dernière cuisson": "Sist laget",
+    },
+    "sv": {
+        "nom (a-z)": "Namn (A-Ö)",
+        "temps de préparation": "Förberedelsetid",
+        "temps total": "Total tid",
+        "difficulté": "Svårighetsgrad",
+        "note": "Betyg",
+        "ajoutées récemment": "Nyligen tillagda",
+        "plus cuisinées": "Mest lagade",
+        "dernière cuisson": "Senast lagad",
+    },
 }
 
 
@@ -1472,6 +1666,116 @@ UNIT_TRANSLATIONS = {
         "rouleau": "Rolle",
         "bouteille": "Flasche",
     },
+    "it": {
+        "gr": "g",
+        "kilo": "kg",
+        "litre": "L",
+        "pièce": "pezzo",
+        "cuillère à soupe": "cucchiaio",
+        "cuillère à café": "cucchiaino",
+        "pincée": "pizzico",
+        "cuillerée": "cucchiaiata",
+        "filet": "filo",
+        "poignée": "manciata",
+        "pot de yaourt": "vasetto di yogurt",
+        "sachet": "bustina",
+        "disque": "disco",
+        "tour de moulin": "macinata",
+        "grosse poignée": "manciata abbondante",
+        "autre": "altro",
+        "boîte": "barattolo",
+        "paquet": "confezione",
+        "rouleau": "rotolo",
+        "bouteille": "bottiglia",
+    },
+    "pt": {
+        "gr": "g",
+        "kilo": "kg",
+        "litre": "L",
+        "pièce": "unidade",
+        "cuillère à soupe": "colher de sopa",
+        "cuillère à café": "colher de chá",
+        "pincée": "pitada",
+        "cuillerée": "colherada",
+        "filet": "fio",
+        "poignée": "mão-cheia",
+        "pot de yaourt": "copo de iogurte",
+        "sachet": "saqueta",
+        "disque": "disco",
+        "tour de moulin": "volta do moinho",
+        "grosse poignée": "mão-cheia grande",
+        "autre": "outro",
+        "boîte": "lata",
+        "paquet": "pacote",
+        "rouleau": "rolo",
+        "bouteille": "garrafa",
+    },
+    "id": {
+        "gr": "g",
+        "kilo": "kg",
+        "litre": "L",
+        "pièce": "buah",
+        "cuillère à soupe": "sdm",
+        "cuillère à café": "sdt",
+        "pincée": "sejumput",
+        "cuillerée": "sendok",
+        "filet": "sedikit",
+        "poignée": "genggam",
+        "pot de yaourt": "cup yoghurt",
+        "sachet": "sachet",
+        "disque": "lembar",
+        "tour de moulin": "putaran gilingan",
+        "grosse poignée": "genggam besar",
+        "autre": "lainnya",
+        "boîte": "kaleng",
+        "paquet": "bungkus",
+        "rouleau": "gulung",
+        "bouteille": "botol",
+    },
+    "no": {
+        "gr": "g",
+        "kilo": "kg",
+        "litre": "L",
+        "pièce": "stk",
+        "cuillère à soupe": "ss",
+        "cuillère à café": "ts",
+        "pincée": "klype",
+        "cuillerée": "skje",
+        "filet": "skvett",
+        "poignée": "håndfull",
+        "pot de yaourt": "yoghurtbeger",
+        "sachet": "pose",
+        "disque": "plate",
+        "tour de moulin": "kvernetak",
+        "grosse poignée": "stor håndfull",
+        "autre": "annet",
+        "boîte": "boks",
+        "paquet": "pakke",
+        "rouleau": "rull",
+        "bouteille": "flaske",
+    },
+    "sv": {
+        "gr": "g",
+        "kilo": "kg",
+        "litre": "L",
+        "pièce": "st",
+        "cuillère à soupe": "msk",
+        "cuillère à café": "tsk",
+        "pincée": "nypa",
+        "cuillerée": "sked",
+        "filet": "skvätt",
+        "poignée": "näve",
+        "pot de yaourt": "yoghurtburk",
+        "sachet": "påse",
+        "disque": "platta",
+        "tour de moulin": "kvarnvarv",
+        "grosse poignée": "stor näve",
+        "autre": "annat",
+        "boîte": "burk",
+        "paquet": "paket",
+        "rouleau": "rulle",
+        "bouteille": "flaska",
+    },
 }
 
 
@@ -1553,6 +1857,51 @@ WEEKDAY_TRANSLATIONS = {
         "samedi": "Samstag",
         "dimanche": "Sonntag",
     },
+    "it": {
+        "lundi": "Lunedì",
+        "mardi": "Martedì",
+        "mercredi": "Mercoledì",
+        "jeudi": "Giovedì",
+        "vendredi": "Venerdì",
+        "samedi": "Sabato",
+        "dimanche": "Domenica",
+    },
+    "pt": {
+        "lundi": "Segunda-feira",
+        "mardi": "Terça-feira",
+        "mercredi": "Quarta-feira",
+        "jeudi": "Quinta-feira",
+        "vendredi": "Sexta-feira",
+        "samedi": "Sábado",
+        "dimanche": "Domingo",
+    },
+    "id": {
+        "lundi": "Senin",
+        "mardi": "Selasa",
+        "mercredi": "Rabu",
+        "jeudi": "Kamis",
+        "vendredi": "Jumat",
+        "samedi": "Sabtu",
+        "dimanche": "Minggu",
+    },
+    "no": {
+        "lundi": "Mandag",
+        "mardi": "Tirsdag",
+        "mercredi": "Onsdag",
+        "jeudi": "Torsdag",
+        "vendredi": "Fredag",
+        "samedi": "Lørdag",
+        "dimanche": "Søndag",
+    },
+    "sv": {
+        "lundi": "Måndag",
+        "mardi": "Tisdag",
+        "mercredi": "Onsdag",
+        "jeudi": "Torsdag",
+        "vendredi": "Fredag",
+        "samedi": "Lördag",
+        "dimanche": "Söndag",
+    },
 }
 
 MEALSLOT_TRANSLATIONS = {
@@ -1582,6 +1931,51 @@ MEALSLOT_TRANSLATIONS = {
         "dîner — entrée": "Abendessen — Vorspeise",
         "dîner — plat": "Abendessen — Hauptgericht",
         "dîner — dessert": "Abendessen — Dessert",
+    },
+    "it": {
+        "petit-déjeuner": "Colazione",
+        "déjeuner — entrée": "Pranzo — Antipasto",
+        "déjeuner — plat": "Pranzo — Piatto principale",
+        "déjeuner — dessert": "Pranzo — Dolce",
+        "dîner — entrée": "Cena — Antipasto",
+        "dîner — plat": "Cena — Piatto principale",
+        "dîner — dessert": "Cena — Dolce",
+    },
+    "pt": {
+        "petit-déjeuner": "Pequeno-almoço",
+        "déjeuner — entrée": "Almoço — Entrada",
+        "déjeuner — plat": "Almoço — Prato principal",
+        "déjeuner — dessert": "Almoço — Sobremesa",
+        "dîner — entrée": "Jantar — Entrada",
+        "dîner — plat": "Jantar — Prato principal",
+        "dîner — dessert": "Jantar — Sobremesa",
+    },
+    "id": {
+        "petit-déjeuner": "Sarapan",
+        "déjeuner — entrée": "Makan siang — Pembuka",
+        "déjeuner — plat": "Makan siang — Utama",
+        "déjeuner — dessert": "Makan siang — Penutup",
+        "dîner — entrée": "Makan malam — Pembuka",
+        "dîner — plat": "Makan malam — Utama",
+        "dîner — dessert": "Makan malam — Penutup",
+    },
+    "no": {
+        "petit-déjeuner": "Frokost",
+        "déjeuner — entrée": "Lunsj — Forrett",
+        "déjeuner — plat": "Lunsj — Hovedrett",
+        "déjeuner — dessert": "Lunsj — Dessert",
+        "dîner — entrée": "Middag — Forrett",
+        "dîner — plat": "Middag — Hovedrett",
+        "dîner — dessert": "Middag — Dessert",
+    },
+    "sv": {
+        "petit-déjeuner": "Frukost",
+        "déjeuner — entrée": "Lunch — Förrätt",
+        "déjeuner — plat": "Lunch — Huvudrätt",
+        "déjeuner — dessert": "Lunch — Efterrätt",
+        "dîner — entrée": "Middag — Förrätt",
+        "dîner — plat": "Middag — Huvudrätt",
+        "dîner — dessert": "Middag — Efterrätt",
     },
 }
 
@@ -2008,7 +2402,7 @@ def sync_ingredients_from_recipes():
     figure bien dans la liste des ingrédients connus (utile lors de la
     première utilisation de cette fonctionnalité, ou après import de
     données). Lors du tout premier lancement (aucun ingredients.json), la
-    liste des 1030 ingrédients courants fournis avec l'application est
+    liste des ingrédients fournis avec l'application (catalogue) est
     utilisée comme point de départ."""
     first_run = not os.path.exists(INGREDIENTS_FILE)
     known = load_default_ingredients() if first_run else load_ingredients()
@@ -2430,6 +2824,11 @@ EXPIRATION_DATE_KEYWORDS = (
     "best before", "use by", "sell by", "expiry", "expire", "exp",
     "fecha de caducidad", "caducidad", "consumir antes", "fecha de consumo",
     "mindestens haltbar", "verbrauchen bis", "haltbar bis", "mhd",
+    "da consumarsi", "consumarsi entro", "scadenza", "scad",
+    "consumir ate", "consumir de preferencia", "validade", "val.",
+    "baik digunakan sebelum", "kedaluwarsa", "exp. date",
+    "best før", "minst holdbar", "siste forbruksdag",
+    "bast fore", "sista forbrukningsdag",
 )
 EXPIRATION_DATE_KEYWORD_WINDOW = 30
 
@@ -2618,15 +3017,28 @@ def load_nutrition_data():
     return _nutrition_cache
 
 
+def _normalized_ingredient_key(value):
+    return ' '.join(ingredient_sort_key(value).replace('’', "'").split())
+
+
+# (base, index normalisé) par base chargée : avec ~10 000 ingrédients,
+# renormaliser toute la base à chaque recherche coûtait ~30 ms par nom.
+_lookup_index_cache = {}
+
+
 def _lookup_ingredient_data(data, name):
     """Exact lookup, then unique spelling normalization (never fuzzy matching)."""
     key = str(name or '').strip().lower()
     if key in data:
         return data[key]
-    def normalized(value):
-        return ' '.join(ingredient_sort_key(value).replace('’', "'").split())
-    target = normalized(key)
-    matches = [value for stored, value in data.items() if normalized(stored) == target]
+    cached = _lookup_index_cache.get(id(data))
+    if cached is None or cached[0] is not data or cached[1] != len(data):
+        index = {}
+        for stored, value in data.items():
+            index.setdefault(_normalized_ingredient_key(stored), []).append(value)
+        cached = (data, len(data), index)
+        _lookup_index_cache[id(data)] = cached
+    matches = cached[2].get(_normalized_ingredient_key(key), [])
     return matches[0] if len(matches) == 1 else None
 
 
@@ -2679,7 +3091,7 @@ def compute_recipe_nutrition(recipe, persons):
 
 # ---------------------------------------------------------------------------
 # Allergènes présents dans chaque ingrédient, à partir d'une base fournie
-# avec l'application (les 1030 ingrédients courants). Sert à détecter
+# avec l'application (catalogue d’ingrédients). Sert à détecter
 # automatiquement les allergènes d'une recette à partir de ses ingrédients.
 # ---------------------------------------------------------------------------
 
@@ -2786,7 +3198,7 @@ _ingredient_translations_cache = {}
 
 def load_ingredient_translations(lang):
     """Charge (une seule fois par langue, en cache) le dictionnaire de
-    correspondance des 1030 ingrédients courants vers la langue donnée,
+    correspondance des ingrédients du catalogue vers la langue donnée,
     fourni avec l'application. Un ingrédient absent de ce dictionnaire
     (par exemple un ingrédient personnalisé ajouté par l'utilisateur)
     n'a simplement pas de traduction : voir translate_ingredient_name()."""
@@ -3036,13 +3448,19 @@ def compute_recipe_allergens(ingredients):
     return [a for a in ALLERGENS if a in detected]
 
 
-def find_similar_ingredient_pairs(names, threshold=0.82):
+def find_similar_ingredient_pairs(names, threshold=0.82, reference_names=None):
     """Retourne une liste de paires (nom_a, nom_b, score) d'ingrédients dont
     les noms se ressemblent fortement (accents/casse ignorés), pouvant
     indiquer un doublon ou une faute de frappe (ex. "Tomate" / "Tomates",
     "Echalotte" / "Échalote"). Les ingrédients sont d'abord regroupés par
     leurs deux premières lettres pour limiter le nombre de comparaisons sur
-    de grandes listes."""
+    de grandes listes.
+
+    ``reference_names`` (catalogue fourni) : deux ingrédients du catalogue
+    sont distincts par construction (« Jaune d'oeuf, séché » / « Blanc
+    d'oeuf, séché ») et ne sont jamais comparés entre eux — sur ~10 000
+    noms, cela évite des milliers de faux doublons et des minutes de calcul."""
+    reference_keys = {ingredient_sort_key(n) for n in reference_names} if reference_names else set()
     normalized = [(n, ingredient_sort_key(n)) for n in names]
     buckets = {}
     for name, key in normalized:
@@ -3050,17 +3468,29 @@ def find_similar_ingredient_pairs(names, threshold=0.82):
         buckets.setdefault(prefix, []).append((name, key))
 
     pairs = []
+    matcher = difflib.SequenceMatcher(None, "", "")
     for bucket in buckets.values():
+        user_positions = [j for j, (_n, k) in enumerate(bucket) if k not in reference_keys]
         for i in range(len(bucket)):
             name_a, key_a = bucket[i]
-            for j in range(i + 1, len(bucket)):
+            if key_a in reference_keys:
+                candidates = [j for j in user_positions if j > i]
+            else:
+                candidates = range(i + 1, len(bucket))
+            if not candidates:
+                continue
+            matcher.set_seq2(key_a)
+            for j in candidates:
                 name_b, key_b = bucket[j]
                 if key_a == key_b:
                     continue
                 is_plural_variant = (
                     key_a in (key_b + "s", key_b + "x") or key_b in (key_a + "s", key_a + "x")
                 )
-                ratio = difflib.SequenceMatcher(None, key_a, key_b).ratio()
+                matcher.set_seq1(key_b)
+                ratio = 0.0
+                if is_plural_variant or (matcher.real_quick_ratio() >= threshold and matcher.quick_ratio() >= threshold):
+                    ratio = matcher.ratio()
                 if is_plural_variant or ratio >= threshold:
                     pairs.append((name_a, name_b, ratio if not is_plural_variant else max(ratio, 0.9)))
 
@@ -3117,15 +3547,24 @@ def rank_close_ingredients(name, existing_names):
     """Classe les ingrédients existants par proximité avec un nom inconnu."""
     wanted = ingredient_sort_key(name)
     wanted_words = {w for w in wanted.split() if w not in {"de", "du", "des", "d", "la", "le", "les"}}
+    plural_forms = {wanted + "s", wanted + "x"}
+    # Le nom cherché est fixé une fois (index interne construit une seule
+    # fois) ; les bornes rapides évitent le calcul exact pour l'immense
+    # majorité des ~10 000 ingrédients, sans changer le meilleur résultat.
+    matcher = difflib.SequenceMatcher(None, "", wanted)
     ranked = []
     for existing in existing_names:
         key = ingredient_sort_key(existing)
-        score = difflib.SequenceMatcher(None, wanted, key).ratio()
+        matcher.set_seq1(key)
+        score = matcher.real_quick_ratio()
+        if score >= 0.5:
+            score = matcher.quick_ratio()
+            if score >= 0.5:
+                score = matcher.ratio()
         words = set(key.split())
         if words and words.issubset(wanted_words):
             score = max(score, 0.88)
-        plural = find_plural_duplicate(name, [existing])
-        if plural:
+        if key != wanted and (key in plural_forms or wanted in (key + "s", key + "x")):
             score = max(score, 0.98)
         ranked.append((score, existing))
     ranked.sort(key=lambda item: (-item[0], ingredient_sort_key(item[1])))
@@ -3564,6 +4003,86 @@ ALLERGEN_TRANSLATIONS = {
         "sulfites": "Sulfite",
         "lupin": "Lupinen",
         "mollusques": "Weichtiere",
+    },
+    "it": {
+        "gluten": "Glutine",
+        "lactose": "Latte (incluso lattosio)",
+        "œufs": "Uova",
+        "arachides": "Arachidi",
+        "fruits à coque": "Frutta a guscio",
+        "soja": "Soia",
+        "poisson": "Pesce",
+        "crustacés": "Crostacei",
+        "sésame": "Sesamo",
+        "céleri": "Sedano",
+        "moutarde": "Senape",
+        "sulfites": "Solfiti",
+        "lupin": "Lupini",
+        "mollusques": "Molluschi",
+    },
+    "pt": {
+        "gluten": "Glúten",
+        "lactose": "Leite (incluindo lactose)",
+        "œufs": "Ovos",
+        "arachides": "Amendoins",
+        "fruits à coque": "Frutos de casca rija",
+        "soja": "Soja",
+        "poisson": "Peixe",
+        "crustacés": "Crustáceos",
+        "sésame": "Sésamo",
+        "céleri": "Aipo",
+        "moutarde": "Mostarda",
+        "sulfites": "Sulfitos",
+        "lupin": "Tremoço",
+        "mollusques": "Moluscos",
+    },
+    "id": {
+        "gluten": "Gluten",
+        "lactose": "Susu (termasuk laktosa)",
+        "œufs": "Telur",
+        "arachides": "Kacang tanah",
+        "fruits à coque": "Kacang pohon",
+        "soja": "Kedelai",
+        "poisson": "Ikan",
+        "crustacés": "Krustasea",
+        "sésame": "Wijen",
+        "céleri": "Seledri",
+        "moutarde": "Mustard",
+        "sulfites": "Sulfit",
+        "lupin": "Lupin",
+        "mollusques": "Moluska",
+    },
+    "no": {
+        "gluten": "Gluten",
+        "lactose": "Melk (inkludert laktose)",
+        "œufs": "Egg",
+        "arachides": "Peanøtter",
+        "fruits à coque": "Nøtter",
+        "soja": "Soya",
+        "poisson": "Fisk",
+        "crustacés": "Skalldyr",
+        "sésame": "Sesam",
+        "céleri": "Selleri",
+        "moutarde": "Sennep",
+        "sulfites": "Sulfitter",
+        "lupin": "Lupin",
+        "mollusques": "Bløtdyr",
+    },
+    "sv": {
+        "gluten": "Gluten",
+        "lactose": "Mjölk (inklusive laktos)",
+        "œufs": "Ägg",
+        "arachides": "Jordnötter",
+        "fruits à coque": "Nötter",
+        "soja": "Soja",
+        "poisson": "Fisk",
+        "crustacés": "Kräftdjur",
+        "sésame": "Sesam",
+        "céleri": "Selleri",
+        "moutarde": "Senap",
+        "sulfites": "Sulfiter",
+        "lupin": "Lupin",
+        "mollusques": "Blötdjur",
     },
 }
 
@@ -4029,11 +4548,21 @@ _ICS_MEAL_PERIOD_TRANSLATIONS = {
     "en": {"petit-déjeuner": "Breakfast", "déjeuner": "Lunch", "dîner": "Dinner"},
     "es": {"petit-déjeuner": "Desayuno", "déjeuner": "Almuerzo", "dîner": "Cena"},
     "de": {"petit-déjeuner": "Frühstück", "déjeuner": "Mittagessen", "dîner": "Abendessen"},
+    "it": {"petit-déjeuner": "Colazione", "déjeuner": "Pranzo", "dîner": "Cena"},
+    "pt": {"petit-déjeuner": "Pequeno-almoço", "déjeuner": "Almoço", "dîner": "Jantar"},
+    "id": {"petit-déjeuner": "Sarapan", "déjeuner": "Makan siang", "dîner": "Makan malam"},
+    "no": {"petit-déjeuner": "Frokost", "déjeuner": "Lunsj", "dîner": "Middag"},
+    "sv": {"petit-déjeuner": "Frukost", "déjeuner": "Lunch", "dîner": "Middag"},
 }
 _ICS_COURSE_LABEL_TRANSLATIONS = {
     "en": {"entrée": "Starter", "plat": "Main", "dessert": "Dessert"},
     "es": {"entrée": "Entrante", "plat": "Plato principal", "dessert": "Postre"},
     "de": {"entrée": "Vorspeise", "plat": "Hauptgericht", "dessert": "Dessert"},
+    "it": {"entrée": "Antipasto", "plat": "Piatto principale", "dessert": "Dolce"},
+    "pt": {"entrée": "Entrada", "plat": "Prato principal", "dessert": "Sobremesa"},
+    "id": {"entrée": "Pembuka", "plat": "Utama", "dessert": "Penutup"},
+    "no": {"entrée": "Forrett", "plat": "Hovedrett", "dessert": "Dessert"},
+    "sv": {"entrée": "Förrätt", "plat": "Huvudrätt", "dessert": "Efterrätt"},
 }
 
 
@@ -5641,14 +6170,14 @@ def fetch_recipe_from_url(url):
     if yield_value:
         yields = yield_value if isinstance(yield_value, list) else [yield_value]
         # Prefer explicit people when a publisher supplies both servings and pieces.
-        people = next((v for v in yields if re.search(r'\b(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|pers\.?)(?:\b|$)', str(v), re.I)), None)
+        people = next((v for v in yields if re.search(r'\b(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\.?)(?:\b|$)', str(v), re.I)), None)
         pieces = next((v for v in yields if re.search(r'\b(?:cookies?|biscuits?|pièces?|pieces?|crêpes?|muffins?|pancakes?|stuck|stück|galletas?)\b', str(v), re.I)), None)
         if pieces is None:
             pieces = next((v for v in yields if re.match(r'^(?:makes|yields|ergibt|rinde)\b', str(v), re.I)), None)
         yield_value = people if people is not None else (None if pieces is not None else yields[0])
         if pieces is not None:
             yield_note = t('importurl_yield_note', value=clean_text(pieces))
-        match = (re.search(r"(\d+(?:[.,]\d+)?)\s*(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|pers\b)", str(people), re.I)
+        match = (re.search(r"(\d+(?:[.,]\d+)?)\s*(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\b)", str(people), re.I)
                  if people is not None else re.search(r"\d+(?:[.,]\d+)?", str(yield_value or "")))
         people_range = _url_quantity_range(str(people or ''))
         if people_range:
@@ -6300,33 +6829,80 @@ CURRENT_LANGUAGE = "fr"
 # pour toute clé pas encore traduite dans une autre langue — l'application
 # reste donc entièrement utilisable pendant qu'on ajoute les traductions
 # progressivement, une langue et une fenêtre à la fois.
-def _load_ui_translations():
-    """Charge les textes UI depuis un fichier séparé, plus simple à auditer.
+I18N_DIR = os.path.join(BASE_DIR, "i18n")
+# Langues de l'interface autres que le français (référence, i18n/fr.json).
+# Chaque langue a son propre fichier i18n/<code>.json, lu seulement quand
+# elle est utilisée : ajouter une langue ne ralentit pas le démarrage.
+UI_TRANSLATED_LANGUAGES = UI_LANGUAGES[1:]
 
-    Le fichier est livré à côté de l'exécutable comme les autres bases JSON.
-    Une erreur de traduction est journalisée et un noyau français minimal
-    garde l'application démarrable plutôt que de provoquer un crash opaque.
-    """
-    path = os.path.join(BASE_DIR, "i18n_desktop.json")
+
+def _read_ui_strings(lang):
+    """Textes d'une langue. Erreur journalisée, dictionnaire vide en repli :
+    t() retombe alors sur le français plutôt que de faire planter l'app."""
+    path = os.path.join(I18N_DIR, f"{lang}.json")
     try:
         with open(path, "r", encoding="utf-8") as f:
             payload = json.load(f)
-        fr = payload.get("fr")
-        translations = payload.get("translations")
-        if not isinstance(fr, dict) or not isinstance(translations, dict):
-            raise ValueError("invalid i18n_desktop.json")
-        for lang in ("en", "es", "de"):
-            if not isinstance(translations.get(lang), dict):
-                raise ValueError(f"missing language: {lang}")
-        return fr, translations
+        if not isinstance(payload, dict):
+            raise ValueError(f"invalid {path}")
+        return payload
     except Exception as exc:
-        log_internal_error("load_ui_translations", exc)
-        return {
-            "home_window_title": "Mes Recettes, Mes Courses",
-            "common_error": "Erreur",
-            "common_info": "Information",
-            "common_confirm": "Confirmer",
-        }, {"en": {}, "es": {}, "de": {}}
+        log_internal_error(f"load_ui_translations_{lang}", exc)
+        return {}
+
+
+class _LazyTranslations(dict):
+    """{langue: textes} dont chaque langue n'est lue sur disque qu'au premier
+    accès. Itérer (values/items/keys) charge toutes les langues connues."""
+
+    def _ensure(self, lang):
+        if lang in UI_TRANSLATED_LANGUAGES and not dict.__contains__(self, lang):
+            dict.__setitem__(self, lang, _read_ui_strings(lang))
+
+    def _ensure_all(self):
+        for lang in UI_TRANSLATED_LANGUAGES:
+            self._ensure(lang)
+
+    def __getitem__(self, lang):
+        self._ensure(lang)
+        return dict.__getitem__(self, lang)
+
+    def get(self, lang, default=None):
+        self._ensure(lang)
+        return dict.get(self, lang, default)
+
+    def __contains__(self, lang):
+        return lang in UI_TRANSLATED_LANGUAGES or dict.__contains__(self, lang)
+
+    def __iter__(self):
+        self._ensure_all()
+        return dict.__iter__(self)
+
+    def __len__(self):
+        self._ensure_all()
+        return dict.__len__(self)
+
+    def keys(self):
+        self._ensure_all()
+        return dict.keys(self)
+
+    def values(self):
+        self._ensure_all()
+        return dict.values(self)
+
+    def items(self):
+        self._ensure_all()
+        return dict.items(self)
+
+
+def _load_ui_translations():
+    fr = _read_ui_strings("fr") or {
+        "home_window_title": "Mes Recettes, Mes Courses",
+        "common_error": "Erreur",
+        "common_info": "Information",
+        "common_confirm": "Confirmer",
+    }
+    return fr, _LazyTranslations()
 
 
 FRENCH_STRINGS, TRANSLATIONS = _load_ui_translations()
@@ -6335,9 +6911,8 @@ FRENCH_STRINGS, TRANSLATIONS = _load_ui_translations()
 def detect_system_language():
     """Détecte la langue du système d'exploitation pour proposer une
     langue de démarrage sensée au tout premier lancement (avant qu'aucune
-    préférence n'ait jamais été enregistrée). Ne reconnaît que le
-    français, l'anglais, l'espagnol et l'allemand pour l'instant (les
-    seules langues disponibles) : toute autre langue système retombe sur
+    préférence n'ait jamais été enregistrée). Ne reconnaît que les langues
+    disponibles (UI_LANGUAGES) : toute autre langue système retombe sur
     le français, la langue de référence de l'application. Repose sur
     locale.getlocale()/getdefaultlocale(), qui peuvent échouer ou
     renvoyer None selon la configuration du système — dans ce cas, on
@@ -6357,12 +6932,19 @@ def detect_system_language():
                 pass
         if lang_code:
             lang_code_lower = lang_code.lower()
-            if lang_code_lower.startswith("en"):
-                return "en"
-            if lang_code_lower.startswith("es"):
-                return "es"
-            if lang_code_lower.startswith("de"):
-                return "de"
+            # Windows renvoie souvent un nom complet (« Italian_Italy ») plutôt
+            # qu'un code ISO (« it_IT ») : les deux formes sont reconnues.
+            aliases = {
+                "en": ("en", "english"), "es": ("es", "spanish"), "de": ("de", "german"),
+                "it": ("it", "italian"), "pt": ("pt", "portuguese"),
+                "id": ("id", "indonesian"), "no": ("no", "nb", "nn", "norwegian"),
+                "sv": ("sv", "swedish"),
+            }
+            for code, prefixes in aliases.items():
+                if any(lang_code_lower.startswith(p + "_") or lang_code_lower.startswith(p + "-")
+                       or lang_code_lower == p or (len(p) > 2 and lang_code_lower.startswith(p))
+                       for p in prefixes):
+                    return code
     except Exception as exc:
         log_internal_error("suppressed_exception", exc)
     return "fr"
@@ -6964,7 +7546,7 @@ class DisclaimerWindow(tk.Toplevel):
         # habillage que le menu déroulant de la page d'accueil. ----
         lang_bar = ttk.Frame(self)
         lang_bar.pack(fill="x", padx=15, pady=(10, 0))
-        language_names = {"fr": "Français", "en": "English", "es": "Español", "de": "Deutsch"}
+        language_names = LANGUAGE_NAMES
         current_flag = self.app.flag_photos.get(self.app.language)
         menubutton_kwargs = {"text": language_names.get(self.app.language, "Français")}
         if current_flag is not None:
@@ -6974,7 +7556,7 @@ class DisclaimerWindow(tk.Toplevel):
             menubutton_kwargs["text"] = "🌐 " + menubutton_kwargs["text"]
         language_menubutton = ttk.Menubutton(lang_bar, style="Secondary.TMenubutton", **menubutton_kwargs)
         language_menu = tk.Menu(language_menubutton, tearoff=False)
-        for lang_code in ("fr", "en", "es", "de"):
+        for lang_code in UI_LANGUAGES:
             item_kwargs = {
                 "label": language_names[lang_code],
                 "command": lambda lc=lang_code: self._set_language(lc),
@@ -7891,14 +8473,14 @@ class App(APP_TK_BASE):
         home_search.bind("<Return>", self._open_home_search)
         ttk.Button(search_wrap, text="🔎", width=3, command=self._open_home_search).pack(side="left", padx=(gs(SPACE_SM), 0))
 
-        language_names = {"fr": "Français", "en": "English", "es": "Español", "de": "Deutsch"}
+        language_names = LANGUAGE_NAMES
         current_flag = self.flag_photos.get(self.language)
         language_kwargs = {"text": language_names.get(self.language, "Français")}
         if current_flag is not None:
             language_kwargs.update(image=current_flag, compound="left")
         lang_btn = ttk.Menubutton(top_bar, style="Secondary.TMenubutton", **language_kwargs)
         lang_menu = tk.Menu(lang_btn, tearoff=False)
-        for code in ("fr", "en", "es", "de"):
+        for code in UI_LANGUAGES:
             item = {"label": language_names[code], "command": lambda c=code: self.set_language(c)}
             flag = self.flag_photos.get(code)
             if flag is not None:
@@ -8075,7 +8657,7 @@ class App(APP_TK_BASE):
         any_alert = False
         if low_stock:
             any_alert = True
-            names = ", ".join(sorted(e["name"] for e in low_stock))
+            names = ", ".join(sorted(translate_ingredient_name(e["name"]) for e in low_stock))
             row = tk.Label(alerts, text=t("home_low_stock_reminder", count=len(low_stock), names=names),
                            background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
                            font=("Segoe UI", sf(9)), wraplength=850)
@@ -12065,7 +12647,8 @@ class IngredientSpellCheckWindow(tk.Toplevel):
     def _scan(self):
         self.listbox.delete(0, tk.END)
         all_pairs = find_similar_ingredient_pairs(
-            self.app.ingredient_names, threshold=self.SIMILARITY_THRESHOLD
+            self.app.ingredient_names, threshold=self.SIMILARITY_THRESHOLD,
+            reference_names=load_default_ingredients(),
         )
         dismissed = load_dismissed_pairs()
         self.pairs = [

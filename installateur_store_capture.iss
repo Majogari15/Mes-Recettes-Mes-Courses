@@ -13,9 +13,9 @@
 #else
 #error "dist\Mes Recettes, Mes Courses.exe est absent. Lancez Construire_le_exe.bat avant de compiler l'installateur."
 #endif
-#ifexist "dist\i18n_desktop.json"
+#ifexist "dist\i18n\fr.json"
 #else
-#error "dist\i18n_desktop.json est absent. Relancez Construire_le_exe.bat."
+#error "dist\i18n\fr.json est absent. Relancez Construire_le_exe.bat."
 #endif
 
 [Setup]
@@ -47,25 +47,33 @@ Uninstallable=no
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
+[InstallDelete]
+; Anciens emplacements (avant le rangement dans i18n\ et data\) : supprimés
+; lors d'une mise à jour pour ne pas laisser de fichiers obsolètes.
+Type: files; Name: "{app}\i18n_desktop.json"
+Type: files; Name: "{app}\ingredients_par_defaut.json"
+Type: files; Name: "{app}\valeurs_nutritionnelles.json"
+Type: files; Name: "{app}\ingredient_allergenes.json"
+Type: files; Name: "{app}\ingredient_substitutions.json"
+Type: files; Name: "{app}\ingredient_substitutions_en.json"
+Type: files; Name: "{app}\ingredient_substitutions_es.json"
+Type: files; Name: "{app}\ingredient_substitutions_de.json"
+Type: files; Name: "{app}\ingredient_translations_en.json"
+Type: files; Name: "{app}\ingredient_translations_es.json"
+Type: files; Name: "{app}\ingredient_translations_de.json"
+Type: files; Name: "{app}\flag_fr.png"
+Type: files; Name: "{app}\flag_uk.png"
+Type: files; Name: "{app}\flag_es.png"
+Type: files; Name: "{app}\flag_de.png"
+
 [Files]
 ; L'exécutable et tous les fichiers de données, copiés depuis le
 ; dossier "dist" généré par Construire_le_exe.bat.
 Source: "dist\Mes Recettes, Mes Courses.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\i18n_desktop.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredients_par_defaut.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\valeurs_nutritionnelles.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_allergenes.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_substitutions.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_substitutions_en.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_substitutions_es.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_substitutions_de.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_translations_en.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_translations_es.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ingredient_translations_de.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\flag_fr.png"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\flag_uk.png"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\flag_es.png"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\flag_de.png"; DestDir: "{app}"; Flags: ignoreversion
+; Textes de l'interface (un fichier par langue) et bases d'ingrédients,
+; dans leurs dossiers : une langue ajoutée est incluse automatiquement.
+Source: "dist\i18n\*"; DestDir: "{app}\i18n"; Flags: ignoreversion recursesubdirs
+Source: "dist\data\*"; DestDir: "{app}\data"; Flags: ignoreversion recursesubdirs
 Source: "dist\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; Tesseract OCR portable (optionnel, voir installateur.iss).
 Source: "dist\tesseract-ocr\*"; DestDir: "{app}\tesseract-ocr"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
