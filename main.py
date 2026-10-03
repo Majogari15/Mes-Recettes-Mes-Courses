@@ -16520,6 +16520,14 @@ class CookingModeWindow(tk.Toplevel):
     recette — pratique à consulter en cuisinant, posé à côté des
     fourneaux."""
 
+    @staticmethod
+    def _button_colors():
+        # Boutons du haut aux couleurs du thème (gris Windows auparavant,
+        # détonnant en sombre) ; texte/fond > 9:1 dans les 3 palettes.
+        return dict(background=COLOR_ACCENT_LIGHT, foreground=COLOR_TEXT, activebackground=COLOR_BORDER,
+                    activeforeground=COLOR_TEXT, relief="flat", highlightthickness=0, cursor="hand2",
+                    padx=gs(SPACE_SM))
+
     def __init__(self, app, recipe, persons, owner=None):
         super().__init__(app)
         self.app = app
@@ -16552,35 +16560,35 @@ class CookingModeWindow(tk.Toplevel):
 
         top_bar = tk.Frame(self, bg=COLOR_CARD)
         top_bar.pack(fill="x", pady=gs(10))
-        tk.Button(top_bar, text=t("cookingmode_close_button"), font=("Segoe UI", sf(13)),
+        tk.Button(top_bar, **self._button_colors(), text=t("cookingmode_close_button"), font=("Segoe UI", sf(13)),
                   command=self._on_close).pack(side="right", padx=gs(30))
-        tk.Button(top_bar, text=t("cookingmode_cooked_button"), font=("Segoe UI", sf(13)),
+        tk.Button(top_bar, **self._button_colors(), text=t("cookingmode_cooked_button"), font=("Segoe UI", sf(13)),
                   command=self.mark_as_cooked).pack(side="right", padx=(gs(10), 0))
         tk.Label(top_bar, text=t("cookingmode_fullscreen_hint"), font=("Segoe UI", sf(9)),
                  bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(side="right", padx=gs(10))
 
         volume_frame = tk.Frame(top_bar, bg=COLOR_CARD)
         volume_frame.pack(side="right", padx=(gs(10), 0))
-        tk.Button(volume_frame, text="🔊+", font=("Segoe UI", sf(11)), width=4,
+        tk.Button(volume_frame, **self._button_colors(), text="🔊+", font=("Segoe UI", sf(11)), width=4,
                   command=lambda: self._adjust_volume(0.1)).pack(side="right")
         self.volume_label = tk.Label(volume_frame, text=t("cookingmode_volume_percent", percent=100), font=("Segoe UI", sf(10)),
                                       bg=COLOR_CARD, fg=COLOR_TEXT_MUTED, width=5)
         self.volume_label.pack(side="right", padx=gs(3))
-        tk.Button(volume_frame, text="🔉−", font=("Segoe UI", sf(11)), width=4,
+        tk.Button(volume_frame, **self._button_colors(), text="🔉−", font=("Segoe UI", sf(11)), width=4,
                   command=lambda: self._adjust_volume(-0.1)).pack(side="right")
 
-        self.speech_button = tk.Button(top_bar, text=t("cookingmode_speech_button"), font=("Segoe UI", sf(13)),
+        self.speech_button = tk.Button(top_bar, **self._button_colors(), text=t("cookingmode_speech_button"), font=("Segoe UI", sf(13)),
                                         command=self.toggle_speech)
         self.speech_button.pack(side="right", padx=(gs(10), 0))
 
         pers_frame = tk.Frame(top_bar, bg=COLOR_CARD)
         pers_frame.pack(side="left", padx=gs(30))
-        tk.Button(pers_frame, text="−", font=("Segoe UI", sf(14), "bold"), width=3,
+        tk.Button(pers_frame, **self._button_colors(), text="−", font=("Segoe UI", sf(14), "bold"), width=3,
                   command=lambda: self._adjust(-1)).pack(side="left")
         self.pers_label = tk.Label(pers_frame, text=t("cookingmode_persons_suffix", persons=self._fmt(persons)),
                                     font=("Segoe UI", sf(14)), bg=COLOR_CARD, fg=COLOR_TEXT)
         self.pers_label.pack(side="left", padx=gs(10))
-        tk.Button(pers_frame, text="+", font=("Segoe UI", sf(14), "bold"), width=3,
+        tk.Button(pers_frame, **self._button_colors(), text="+", font=("Segoe UI", sf(14), "bold"), width=3,
                   command=lambda: self._adjust(1)).pack(side="left")
 
         outer = tk.Frame(self, bg=COLOR_CARD)

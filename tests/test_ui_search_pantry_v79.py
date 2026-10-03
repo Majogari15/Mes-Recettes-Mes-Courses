@@ -866,6 +866,12 @@ class CookingModeThemeContrastTests(AppWindowTestBase):
         for w in texts:
             ratio = self._contrast(w.cget("foreground"), w.cget("background"))
             self.assertGreaterEqual(ratio, 4.5, (palette_name, w.cget("text")[:30], ratio))
+        buttons = [w for w in self._walk(win) if isinstance(w, tk.Button)]
+        self.assertGreaterEqual(len(buttons), 7)
+        for w in buttons:
+            self.assertEqual(self._hex(w.cget("background")), self._hex(main.COLOR_ACCENT_LIGHT), (palette_name, w.cget("text")))
+            ratio = self._contrast(w.cget("foreground"), w.cget("background"))
+            self.assertGreaterEqual(ratio, 4.5, (palette_name, w.cget("text"), ratio))
         for w in texts:
             if isinstance(w, tk.Checkbutton):
                 self.assertEqual(self._hex(w.cget("selectcolor")), self._hex(main.COLOR_CARD))
