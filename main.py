@@ -46,8 +46,8 @@ from pathlib import Path
 # Convention alignée sur celle déjà en place côté application mobile
 # (APP_VERSION dans app.js) : un simple entier incrémenté à chaque
 # livraison.
-PRODUCT_VERSION = "1.6.31"
-APP_BUILD = 78
+PRODUCT_VERSION = "1.6.32"
+APP_BUILD = 79
 APP_VERSION = APP_BUILD
 DATA_SCHEMA_VERSION = 2
 

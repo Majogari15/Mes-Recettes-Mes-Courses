@@ -1,4 +1,4 @@
-# Non publié
+# Build 79 — 1.6.32 (MSIX 1.6.32.0)
 
 - 9 langues : italien, portugais, indonésien, norvégien et suédois ajoutés (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois).
 - Catalogue de l'application mobile : 9 992 ingrédients avec nutrition, allergènes, substituts et traductions.

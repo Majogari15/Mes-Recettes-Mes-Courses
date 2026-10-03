@@ -1,3 +1,7 @@
+# Build 79 — 1.6.32 (MSIX 1.6.32.0)
+
+9 langues, catalogue mobile de 9 992 ingrédients, i18n/ et data/, parité mobile (code-barres, péremption sur photo, ordres manuels), OCR 9 langues embarqué, recherche web de recettes, fix flake Tk. Voir CHANGELOG.md.
+
 # Build 78 — 1.6.31 (MSIX 1.6.31.0)
 
 Finalisation import, fractions PDF et protections des brouillons, fusions de recettes et journal. Voir RAPPORT_v78.md.
