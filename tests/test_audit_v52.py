@@ -51,6 +51,38 @@ class AuditV52Tests(unittest.TestCase):
             self.assertIn(r'Source: "dist\i18n\*"; DestDir: "{app}\i18n"', text, script)
             self.assertIn(r'Source: "dist\data\*"; DestDir: "{app}\data"', text, script)
 
+    def test_tesseract_packs_cover_every_ui_language(self):
+        import tempfile
+        import preparer_tesseract as prep
+        self.assertEqual(set(prep.LANGUAGES) - {"osd"}, set(main.TESSERACT_LANG_CODES.values()))
+        self.assertEqual(set(main.TESSERACT_LANG_CODES), set(main.UI_LANGUAGES))
+        self.assertIn("python preparer_tesseract.py", (ROOT / "Construire_le_exe.bat").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmp:
+            tessdata = Path(tmp) / "tessdata"
+            tessdata.mkdir()
+            (tessdata / "fra.traineddata").write_bytes(b"x" * prep.MIN_SIZE)
+            fetched = []
+            def fetch(url, destination):
+                fetched.append(url)
+                destination.write_bytes(b"x" * (10 if "nor" in url else prep.MIN_SIZE))
+            # Paquet tronqué : échec, aucun fichier final ni .part laissé.
+            with self.assertRaises(RuntimeError):
+                prep.ensure_languages(tessdata, ("fra", "ita", "nor"), fetch)
+            self.assertFalse((tessdata / "nor.traineddata").exists())
+            self.assertEqual(list(tessdata.glob("*.part")), [])
+            # Déjà présents : pas retéléchargés.
+            fetched.clear()
+            self.assertEqual(prep.ensure_languages(tessdata, ("fra", "ita", "swe"), fetch), ["swe"])
+            self.assertEqual(len(fetched), 1)
+            # Copie de l'installation système quand le dossier portable manque.
+            source = Path(tmp) / "sys"
+            (source / "tessdata").mkdir(parents=True)
+            (source / "tesseract.exe").write_bytes(b"exe")
+            target = Path(tmp) / "portable"
+            self.assertFalse(prep.copy_installation(target, [Path(tmp) / "absent"]))
+            self.assertTrue(prep.copy_installation(target, [source]))
+            self.assertTrue((target / "tesseract.exe").is_file())
+
     def test_ui_languages_are_loaded_only_when_used(self):
         lazy = main._LazyTranslations()
         self.assertEqual(dict.__len__(lazy), 0)
@@ -81,24 +113,66 @@ class AuditV52Tests(unittest.TestCase):
             catalog = main._language_catalog(language)
             self.assertEqual(set(main.FRENCH_STRINGS), set(catalog), language)
 
-def _retry_once_on_ci_flake(test_method):
-    """Ces deux tests ont échoué de façon intermittente en CI (jamais
-    reproduit localement malgré de nombreuses tentatives sur plusieurs
-    sessions), avec un symptôme différent à chaque occurrence : mauvaise
-    langue affichée, aucune mise à jour, ou échec de setUp() (RuntimeError
-    tkdnd, désormais corrigé séparément dans App.__init__). Cette variété
-    de symptômes est cohérente avec une sensibilité au timing propre aux
-    runners CI (nombreuses fenêtres Tk créées/détruites en rafale) plutôt
-    qu'un bug de traduction déterministe : une seule nouvelle tentative,
-    avec un setUp() entièrement neuf, absorbe ce bruit sans masquer une
-    vraie régression (qui échouerait alors aux deux tentatives)."""
-    def wrapper(self, *args, **kwargs):
+class TkReleasedInMainThreadTests(TempDataMixin, unittest.TestCase):
+    def test_destroyed_app_is_freed_by_the_main_thread_collection(self):
+        # Le garde-fou de conftest (gc.collect après chaque test) n'est utile
+        # que si une App détruite devient bien libérable : sinon elle serait
+        # collectée plus tard, au hasard, dans un thread secondaire.
+        import gc
+        import weakref
+        import conftest
+        self.assertTrue(hasattr(conftest, "_liberer_tk_dans_le_thread_principal"))
+        with patch.object(main, "get_disclaimer_accepted", lambda: True), \
+             patch.object(main, "maybe_create_auto_backup", lambda: None):
+            try:
+                app = main.App()
+            except tk.TclError as exc:
+                self.skipTest(str(exc))
+        app.withdraw()
+        app.update()
+        ref = weakref.ref(app)
+        app.destroy()
+        del app
+        gc.collect()
+        self.assertIsNone(ref())
+
+
+class PendingAfterCancelTests(unittest.TestCase):
+    def setUp(self):
         try:
-            return test_method(self, *args, **kwargs)
-        except AssertionError:
-            self.setUp()
-            return test_method(self, *args, **kwargs)
-    return wrapper
+            self.root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(self.root.destroy)
+        self.root.withdraw()
+
+    def _scheduled(self):
+        return set(self.root.tk.splitlist(self.root.tk.call("after", "info")))
+
+    def test_destroying_a_widget_cancels_its_pending_callbacks(self):
+        frame = ttk.Frame(self.root)
+        calls = []
+        idle_id = frame.after_idle(lambda: calls.append("idle"))
+        timer_id = frame.after(10, lambda: calls.append("timer"))
+        self.assertTrue({idle_id, timer_id} <= self._scheduled())
+        frame.destroy()
+        self.assertFalse({idle_id, timer_id} & self._scheduled())
+        self.root.after(30, lambda: None)
+        self.root.update()
+        self.root.after(40)
+        self.root.update()
+        self.assertEqual(calls, [])
+
+    def test_callbacks_still_run_and_are_forgotten_afterwards(self):
+        frame = ttk.Frame(self.root)
+        self.addCleanup(frame.destroy)
+        calls = []
+        frame.after_idle(lambda a, b: calls.append(a + b), 1, 2)
+        self.root.update()
+        self.assertEqual(calls, [3])
+        self.assertEqual(frame._pending_after_ids, set())
+        # after(ms) sans fonction reste une simple pause.
+        self.assertIsNone(frame.after(1))
 
 
 class OpenWindowRefreshTests(TempDataMixin, unittest.TestCase):
@@ -135,14 +209,12 @@ class OpenWindowRefreshTests(TempDataMixin, unittest.TestCase):
                         return grandchild
         self.fail("bouton Fermer introuvable dans DiagnosticWindow")
 
-    @_retry_once_on_ci_flake
     def test_set_language_retranslates_already_open_window(self):
         close_button = self._close_button()
         self.assertEqual(close_button.cget("text"), main.FRENCH_STRINGS["common_close"])
         self.app.set_language("en")
         self.assertEqual(close_button.cget("text"), main.TRANSLATIONS["en"]["common_close"])
 
-    @_retry_once_on_ci_flake
     def test_toggle_dark_mode_recolors_already_open_window(self):
         before = self.diag.cget("background")
         self.app.toggle_dark_mode()
@@ -150,7 +222,6 @@ class OpenWindowRefreshTests(TempDataMixin, unittest.TestCase):
         self.assertNotEqual(before, after)
         self.assertEqual(str(after), main.COLOR_BG)
 
-    @_retry_once_on_ci_flake
     def test_toggle_high_contrast_recolors_already_open_window(self):
         # Même mécanique que toggle_dark_mode, mode indépendant (voir
         # apply_palette) : la palette noir/blanc/jaune remplace le thème
@@ -172,6 +243,18 @@ class OpenWindowRefreshTests(TempDataMixin, unittest.TestCase):
         self.assertEqual(self.app.dark_mode, dark_mode_before_disable)
         expected = main.DARK_PALETTE if self.app.dark_mode else main.LIGHT_PALETTE
         self.assertEqual(main.COLOR_BG, expected["BG"])
+
+    def test_repeated_language_and_theme_changes_raise_no_tk_callback_error(self):
+        # Cause du flake : un after_idle programmé sur un widget détruit par
+        # la reconstruction de l'accueil appelait un nouveau `lambda e:` de
+        # même nom Tcl, sans argument (TypeError → boîte « Erreur »).
+        errors = []
+        self.app.report_callback_exception = lambda exc, val, tb: errors.append(f"{exc.__name__}: {val}")
+        for language in ("en", "fr", "de", "fr", "sv", "fr") * 4:
+            self.app.set_language(language)
+            self.app.toggle_dark_mode()
+            self.app.update()
+        self.assertEqual(errors, [])
 
     def test_toggle_large_text_rescales_already_open_window_font(self):
         style = ttk.Style(self.app)

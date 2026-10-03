@@ -23,43 +23,21 @@ sont rangées dans le dossier `docs/history` du dossier source.
 Ce dossier contient, à côté de Mes Recettes, Mes Courses.exe, plusieurs fichiers
 indispensables à son bon fonctionnement :
 
-  - i18n_desktop.json
-      Tous les textes de l'interface dans les 4 langues (français,
-      anglais, espagnol, allemand). Sans lui, l'application démarre
-      quand même (un petit noyau français minimal de secours est prévu
-      pour ça), mais la plupart des textes et les 3 langues autres que
-      le français ne s'afficheront pas correctement.
+  - Dossier i18n
+      Tous les textes de l'interface, un fichier par langue (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois).
+      Sans lui, l'application démarre quand même (un petit noyau
+      français minimal de secours est prévu pour ça), mais la plupart
+      des textes et les autres langues ne s'afficheront pas correctement.
 
-  - ingredients_par_defaut.json
-      Liste d'1030 ingrédients de cuisine courants, utilisée pour
-      pré-remplir vos listes déroulantes au premier lancement.
-
-  - valeurs_nutritionnelles.json
-      Base de valeurs nutritionnelles estimées (calories, protéines,
-      glucides, lipides) pour ces 1030 ingrédients, utilisée pour
-      l'estimation nutritionnelle de vos recettes.
-
-  - ingredient_allergenes.json
-      Base des allergènes présents dans ces 1030 ingrédients, utilisée
-      pour la détection automatique des allergènes dans vos recettes.
-
-  - ingredient_substitutions.json
-      Base d'une trentaine de substitutions culinaires courantes (beurre,
-      oeufs, farine, lait...), utilisée pour "Gérer les substitutions".
-
-  - ingredient_translations_en.json / ingredient_translations_es.json /
-    ingredient_translations_de.json
-      Traduction anglaise / espagnole / allemande des 1030 ingrédients
-      courants, utilisée pour l'affichage multilingue (voir section 3
-      ci-dessous).
-
-  - ingredient_substitutions_en.json / ingredient_substitutions_es.json /
-    ingredient_substitutions_de.json
-      Traduction anglaise / espagnole / allemande de la base de
-      substitutions ci-dessus.
-
-  - flag_fr.png / flag_uk.png / flag_es.png / flag_de.png
-      Icônes de drapeaux pour le menu déroulant de langue.
+  - Dossier data
+      Bases fournies avec l'application : catalogue de 9 992 ingrédients
+      (ingredients_par_defaut.json), valeurs nutritionnelles estimées
+      (valeurs_nutritionnelles.json), allergènes
+      (ingredient_allergenes.json), substitutions culinaires
+      (ingredient_substitutions.json), leurs traductions dans les 8
+      autres langues (ingredient_translations_<langue>.json,
+      ingredient_substitutions_<langue>.json) et les icônes de drapeaux
+      (flag_<langue>.png).
 
   - LISEZ-MOI.txt
       Ce fichier.
@@ -134,8 +112,8 @@ résultat : une fraction ou un caractère peut encore être mal reconnu.
 
 Un menu déroulant en haut à droite de la page d'accueil (et de l'écran de
 clause de responsabilité au tout premier lancement) permet de choisir
-entre français, anglais, espagnol et allemand. Toute l'interface bascule
-immédiatement, y compris les 1030 ingrédients courants, les rayons de
+entre français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien et suédois. Toute l'interface
+bascule immédiatement, y compris les 9 992 ingrédients du catalogue, les rayons de
 courses, les catégories, les difficultés, les allergènes, les jours de
 la semaine et créneaux de repas, les options de tri des recettes, les
 unités de mesure (pièce, cuillère à soupe/café...) et les substituts

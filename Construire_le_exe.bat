@@ -96,6 +96,15 @@ rem cote de ce script, il est copie dans dist pour que l'import de recette
 rem depuis une photo fonctionne sans que l'utilisateur installe quoi que ce
 rem soit separement. Absent, l'application se comporte comme avant (Tesseract
 rem doit alors etre installe a part - voir LISEZ-MOI.md).
+rem preparer_tesseract.py cree ce dossier a partir du Tesseract installe sur
+rem le PC de construction et y ajoute le paquet de chaque langue de
+rem l'interface : l'utilisateur final n'a rien a installer.
+python preparer_tesseract.py
+if errorlevel 1 (
+    echo [ERREUR] Paquets de langue Tesseract incomplets. Verifiez la connexion et relancez.
+    pause
+    exit /b 1
+)
 if exist tesseract-ocr (
     echo   Dossier tesseract-ocr detecte : copie pour un import photo autonome...
     xcopy /Y /E /I /Q tesseract-ocr dist\tesseract-ocr >nul

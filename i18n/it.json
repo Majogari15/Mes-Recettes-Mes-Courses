@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "Nessun codice a barre leggibile in questa foto. Prova una foto più nitida, inquadrata sul codice.",
   "pantry_barcode_incremented": "{name}: +1 (totale {quantity} {unit}).",
   "pantry_barcode_found": "Prodotto trovato: {product}.\n\nControlla l'ingrediente proposto (o scegline un altro), poi salva: questo codice verrà memorizzato.",
-  "pantry_barcode_unknown_product": "Prodotto {code} non trovato (o nessuna connessione). Indica l'ingrediente, poi salva: questo codice verrà memorizzato."
+  "pantry_barcode_unknown_product": "Prodotto {code} non trovato (o nessuna connessione). Indica l'ingrediente, poi salva: questo codice verrà memorizzato.",
+  "importurl_search_hint": "Parole chiave della ricetta (es. torta di porri), poi Invio. Vuoto: apre semplicemente il motore di ricerca.",
+  "home_clipboard_recipe": "🔗 Ricetta copiata: {url}",
+  "home_clipboard_import": "📥 Importa questa ricetta",
+  "home_clipboard_dismiss": "Ignora questo link"
 }

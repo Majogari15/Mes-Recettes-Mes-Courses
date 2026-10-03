@@ -58,33 +58,28 @@ thème sombre disponible en un clic.
   ces deux fichiers doivent rester ensemble pour le lancement avec Python
 - `windows_printing.py` : contrôleur d’impression Windows utilisé par les quatre
   boutons Imprimer (il est inclus automatiquement dans l’exécutable PyInstaller)
-- `i18n_desktop.json` : tous les textes de l'interface dans les 4 langues
-  (français, anglais, espagnol, allemand) — sans lui, l'application démarre
-  quand même grâce à un petit noyau français minimal de secours, mais la
-  plupart des textes et les langues autres que le français ne s'affichent
-  pas correctement
-- `ingredients_par_defaut.json` : liste d'1030 ingrédients de cuisine
-  courants fournie avec l'application (voir ci-dessous)
-- `valeurs_nutritionnelles.json` : base de valeurs nutritionnelles estimées
-  (kcal, protéines, glucides, lipides) fournie avec l'application, pour les
-  1030 ingrédients courants — voir la section "Coût et valeurs
-  nutritionnelles" plus bas
-- `ingredient_allergenes.json` : base des allergènes présents dans les
-  1030 ingrédients courants, fournie avec l'application (voir la section
-  "Détection automatique des allergènes" plus bas)
-- `ingredient_substitutions.json` : base d'une trentaine de substitutions
-  culinaires courantes fournie avec l'application (voir "🔄 Gérer les
-  substitutions" plus bas)
-- `ingredient_translations_en.json` / `ingredient_translations_es.json` /
-  `ingredient_translations_de.json` : traduction anglaise / espagnole /
-  allemande des 1030 ingrédients courants, fournies avec l'application,
-  pour l'affichage multilingue (voir "🌐 Changer de langue" plus bas)
-- `ingredient_substitutions_en.json` / `ingredient_substitutions_es.json` /
-  `ingredient_substitutions_de.json` : traduction anglaise / espagnole /
-  allemande de la base de substitutions ci-dessus
-- `flag_fr.png` / `flag_uk.png` / `flag_es.png` / `flag_de.png` : icônes de
-  drapeaux pour le menu déroulant de langue de la page d'accueil et de la
-  clause de responsabilité
+- `i18n/` : tous les textes de l'interface, un fichier par langue
+  (`fr.json`, `en.json`, `es.json`, `de.json`, `it.json`, `pt.json`,
+  `id.json`, `no.json`, `sv.json` — français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois). Seule la langue affichée est
+  chargée. Sans ce dossier, l'application démarre quand même grâce à un
+  petit noyau français minimal de secours, mais la plupart des textes et
+  les langues autres que le français ne s'affichent pas correctement
+- `data/` : bases fournies avec l'application, séparées de vos données
+  personnelles :
+  - `ingredients_par_defaut.json` : catalogue de 9 992 ingrédients
+    (le même que l'application mobile)
+  - `valeurs_nutritionnelles.json` : valeurs nutritionnelles estimées
+    (kcal, protéines, glucides, lipides) de ces ingrédients — voir la
+    section "Coût et valeurs nutritionnelles" plus bas
+  - `ingredient_allergenes.json` : allergènes de ces ingrédients (voir
+    "Détection automatique des allergènes" plus bas)
+  - `ingredient_substitutions.json` : base de substitutions culinaires
+    (voir "🔄 Gérer les substitutions" plus bas)
+  - `ingredient_translations_<langue>.json` et
+    `ingredient_substitutions_<langue>.json` : traductions des ingrédients
+    et des substituts dans les 8 autres langues (voir "🌐 Changer de
+    langue" plus bas)
+  - `flag_<langue>.png` : icônes de drapeaux du menu de langue
 - `recipes.json` : créé automatiquement dès que vous enregistrez votre
   première recette (votre base de données de recettes)
 - `ingredients.json` : créé automatiquement, contient la liste des
@@ -120,16 +115,11 @@ thème sombre disponible en un clic.
 - `images/` : créé automatiquement, contient les photos de vos recettes et
   de votre journal de cuisine
 
-> ⚠️ Important : gardez `i18n_desktop.json`, `ingredients_par_defaut.json`, `valeurs_nutritionnelles.json`,
-> `ingredient_allergenes.json`, `ingredient_substitutions.json`,
-> `ingredient_translations_en.json`, `ingredient_translations_es.json`,
-> `ingredient_translations_de.json`, `ingredient_substitutions_en.json`,
-> `ingredient_substitutions_es.json`, `ingredient_substitutions_de.json`
-> **et** les quatre fichiers `flag_*.png` dans le même dossier que `main.py`
-> (et à côté du `.exe` si vous en générez un). `i18n_desktop.json` fournit
-> les textes de l'interface ; les autres JSON fournissent les bases et leurs
-> traductions ; les quatre PNG fournissent les drapeaux. Une ressource
-> manquante peut dégrader l'affichage ou rendre des données indisponibles.
+> ⚠️ Important : gardez les dossiers `i18n/` **et** `data/` dans le même
+> dossier que `main.py` (et à côté du `.exe` si vous en générez un).
+> `i18n/` fournit les textes de l'interface ; `data/` fournit les bases,
+> leurs traductions et les drapeaux. Une ressource manquante peut dégrader
+> l'affichage ou rendre des données indisponibles.
 > Les données personnelles, elles, peuvent se trouver dans un autre dossier :
 > consultez l'écran Diagnostic pour connaître leur emplacement exact.
 
@@ -283,7 +273,7 @@ aussi à sa nouvelle taille adaptée.
 
 **🌐 Changer de langue** — le menu déroulant en haut à droite de la page
 d'accueil (affichant la langue actuelle avec sa vraie icône de drapeau)
-propose un choix direct entre les quatre langues disponibles pour toute
+propose un choix direct entre les neuf langues disponibles pour toute
 l'interface : page d'accueil, chaque fenêtre, chaque message d'erreur ou
 de confirmation, y compris le texte légal de la clause de
 responsabilité. D'autres langues pourront être ajoutées de la même façon
@@ -294,15 +284,15 @@ changement).
 
 Au tout premier lancement (avant qu'aucune préférence n'ait jamais été
 enregistrée), l'application démarre dans la langue de votre système
-d'exploitation si elle est reconnue (anglais, espagnol, allemand ou
-français), au lieu de toujours démarrer en français. Ensuite, votre
+d'exploitation si elle est reconnue (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois), au lieu de toujours démarrer en français. Ensuite, votre
 choix — qu'il vienne de cette détection ou d'une sélection manuelle — est
 toujours respecté et n'est plus jamais écrasé automatiquement.
 
-Les 1030 ingrédients courants de la liste par défaut (fichiers
-`ingredient_translations_en.json`, `ingredient_translations_es.json` et
-`ingredient_translations_de.json`) s'affichent eux aussi dans la langue
-choisie — dans les recettes, le garde-manger, les listes de courses et
+Les 9 992 ingrédients du catalogue (fichiers
+`data/ingredient_translations_<langue>.json`) s'affichent eux aussi dans la
+langue choisie, tout comme leurs allergènes, leurs substituts et les
+libellés nutritionnels ; un ingrédient peut aussi être saisi directement
+dans la langue de l'interface (« Burro » ou « Smör » retrouvent « Beurre ») — dans les recettes, le garde-manger, les listes de courses et
 leurs exports. La donnée réelle reste toujours en français en interne
 (recherche, tri, allergènes, prix, substituts...), donc rien ne change
 dans vos données. Un ingrédient personnalisé sans traduction connue
@@ -430,7 +420,7 @@ Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
     glucides, lipides) — laissez vide si vous ne les connaissez pas ;
   - le **prix** (voir "💰 Gérer les prix" plus bas).
   Ce que vous renseignez ici est prioritaire sur les bases fournies avec
-  l'application (1030 ingrédients) : par exemple, si vous corrigez la valeur
+  l'application (9 992 ingrédients) : par exemple, si vous corrigez la valeur
   calorique d'un ingrédient courant, c'est votre valeur qui sera utilisée
   partout. Le bouton "🗑️ Supprimer cet ingrédient" est aussi disponible
   directement dans cette fenêtre lors d'une modification ;
@@ -440,7 +430,7 @@ Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
   > "Tomate" existe déjà) et vous invite à utiliser directement l'ingrédient
   > existant plutôt que d'en créer un doublon — pour que chaque ingrédient
   > n'apparaisse toujours qu'une seule fois dans la liste ;
-- "📚 Charger les 1030 ingrédients courants" ajoute d'un coup tous les
+- "📚 Charger le catalogue complet d'ingrédients" ajoute d'un coup tous les
   ingrédients de la liste fournie avec l'application qui ne sont pas déjà
   présents (aucun doublon, aucune suppression) ;
 - "🔤 Vérifier les doublons / fautes de frappe" analyse toute votre liste
@@ -463,11 +453,11 @@ Un cinquième bouton permet de gérer la liste des ingrédients réutilisables :
   analyse, aujourd'hui et lors de toutes les analyses suivantes.
 
 > Au tout premier lancement de l'application (avant toute création de
-> recette), la liste des 1030 ingrédients les plus utilisés en cuisine est
+> recette), le catalogue des 9 992 ingrédients est
 > automatiquement chargée, pour que les menus déroulants soient tout de suite
 > bien fournis. Si vous avez déjà utilisé l'application avant cette mise à
-> jour, utilisez simplement le bouton "📚 Charger les 1030 ingrédients
-> courants" pour les ajouter à votre liste existante.
+> jour, utilisez simplement le bouton "📚 Charger le catalogue complet
+> d'ingrédients" pour les ajouter à votre liste existante.
 
 <a id="recherche-ingredient"></a>
 **🔎 Recherche par ingrédient**
@@ -507,7 +497,7 @@ automatiquement dans "Voir une recette précise", dans les exports PDF
 recettes". De la même façon, les **valeurs nutritionnelles estimées**
 (calories, protéines, glucides, lipides) s'affichent partout, calculées à
 partir de la base `valeurs_nutritionnelles.json` fournie avec l'application
-(1030 ingrédients) — sans rien à configurer de votre côté pour la
+(9 992 ingrédients) — sans rien à configurer de votre côté pour la
 nutrition, contrairement au coût.
 
 <a id="gerer-substitutions"></a>
@@ -858,7 +848,7 @@ de la sélection actuelle.
 > courses, planning de la semaine et menus.
 
 > Le classement par rayon repose sur la reconnaissance du nom de
-> l'ingrédient. Il fonctionne très bien avec les 1030 ingrédients fournis et
+> l'ingrédient. Il fonctionne très bien avec les 9 992 ingrédients fournis et
 > la plupart des noms courants, mais un ingrédient au nom très inhabituel
 > pourra atterrir dans la catégorie "Autre" plutôt que dans le bon rayon.
 
@@ -1265,8 +1255,8 @@ et décompressé du projet (voir `DEMARRAGE_RAPIDE.md`). Ce script installe
 nécessaires au glisser-déposer, à la lecture vocale et aux QR codes, puis
 copie les ressources dans `dist/`.
 
-Gardez le dossier `dist/` entier : il contient notamment `i18n_desktop.json`,
-les bases JSON, leurs traductions, les drapeaux et `LISEZ-MOI.txt`. Ne copiez
+Gardez le dossier `dist/` entier : il contient notamment les dossiers `i18n/` et
+`data/` (bases JSON, traductions, drapeaux) et `LISEZ-MOI.txt`. Ne copiez
 pas seulement l'exécutable. Il fonctionne sans installation séparée de
 Python ; Tesseract OCR reste nécessaire pour l'import photo, **sauf** si un
 dossier `tesseract-ocr` portable a été fourni avant la construction (voir

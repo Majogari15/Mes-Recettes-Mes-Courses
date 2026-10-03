@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "Aucun code-barres lisible sur cette photo. Essayez une photo plus nette, bien cadrée sur le code.",
   "pantry_barcode_incremented": "{name} : +1 (total {quantity} {unit}).",
   "pantry_barcode_found": "Produit trouvé : {product}.\n\nVérifiez l'ingrédient proposé (ou choisissez-en un autre), puis enregistrez : ce code sera mémorisé.",
-  "pantry_barcode_unknown_product": "Produit {code} introuvable (ou pas de connexion). Indiquez l'ingrédient puis enregistrez : ce code sera mémorisé."
+  "pantry_barcode_unknown_product": "Produit {code} introuvable (ou pas de connexion). Indiquez l'ingrédient puis enregistrez : ce code sera mémorisé.",
+  "importurl_search_hint": "Mots-clés de la recette (ex. tarte aux poireaux), puis Entrée. Vide : ouvre simplement le moteur de recherche.",
+  "home_clipboard_recipe": "🔗 Recette copiée : {url}",
+  "home_clipboard_import": "📥 Importer cette recette",
+  "home_clipboard_dismiss": "Ignorer ce lien"
 }

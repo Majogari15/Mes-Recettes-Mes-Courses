@@ -837,6 +837,92 @@ class ImportUrlClipboardTests(TempDataMixin, unittest.TestCase):
             self.win._open_web_search()
         mock_open.assert_called_once_with("https://www.google.com")
 
+    def test_search_with_keywords_targets_verified_recipe_sites(self):
+        self.win.search_entry.insert(0, "tarte aux poireaux")
+        with patch.object(main.webbrowser, "open") as mock_open:
+            self.win._open_web_search()
+        url = mock_open.call_args[0][0]
+        query = main.urllib.parse.parse_qs(main.urllib.parse.urlparse(url).query)["q"][0]
+        self.assertTrue(query.startswith("tarte aux poireaux recette ("))
+        self.assertIn("site:marmiton.org OR site:cuisineaz.com", query)
+        # Langue sans sites vérifiés : mot « recette » local, pas de filtre.
+        query_sv = main.urllib.parse.parse_qs(main.urllib.parse.urlparse(
+            main.build_recipe_search_url("kanelbulle", "sv")).query)["q"][0]
+        self.assertEqual(query_sv, "kanelbulle recept")
+        self.assertEqual(set(main.RECIPE_SEARCH_WORD), set(main.UI_LANGUAGES))
+
+    def test_looks_like_recipe_url(self):
+        for url in ("https://www.marmiton.org/recettes/x.aspx", "https://m.chefkoch.de/rezepte/1/",
+                    "https://blog.example.it/ricette/torta", "https://exemple.fr/recette-tarte"):
+            self.assertTrue(main.looks_like_recipe_url(url), url)
+        for url in ("https://www.youtube.com/watch?v=1", "https://notmarmiton.org/x", "ftp://marmiton.org/x", "", "https://[::1"):
+            self.assertFalse(main.looks_like_recipe_url(url), url)
+
+
+class HomeClipboardRecipeTests(TempDataMixin, unittest.TestCase):
+    """Retour sur l'app après avoir copié un lien de recette dans le
+    navigateur : bandeau sur l'accueil, import seulement sur clic."""
+
+    def setUp(self):
+        super().setUp()
+        for name, value in (
+            ("get_disclaimer_accepted", lambda: True),
+            ("get_large_text_preference", lambda: False),
+            ("get_language_preference", lambda: "fr"),
+            ("maybe_create_auto_backup", lambda: None),
+        ):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        try:
+            self.app = main.App()
+        except tk.TclError as exc:
+            self.skipTest(str(exc))
+        self.addCleanup(self.app.destroy)
+        self.app.update()
+
+    def _focus_with_clipboard(self, content, widget=None):
+        with patch.object(self.app, "clipboard_get", return_value=content):
+            self.app._on_app_focus_in(SimpleNamespace(widget=widget or self.app))
+        self.app.update()
+
+    def test_recipe_link_shows_banner_once_and_import_needs_a_click(self):
+        url = "https://www.marmiton.org/recettes/recette_tarte.aspx"
+        with patch.object(main.ImportFromUrlWindow, "fetch") as mock_fetch:
+            self._focus_with_clipboard("Regarde : " + url)
+            banner = self.app._clipboard_banner
+            self.assertIsNotNone(banner)
+            self.assertTrue(banner.winfo_ismapped())
+            mock_fetch.assert_not_called()
+            # Même lien au retour suivant : pas réannoncé.
+            self.app._dismiss_clipboard_banner()
+            self._focus_with_clipboard(url)
+            self.assertIsNone(self.app._clipboard_banner)
+            self.app._clipboard_seen_url = None
+            self._focus_with_clipboard(url)
+            window = self.app._import_clipboard_recipe(url)
+            self.addCleanup(window.destroy)
+        self.assertEqual(window.url_entry.get(), url)
+        mock_fetch.assert_called_once()
+        self.assertIsNone(self.app._clipboard_banner)
+
+    def test_ignored_cases(self):
+        # Lien quelconque, focus d'un widget enfant, presse-papiers vide,
+        # recette déjà importée depuis ce lien : aucun bandeau.
+        self._focus_with_clipboard("https://www.youtube.com/watch?v=1")
+        self._focus_with_clipboard("https://exemple.fr/recette", widget=SimpleNamespace())
+        with patch.object(self.app, "clipboard_get", side_effect=tk.TclError("vide")):
+            self.app._on_app_focus_in(SimpleNamespace(widget=self.app))
+        self.app.recipes.append({"name": "Tarte", "source_url": "https://exemple.fr/recette-tarte"})
+        self._focus_with_clipboard("https://exemple.fr/recette-tarte")
+        self.assertIsNone(self.app._clipboard_banner)
+
+    def test_home_rebuild_drops_banner(self):
+        self._focus_with_clipboard("https://exemple.fr/recette-soupe")
+        self.assertIsNotNone(self.app._clipboard_banner)
+        self.app._build_home_ui()
+        self.assertIsNone(self.app._clipboard_banner)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

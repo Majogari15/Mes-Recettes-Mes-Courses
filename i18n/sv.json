@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "Ingen läsbar streckkod på fotot. Prova ett skarpare foto riktat mot koden.",
   "pantry_barcode_incremented": "{name}: +1 (totalt {quantity} {unit}).",
   "pantry_barcode_found": "Produkt hittad: {product}.\n\nKontrollera den föreslagna ingrediensen (eller välj en annan) och spara: koden sparas.",
-  "pantry_barcode_unknown_product": "Produkt {code} hittades inte (eller ingen anslutning). Ange ingrediensen och spara: koden sparas."
+  "pantry_barcode_unknown_product": "Produkt {code} hittades inte (eller ingen anslutning). Ange ingrediensen och spara: koden sparas.",
+  "importurl_search_hint": "Sökord för receptet (t.ex. purjolökspaj), sedan Enter. Tomt: öppnar bara sökmotorn.",
+  "home_clipboard_recipe": "🔗 Kopierat recept: {url}",
+  "home_clipboard_import": "📥 Importera det här receptet",
+  "home_clipboard_dismiss": "Ignorera den här länken"
 }

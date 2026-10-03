@@ -1,3 +1,13 @@
+# Non publié
+
+- 9 langues : italien, portugais, indonésien, norvégien et suédois ajoutés (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois).
+- Catalogue de l'application mobile : 9 992 ingrédients avec nutrition, allergènes, substituts et traductions.
+- Textes de l'interface découpés en `i18n/<langue>.json` (chargés à la demande) ; bases fournies regroupées dans `data/`.
+- Parité mobile : code-barres (Open Food Facts), date de péremption lue sur photo, ordre manuel des rayons et du garde-manger, thème du système, import de QR collé.
+- Lecture de photo (OCR) prête dans les 9 langues sans rien installer : `preparer_tesseract.py` embarque Tesseract et ses paquets de langue au build.
+- Import par lien : recherche web ciblée sur les sites vérifiés ; un lien de recette copié est proposé à l'import sur l'accueil (clic requis).
+- Import/export partagé Windows/mobile : journal de cuisine (avec photos) et prix conservés.
+
 # Build 78 — 1.6.31 (MSIX 1.6.31.0)
 
 Finalisation import, fractions PDF et protections des brouillons, fusions de recettes et journal. Voir RAPPORT_v78.md.

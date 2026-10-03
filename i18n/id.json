@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "Tidak ada kode batang yang terbaca di foto ini. Coba foto yang lebih tajam dan terfokus pada kode.",
   "pantry_barcode_incremented": "{name}: +1 (total {quantity} {unit}).",
   "pantry_barcode_found": "Produk ditemukan: {product}.\n\nPeriksa bahan yang disarankan (atau pilih yang lain), lalu simpan: kode ini akan diingat.",
-  "pantry_barcode_unknown_product": "Produk {code} tidak ditemukan (atau tidak ada koneksi). Masukkan bahannya, lalu simpan: kode ini akan diingat."
+  "pantry_barcode_unknown_product": "Produk {code} tidak ditemukan (atau tidak ada koneksi). Masukkan bahannya, lalu simpan: kode ini akan diingat.",
+  "importurl_search_hint": "Kata kunci resep (mis. pai daun bawang), lalu Enter. Kosong: hanya membuka mesin pencari.",
+  "home_clipboard_recipe": "🔗 Resep disalin: {url}",
+  "home_clipboard_import": "📥 Impor resep ini",
+  "home_clipboard_dismiss": "Abaikan tautan ini"
 }

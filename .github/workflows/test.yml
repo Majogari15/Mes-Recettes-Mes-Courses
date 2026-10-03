@@ -79,7 +79,7 @@ jobs:
 
       - name: Run tests with xvfb (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: xvfb-run -a python -m pytest tests/ -v --cov=main --cov-report=xml
+        run: xvfb-run -a python -m pytest tests/ -v -rs --cov=main --cov-report=xml
 
       # Sur les runners Windows hébergés, le dossier Tcl/Tk venant d'être
       # écrit dans le hostedtoolcache est parfois encore verrouillé par un
@@ -94,16 +94,16 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          python -m pytest tests/ -v --cov=main --cov-report=xml
+          python -m pytest tests/ -v -rs --cov=main --cov-report=xml
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::warning::Premiere tentative echouee, nouvelle tentative apres une pause (voir commentaire de l'etape pour la cause probable)."
             Start-Sleep -Seconds 10
-            python -m pytest tests/ -v --cov=main --cov-report=xml
+            python -m pytest tests/ -v -rs --cov=main --cov-report=xml
           }
           exit $LASTEXITCODE
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           fail_ci_if_error: false

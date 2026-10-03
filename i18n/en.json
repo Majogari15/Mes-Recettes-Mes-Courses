@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "No readable barcode in this photo. Try a sharper photo framed on the code.",
   "pantry_barcode_incremented": "{name}: +1 (total {quantity} {unit}).",
   "pantry_barcode_found": "Product found: {product}.\n\nCheck the suggested ingredient (or pick another), then save: this code will be remembered.",
-  "pantry_barcode_unknown_product": "Product {code} not found (or no connection). Enter the ingredient, then save: this code will be remembered."
+  "pantry_barcode_unknown_product": "Product {code} not found (or no connection). Enter the ingredient, then save: this code will be remembered.",
+  "importurl_search_hint": "Recipe keywords (e.g. leek tart), then Enter. Empty: just opens the search engine.",
+  "home_clipboard_recipe": "🔗 Copied recipe: {url}",
+  "home_clipboard_import": "📥 Import this recipe",
+  "home_clipboard_dismiss": "Ignore this link"
 }

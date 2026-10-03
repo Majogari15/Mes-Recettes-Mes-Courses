@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "Kein lesbarer Barcode auf diesem Foto. Versuchen Sie ein schärferes, auf den Code ausgerichtetes Foto.",
   "pantry_barcode_incremented": "{name}: +1 (insgesamt {quantity} {unit}).",
   "pantry_barcode_found": "Produkt gefunden: {product}.\n\nPrüfen Sie die vorgeschlagene Zutat (oder wählen Sie eine andere) und speichern Sie: Dieser Code wird gespeichert.",
-  "pantry_barcode_unknown_product": "Produkt {code} nicht gefunden (oder keine Verbindung). Geben Sie die Zutat ein und speichern Sie: Dieser Code wird gespeichert."
+  "pantry_barcode_unknown_product": "Produkt {code} nicht gefunden (oder keine Verbindung). Geben Sie die Zutat ein und speichern Sie: Dieser Code wird gespeichert.",
+  "importurl_search_hint": "Stichwörter zum Rezept (z. B. Lauchkuchen), dann Eingabe. Leer: öffnet einfach die Suchmaschine.",
+  "home_clipboard_recipe": "🔗 Kopiertes Rezept: {url}",
+  "home_clipboard_import": "📥 Dieses Rezept importieren",
+  "home_clipboard_dismiss": "Diesen Link ignorieren"
 }

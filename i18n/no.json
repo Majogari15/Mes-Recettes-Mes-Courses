@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "Ingen lesbar strekkode på dette bildet. Prøv et skarpere bilde rettet mot koden.",
   "pantry_barcode_incremented": "{name}: +1 (totalt {quantity} {unit}).",
   "pantry_barcode_found": "Produkt funnet: {product}.\n\nKontroller den foreslåtte ingrediensen (eller velg en annen) og lagre: denne koden blir husket.",
-  "pantry_barcode_unknown_product": "Produkt {code} ble ikke funnet (eller ingen tilkobling). Skriv inn ingrediensen og lagre: denne koden blir husket."
+  "pantry_barcode_unknown_product": "Produkt {code} ble ikke funnet (eller ingen tilkobling). Skriv inn ingrediensen og lagre: denne koden blir husket.",
+  "importurl_search_hint": "Stikkord for oppskriften (f.eks. purreterte), deretter Enter. Tomt: åpner bare søkemotoren.",
+  "home_clipboard_recipe": "🔗 Kopiert oppskrift: {url}",
+  "home_clipboard_import": "📥 Importer denne oppskriften",
+  "home_clipboard_dismiss": "Ignorer denne lenken"
 }

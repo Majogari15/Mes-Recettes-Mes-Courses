@@ -33,11 +33,10 @@ icône à double-cliquer) :
    l'exécutable automatiquement. La durée dépend du PC et des téléchargements.
 4. Une fois terminé, votre application se trouve dans le dossier `dist`,
    sous le nom **`Mes Recettes, Mes Courses.exe`**, accompagnée automatiquement de tous
-   les fichiers nécessaires à son fonctionnement (`i18n_desktop.json`,
-   `ingredients_par_defaut.json`,
-   `valeurs_nutritionnelles.json`, `ingredient_allergenes.json`,
-   `ingredient_substitutions.json`, les traductions anglaise, espagnole et
-   allemande des ingrédients et des substituts, les icônes de drapeaux, et
+   les fichiers nécessaires à son fonctionnement (dossier `i18n/` des
+   textes de l'interface, dossier `data/` avec le catalogue d'ingrédients,
+   les valeurs nutritionnelles, les allergènes, les substituts, leurs
+   traductions et les icônes de drapeaux, et
    `LISEZ-MOI.txt`).
 5. Vous pouvez déplacer le dossier `dist` entier où vous voulez (clé USB,
    Bureau, autre PC...) — gardez tous les fichiers de ce dossier ensemble.
@@ -59,8 +58,8 @@ icône à double-cliquer) :
   Python — voir Option A)
 - `windows_printing.py` : contrôleur d’impression Windows utilisé en mode Python
   et intégré automatiquement dans le `.exe`
-- `i18n_desktop.json` : tous les textes de l'interface dans les 4 langues
-  (français, anglais, espagnol, allemand)
+- `i18n/` : tous les textes de l'interface, un fichier par langue
+  (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois)
 - `ingredients_par_defaut.json`, `valeurs_nutritionnelles.json`,
   `ingredient_allergenes.json`, `ingredient_substitutions.json` : les bases
   de données fournies (ingrédients courants, valeurs nutritionnelles,

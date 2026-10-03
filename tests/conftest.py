@@ -1,3 +1,4 @@
+import gc
 import os
 import sys
 
@@ -58,3 +59,16 @@ def _interdire_dialogues_tk_inattendus(monkeypatch):
         monkeypatch.setattr(main, "detect_system_dark_mode", lambda: False)
 
     yield
+
+
+@pytest.fixture(autouse=True)
+def _liberer_tk_dans_le_thread_principal():
+    # Une fenêtre Tk détruite reste souvent en mémoire (cycles de
+    # références) jusqu'au prochain passage du ramasse-miettes, qui peut se
+    # déclencher dans n'importe quel thread — par exemple celui de la
+    # sauvegarde automatique lancé par App(). Tcl libéré hors de son thread
+    # = Tcl_Panic, le processus pytest meurt (« Windows fatal exception:
+    # code 0x80000003 » observé en CI). Collecter ici, dans le thread
+    # principal, après chaque test supprime ce cas.
+    yield
+    gc.collect()

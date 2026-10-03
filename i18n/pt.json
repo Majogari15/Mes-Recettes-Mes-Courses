@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "Nenhum código de barras legível nesta foto. Experimente uma foto mais nítida, centrada no código.",
   "pantry_barcode_incremented": "{name}: +1 (total {quantity} {unit}).",
   "pantry_barcode_found": "Produto encontrado: {product}.\n\nVerifique o ingrediente sugerido (ou escolha outro) e guarde: este código ficará memorizado.",
-  "pantry_barcode_unknown_product": "Produto {code} não encontrado (ou sem ligação). Indique o ingrediente e guarde: este código ficará memorizado."
+  "pantry_barcode_unknown_product": "Produto {code} não encontrado (ou sem ligação). Indique o ingrediente e guarde: este código ficará memorizado.",
+  "importurl_search_hint": "Palavras-chave da receita (ex.: tarte de alho-francês) e depois Enter. Vazio: abre apenas o motor de pesquisa.",
+  "home_clipboard_recipe": "🔗 Receita copiada: {url}",
+  "home_clipboard_import": "📥 Importar esta receita",
+  "home_clipboard_dismiss": "Ignorar esta ligação"
 }

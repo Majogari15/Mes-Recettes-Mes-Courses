@@ -24,7 +24,7 @@ Décompressez l'archive complète dans un dossier. Gardez ensemble `main.py`,
 
 Sur votre PC Windows, lancez d'abord `Construire_le_exe.bat`. Il construit
 `dist\Mes Recettes, Mes Courses.exe` et copie les ressources nécessaires dans `dist`,
-notamment `i18n_desktop.json`, les bases et traductions, les drapeaux et
+notamment les dossiers `i18n/` et `data/` (bases, traductions, drapeaux) et
 `LISEZ-MOI.txt`. Testez cet exécutable avant de créer l'installateur.
 
 Installez ensuite [Inno Setup depuis son site officiel](https://jrsoftware.org/isdl.php)
@@ -96,7 +96,7 @@ est satisfaite. Consultez les
 ## 5. Vérifier avant la soumission
 
 La compilation réussie de l'installateur ne garantit pas la certification.
-Installez le MSIX final sur Windows et testez le lancement, les quatre langues,
+Installez le MSIX final sur Windows et testez le lancement, les neuf langues,
 les données conservées lors d'une mise à jour, les sauvegardes et restaurations,
 les imports et les exports. Contrôlez le nom, l'icône et les entrées du menu Démarrer.
 

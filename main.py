@@ -62,6 +62,59 @@ def log_internal_error(context, exc):
         pass
 
 
+_tk_original_after = tk.Misc.after
+_tk_original_widget_destroy = tk.BaseWidget.destroy
+_tk_original_root_destroy = tk.Tk.destroy
+
+
+def _tk_tracked_after(self, ms, func=None, *args):
+    """after/after_idle annulés automatiquement à la destruction du widget.
+
+    Tkinter nomme la commande Tcl d'un rappel « <id Python><nom> » et la
+    rattache au widget : détruit avant le déclenchement, le widget supprime
+    la commande mais Tcl garde l'événement programmé. Si Python réutilise
+    ensuite la même adresse pour un autre lambda (ex. un `lambda e:` de
+    l'accueil reconstruit après un changement de langue/thème), l'ancien
+    événement appelle ce nouveau lambda sans argument : TypeError et boîte
+    « Erreur » aléatoires (le flake Tk des tests, réel aussi dans l'app)."""
+    if func is None:
+        return _tk_original_after(self, ms)
+    pending = self.__dict__.setdefault("_pending_after_ids", set())
+    holder = {}
+
+    def run(*call_args):
+        pending.discard(holder.get("id"))
+        return func(*call_args)
+    run.__name__ = getattr(func, "__name__", "run")
+    holder["id"] = _tk_original_after(self, ms, run, *args)
+    pending.add(holder["id"])
+    return holder["id"]
+
+
+def _tk_cancel_pending_afters(widget):
+    for after_id in list(widget.__dict__.get("_pending_after_ids", ())):
+        try:
+            widget.after_cancel(after_id)
+        except (tk.TclError, ValueError):
+            pass
+    widget.__dict__.get("_pending_after_ids", set()).clear()
+
+
+def _tk_widget_destroy(self):
+    _tk_cancel_pending_afters(self)
+    _tk_original_widget_destroy(self)
+
+
+def _tk_root_destroy(self):
+    _tk_cancel_pending_afters(self)
+    _tk_original_root_destroy(self)
+
+
+tk.Misc.after = _tk_tracked_after
+tk.BaseWidget.destroy = _tk_widget_destroy
+tk.Tk.destroy = _tk_root_destroy
+
+
 def install_tk_exception_logger(root):
     """Journalise les exceptions de callbacks Tkinter dans error.log."""
     def handler(exc_type, exc_value, exc_tb):
@@ -8185,6 +8238,9 @@ class App(APP_TK_BASE):
         # Sauvegarde automatique périodique (silencieuse, ne bloque jamais le démarrage)
         threading.Thread(target=maybe_create_auto_backup, daemon=True).start()
 
+        self._clipboard_seen_url = None
+        self._clipboard_banner = None
+        self.bind("<FocusIn>", self._on_app_focus_in, add="+")
         self._build_home_ui()
         try:
             cleanup_stale_import_temp()
@@ -8447,6 +8503,7 @@ class App(APP_TK_BASE):
         # à chaque lancement, conformément au choix de l'éditeur.
         top_bar = tk.Frame(self, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
         top_bar.pack(fill="x")
+        self._home_top_bar, self._clipboard_banner = top_bar, None
         ttk.Button(top_bar, text=t("home_donate_button"), style="Hero.TButton",
                    command=self.open_donate_page).pack(side="left", padx=gs(SPACE_MD), pady=gs(SPACE_SM))
         ttk.Label(top_bar, text=t("home_window_title"), font=("Segoe UI", sf(15), "bold"),
@@ -8920,6 +8977,56 @@ class App(APP_TK_BASE):
     # ---------- Importer une recette depuis un lien ----------
     def open_import_from_url(self):
         ImportFromUrlWindow(self)
+
+    def _on_app_focus_in(self, event):
+        # Retour sur l'app (souvent depuis le navigateur) : focus de la
+        # fenêtre elle-même seulement, pas de chacun de ses widgets.
+        if event.widget is self:
+            self._check_clipboard_recipe_url()
+
+    def _check_clipboard_recipe_url(self):
+        """Propose (bandeau, jamais d'import automatique) d'importer un lien
+        de recette copié, une seule fois par lien."""
+        try:
+            url = ImportFromUrlWindow._extract_url(self.clipboard_get())
+        except tk.TclError:
+            return
+        if not url or url == self._clipboard_seen_url or not looks_like_recipe_url(url):
+            return
+        self._clipboard_seen_url = url
+        if any(isinstance(r, dict) and r.get("source_url") == url for r in self.recipes):
+            return
+        self._show_clipboard_recipe_banner(url)
+
+    def _show_clipboard_recipe_banner(self, url):
+        self._dismiss_clipboard_banner()
+        top_bar = getattr(self, "_home_top_bar", None)
+        if top_bar is None or not top_bar.winfo_exists():
+            return
+        banner = tk.Frame(self, background=COLOR_CARD, highlightbackground=COLOR_ACCENT, highlightthickness=2)
+        banner.pack(fill="x", after=top_bar, padx=gs(SPACE_MD), pady=(gs(SPACE_SM), 0))
+        display = url if len(url) <= 70 else url[:67] + "…"
+        ttk.Label(banner, text=t("home_clipboard_recipe", url=display), style="Card.TLabel",
+                  font=("Segoe UI", sf(10), "bold")).pack(side="left", padx=gs(SPACE_MD), pady=gs(SPACE_SM))
+        close = ttk.Button(banner, text="✕", width=3, command=self._dismiss_clipboard_banner)
+        close.pack(side="right", padx=(0, gs(SPACE_SM)))
+        add_tooltip(close, t("home_clipboard_dismiss"))
+        ttk.Button(banner, text=t("home_clipboard_import"), style="Primary.TButton",
+                   command=lambda: self._import_clipboard_recipe(url)).pack(side="right", padx=gs(SPACE_SM), pady=gs(SPACE_SM))
+        self._clipboard_banner = banner
+
+    def _dismiss_clipboard_banner(self):
+        banner, self._clipboard_banner = self._clipboard_banner, None
+        if banner is not None and banner.winfo_exists():
+            banner.destroy()
+
+    def _import_clipboard_recipe(self, url):
+        self._dismiss_clipboard_banner()
+        window = ImportFromUrlWindow(self)
+        window.url_entry.insert(0, url)
+        window._last_seen_clipboard_url = url
+        window.fetch()
+        return window
 
     # ---------- Importer une recette depuis une photo ----------
     def open_import_from_photo(self):
@@ -20226,6 +20333,52 @@ class MenuFormWindow(ShoppingCartRenderMixin, tk.Toplevel):
         ShoppingChecklistWindow(self.app, grouped_totals, title=t("menuform_shopping_list_title", name=menu_name))
 
 
+# Recherche web d'une recette : le navigateur habituel s'ouvre sur une
+# recherche limitée aux sites dont l'import a été vérifié (pas de collecte
+# des résultats dans l'app : rien ne casse quand un moteur change sa page).
+RECIPE_SEARCH_SITES = {
+    "fr": ("marmiton.org", "cuisineaz.com", "750g.com", "cuisineactuelle.fr", "chefsimon.com", "papillesetpupilles.fr"),
+    "en": ("allrecipes.com", "bbcgoodfood.com", "seriouseats.com", "simplyrecipes.com", "foodnetwork.com", "epicurious.com"),
+    "es": ("recetasderechupete.com", "directoalpaladar.com", "javirecetas.com", "hogarmania.com", "cocina-casera.com", "divinacocina.es"),
+    "de": ("chefkoch.de", "lecker.de", "einfachbacken.de", "gutekueche.at", "essen-und-trinken.de", "kochbar.de"),
+}
+RECIPE_SEARCH_WORD = {"fr": "recette", "en": "recipe", "es": "receta", "de": "Rezept", "it": "ricetta",
+                      "pt": "receita", "id": "resep", "no": "oppskrift", "sv": "recept"}
+# Sites testés à l'import (2 recettes chacun) + racines du mot « recette »
+# dans les 9 langues : un lien copié n'est proposé à l'import que s'il
+# ressemble à une recette, pas pour chaque adresse copiée.
+KNOWN_RECIPE_DOMAINS = frozenset(d for sites in RECIPE_SEARCH_SITES.values() for d in sites) | {
+    "pinchofyum.com", "tasty.co", "bonappetit.com", "deliciousmartha.com", "bettybossi.ch", "clemfoodie.com",
+    "hervecuisine.com", "lacuisinedebernard.com", "mesrecettesfaciles.fr", "emmikochteinfach.de",
+    "einfachkochen.de", "familienkost.de", "elespanol.com", "elpais.com", "gastronomiaycia.republica.com"}
+RECIPE_URL_HINTS = ("recette", "recipe", "recet", "rezept", "ricett", "receit", "resep", "oppskrift", "recept")
+
+
+def build_recipe_search_url(query, language=None):
+    query = (query or "").strip()
+    if not query:
+        return "https://www.google.com"
+    language = language or CURRENT_LANGUAGE
+    terms = [query, RECIPE_SEARCH_WORD.get(language, "recipe")]
+    sites = RECIPE_SEARCH_SITES.get(language)
+    if sites:
+        terms.append("(" + " OR ".join(f"site:{site}" for site in sites) + ")")
+    return "https://www.google.com/search?q=" + urllib.parse.quote_plus(" ".join(terms))
+
+
+def looks_like_recipe_url(url):
+    try:
+        parsed = urllib.parse.urlparse(url or "")
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https") or not host:
+        return False
+    if any(host == domain or host.endswith("." + domain) for domain in KNOWN_RECIPE_DOMAINS):
+        return True
+    return any(hint in parsed.path.lower() for hint in RECIPE_URL_HINTS)
+
+
 class ImportFromUrlWindow(tk.Toplevel):
     """Importe une recette depuis un lien, avec aperçu avant création."""
 
@@ -20256,8 +20409,12 @@ class ImportFromUrlWindow(tk.Toplevel):
         shortcuts.pack(fill="x", padx=20, pady=(0, 8))
         ttk.Button(shortcuts, text=t("importurl_paste_button"),
                    command=self._paste_clipboard_url).pack(side="left")
+        self.search_entry = ttk.Entry(shortcuts, width=32)
+        self.search_entry.pack(side="left", padx=(gs(SPACE_MD), 0))
+        self.search_entry.bind("<Return>", lambda e: self._open_web_search())
+        add_tooltip(self.search_entry, t("importurl_search_hint"))
         ttk.Button(shortcuts, text=t("importurl_search_button"),
-                   command=self._open_web_search).pack(side="left", padx=(8, 0))
+                   command=self._open_web_search).pack(side="left", padx=(gs(SPACE_SM), 0))
 
         self._last_seen_clipboard_url = None
         self.clipboard_banner = ttk.Frame(self)
@@ -20335,7 +20492,7 @@ class ImportFromUrlWindow(tk.Toplevel):
         self._last_seen_clipboard_url = url
 
     def _open_web_search(self):
-        webbrowser.open("https://www.google.com")
+        webbrowser.open(build_recipe_search_url(self.search_entry.get()))
 
     def _on_window_focus_in(self, event):
         # Ne réagit qu'au focus de la fenêtre elle-même, pas de chacun de

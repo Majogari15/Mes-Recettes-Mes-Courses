@@ -1140,5 +1140,9 @@
   "pantry_barcode_not_read": "No hay ningún código de barras legible en esta foto. Prueba con una foto más nítida y centrada en el código.",
   "pantry_barcode_incremented": "{name}: +1 (total {quantity} {unit}).",
   "pantry_barcode_found": "Producto encontrado: {product}.\n\nComprueba el ingrediente propuesto (o elige otro) y guarda: este código se recordará.",
-  "pantry_barcode_unknown_product": "Producto {code} no encontrado (o sin conexión). Indica el ingrediente y guarda: este código se recordará."
+  "pantry_barcode_unknown_product": "Producto {code} no encontrado (o sin conexión). Indica el ingrediente y guarda: este código se recordará.",
+  "importurl_search_hint": "Palabras clave de la receta (p. ej. tarta de puerros) y luego Intro. Vacío: abre el buscador.",
+  "home_clipboard_recipe": "🔗 Receta copiada: {url}",
+  "home_clipboard_import": "📥 Importar esta receta",
+  "home_clipboard_dismiss": "Ignorar este enlace"
 }
