@@ -20,6 +20,11 @@ class CookingModeTests(unittest.TestCase):
             self.root = tk.Tk()
         except tk.TclError as exc:
             self.skipTest(str(exc))
+        # addCleanup (et non tearDown) : exécuté même si setUp() échoue en
+        # cours de route. Sinon la fenêtre du mode cuisine à moitié
+        # construite restait affichée (« Ne répond pas ») et son image Tk
+        # orpheline faisait ignorer en cascade une centaine de tests.
+        self.addCleanup(self.root.destroy)
         self.root.withdraw()
         confirm = patch.object(messagebox, "askyesno", return_value=True)
         confirm.start()
@@ -32,7 +37,7 @@ class CookingModeTests(unittest.TestCase):
         self.env = dict(tk=tk, ttk=ttk, messagebox=messagebox, math=math, re=re, threading=threading, tkfont=tkfont,
             time=SimpleNamespace(monotonic=lambda: self.clock.value),
             t=lambda key, **kw: strings.get(key, key).format(**kw), sf=lambda v:v, gs=lambda v:v,
-            COLOR_CARD='#ffffff', COLOR_BORDER='#cccccc', COLOR_ACCENT_DARK='#a05020', COLOR_ERROR='#ff0000',
+            COLOR_CARD='#ffffff', COLOR_TEXT='#222222', COLOR_TEXT_MUTED='#666666', COLOR_BG='#fbf6ef', COLOR_BORDER='#cccccc', COLOR_ACCENT_DARK='#a05020', COLOR_ERROR='#ff0000',
             fit_window_to_workarea=lambda win,*args,**kw: win.geometry('1200x800'),
             get_usable_screen_height=lambda win:800,
             translate_ingredient_name=lambda x:x, translate_unit_name=lambda x:x,
@@ -60,9 +65,6 @@ class CookingModeTests(unittest.TestCase):
         # qui reproduit exactement ce que fait ce gestionnaire.
         self.window.canvas.unbind('<Configure>')
         self._apply_width(1400)
-    def tearDown(self):
-        if hasattr(self,'root'):
-            self.root.destroy()
     def _apply_width(self, width):
         w = self.window
         w._resize_content(SimpleNamespace(width=width))

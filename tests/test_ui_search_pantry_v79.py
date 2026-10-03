@@ -1,6 +1,8 @@
 import datetime
 import tkinter as tk
+from tkinter import ttk
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -775,6 +777,128 @@ class PantryBarcodeTests(AppWindowTestBase):
         dialog.barcode_submit()
         self.assertTrue(dialog.winfo_exists())
         self.assertEqual(dialog.barcode_status.cget("text"), main.t("pantry_barcode_invalid"))
+
+
+class AuditFixesB1toB4Tests(AppWindowTestBase):
+    def _walk(self, widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from self._walk(child)
+
+    def test_import_export_bottom_is_reachable_on_a_short_screen(self):
+        # B1 : sans défilement, la section sauvegarde cloud était coupée.
+        win = main.ImportExportWindow(self.app)
+        self.addCleanup(win.destroy)
+        win.geometry("560x500")
+        win.update()
+        label = win.cloud_folder_label
+        self.assertIn(str(win.scroll_body), str(label))
+        win.scroll_canvas.yview_moveto(1.0)
+        win.update()
+        self.assertTrue(label.winfo_ismapped())
+        bottom = label.winfo_rooty() + label.winfo_height()
+        self.assertLessEqual(bottom, win.winfo_rooty() + win.winfo_height())
+
+    def test_cooking_timers_detect_durations_in_every_language(self):
+        # B2 : « Minuten » (de) et les 5 nouvelles langues n'étaient pas lus.
+        durations = main.CookingModeWindow._step_durations
+        cases = {"10 Minuten backen": 600, "Cuocere 35 minuti": 2100, "Riposare 2 ore": 7200,
+                 "Assar 30 minutos": 1800, "Panggang 30 menit": 1800, "Diamkan 2 jam": 7200,
+                 "Stek i 30 minutter": 1800, "La heve 2 timer": 7200, "Grädda 30 minuter": 1800,
+                 "Låt vila 2 timmar": 7200, "30 detik": 30, "Cuire 1 heure": 3600, "10-15 minuti": 900}
+        for text, seconds in cases.items():
+            self.assertEqual([s for _, s in durations(text)], [seconds], text)
+        self.assertEqual(durations("Mix 3 times"), [])
+
+    def test_url_import_understands_the_new_languages(self):
+        # B3 : unités et noms it/pt/id/no/sv ramenés au catalogue.
+        cases = {"2 cucchiai di olio": ("Huile", "cuillère à soupe"), "200 g di farina": ("Farine", "Gr"),
+                 "3 uova": ("Oeufs", "pièce"), "2 colheres de sopa de azeite": ("Huile d'olive", "cuillère à soupe"),
+                 "2 sendok makan minyak": ("Huile", "cuillère à soupe"), "2 butir telur": ("Oeufs", "pièce"),
+                 "200 gram tepung": ("Farine", "Gr"), "2 ss olivenolje": ("Huile d'olive", "cuillère à soupe"),
+                 "1 tsk salt": ("Sel", "cuillère à café"), "3 ägg": ("Oeufs", "pièce"),
+                 "2 tablespoons olive oil": ("Huile d'olive", "cuillère à soupe")}
+        for _ in range(2):  # le second passage vérifie que l'index en cache reste intact
+            for line, (name, unit) in cases.items():
+                parsed = main._parse_url_ingredient(line)
+                self.assertEqual((parsed["name"], parsed["unit"]), (name, unit), line)
+
+    def test_allergen_disclaimer_uses_the_accessible_error_color(self):
+        # B4 : #FF0000 sur fond clair = 3,7:1, sous le seuil AA de 4,5:1.
+        form = main.RecipeFormWindow(self.app)
+        self.addCleanup(form.destroy)
+        labels = [w for w in self._walk(form) if isinstance(w, ttk.Label)
+                  and w.cget("text") == main.t("recipeform_allergens_disclaimer")]
+        self.assertEqual(len(labels), 1)
+        self.assertEqual(str(labels[0].cget("foreground")), main.COLOR_ERROR)
+
+
+class CookingModeThemeContrastTests(AppWindowTestBase):
+    """B5/B6/C3 : mode cuisine figé en blanc, gris #999 (2,85:1), minuteur
+    qui clignotait en blanc sur rouge clair (2,2:1 en sombre)."""
+
+    RECIPE = {"name": "Tarte", "default_persons": 4, "prep_time": 20, "difficulty": "Facile",
+              "ingredients": [{"name": "Beurre", "quantity": 30, "unit": "g"}],
+              "description": "Cuire 35 minutes.\nServir.", "personal_notes": "Très bon"}
+
+    def _hex(self, color):
+        r, g, b = self.app.winfo_rgb(color)
+        return "#%02x%02x%02x" % (r // 256, g // 256, b // 256)
+
+    def _contrast(self, fg, bg):
+        from test_regressions import ContrastAccessibilityTests as C
+        return C._contrast(self._hex(fg), self._hex(bg))
+
+    def _walk(self, widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from self._walk(child)
+
+    def _check_window(self, palette_name):
+        win = main.CookingModeWindow(self.app, dict(self.RECIPE), 4)
+        self.addCleanup(win.destroy)
+        win.update()
+        texts = [w for w in self._walk(win) if isinstance(w, (tk.Label, tk.Checkbutton))]
+        self.assertGreaterEqual(len(texts), 8)
+        for w in [win, *self._walk(win)]:
+            if isinstance(w, (tk.Frame, tk.Canvas, tk.Label, tk.Checkbutton, tk.Toplevel)):
+                self.assertEqual(self._hex(w.cget("background")), self._hex(main.COLOR_CARD), (palette_name, w))
+        for w in texts:
+            ratio = self._contrast(w.cget("foreground"), w.cget("background"))
+            self.assertGreaterEqual(ratio, 4.5, (palette_name, w.cget("text")[:30], ratio))
+        for w in texts:
+            if isinstance(w, tk.Checkbutton):
+                self.assertEqual(self._hex(w.cget("selectcolor")), self._hex(main.COLOR_CARD))
+        # Minuteur terminé : texte lisible sur le fond clignotant.
+        row = main.TimerRow(win.timer_frame, win, "test", 1)
+        row.finished = True
+        row._flash_on = False
+        row._flash_step()
+        label = row.display_label
+        self.assertGreaterEqual(self._contrast(label.cget("foreground"), label.cget("background")), 4.5, palette_name)
+        win.destroy()
+
+    def test_cooking_mode_follows_all_three_themes_with_readable_text(self):
+        self._check_window("clair")
+        self.app.toggle_dark_mode()
+        self._check_window("sombre")
+        self.app.toggle_high_contrast()
+        self._check_window("contraste élevé")
+
+    def test_toast_is_readable_in_every_theme(self):
+        for _ in range(2):
+            main._ui_show_toast(self.app, "ok", duration=10)
+            toast = [w for w in self.app.winfo_children() if isinstance(w, tk.Toplevel)][-1]
+            label = toast.winfo_children()[0]
+            self.assertGreaterEqual(self._contrast(label.cget("foreground"), label.cget("background")), 4.5)
+            toast.destroy()
+            self.app.toggle_dark_mode()
+
+    def test_no_hardcoded_widget_colors_left(self):
+        import re
+        source = (Path(main.__file__)).read_text(encoding="utf-8")
+        found = re.findall(r"""(?:background|foreground|fg|bg|fill|outline|selectcolor)\s*=\s*["'](?:#[0-9a-fA-F]{3,6}|white|black)["']""", source)
+        self.assertEqual(found, [])
 
 
 if __name__ == "__main__":

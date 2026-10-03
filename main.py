@@ -373,9 +373,10 @@ def _ui_show_toast(parent, message, duration=2200):
         tw = tk.Toplevel(parent)
         tw.wm_overrideredirect(True)
         tw.attributes("-topmost", True)
-        tw.configure(bg="#2f2f2f")
-        lbl = tk.Label(tw, text=message, bg="#2f2f2f", fg="white",
-                       padx=14, pady=9, font=("Segoe UI", 10))
+        # Couleurs inversées du thème : bulle contrastée dans les 3 palettes.
+        tw.configure(bg=COLOR_TEXT)
+        lbl = tk.Label(tw, text=message, bg=COLOR_TEXT, fg=COLOR_CARD,
+                       padx=gs(SPACE_MD), pady=gs(SPACE_SM), font=("Segoe UI", sf(10)))
         lbl.pack()
         parent.update_idletasks()
         tw.update_idletasks()
@@ -5729,19 +5730,31 @@ def _extract_microdata_recipe(page_html):
 
 # Import-only vocabulary: do not change OCR or pantry measurement semantics.
 _URL_UNITS = {
- 'cup cups taza tazas tasse tassen': 'cup',
- 'tbsp tablespoon tablespoons cucharada cucharadas el esslöffel essloffel': 'cuillère à soupe',
- 'tsp teaspoon teaspoons cucharadita cucharaditas tl teelöffel teeloffel': 'cuillère à café',
- 'pinch pinches pizca pizcas prise prisen': 'pincée',
- 'packet packets sobre sobres päckchen packchen': 'sachet',
- 'drizzle chorrito chorro schuss': 'filet',
- 'roll rolls rollo rollos rolle rollen': 'rouleau',
- 'can cans tin tins lata latas dose dosen': 'boîte',
- 'clove cloves diente dientes zehe zehen': 'gousse',
+ # en es de, puis it pt id no sv.
+ 'cup cups taza tazas tasse tassen tazza tazze xícara xícaras xicara xicaras cangkir kopp kopper koppar': 'cup',
+ 'tbsp tablespoon tablespoons cucharada cucharadas el esslöffel essloffel cucchiaio cucchiai sdm ss spiseskje spiseskjeer msk matsked matskedar': 'cuillère à soupe',
+ 'tsp teaspoon teaspoons cucharadita cucharaditas tl teelöffel teeloffel cucchiaino cucchiaini sdt ts teskje teskjeer tsk tesked teskedar': 'cuillère à café',
+ 'pinch pinches pizca pizcas prise prisen pizzico pizzichi pitada pitadas sejumput klype nypa': 'pincée',
+ 'packet packets sobre sobres päckchen packchen bustina bustine pacote pacotes saset bungkus pakke pakker påse påsar': 'sachet',
+ 'drizzle chorrito chorro schuss filo fio': 'filet',
+ 'roll rolls rollo rollos rolle rollen rotolo rotoli': 'rouleau',
+ 'can cans tin tins lata latas dose dosen lattina lattine scatola scatole kaleng boks bokser burk burkar': 'boîte',
+ 'clove cloves diente dientes zehe zehen spicchio spicchi dente dentes siung fedd klyfta klyftor': 'gousse',
  'ounce ounces oz': 'oz', 'pound pounds lb lbs': 'lb',
- 'gram grams gramo gramos gramm': 'Gr',
- 'milliliter milliliters millilitre millilitres mililitro mililitros': 'ml',
+ 'gram grams gramo gramos gramm grammi grammo grama gramas': 'Gr',
+ 'milliliter milliliters millilitre millilitres mililitro mililitros millilitri': 'ml',
+ 'butir buah stk st stykker styck': 'pièce',
 }
+# Unités en plusieurs mots (pt, id), ramenées à l'unité française avant
+# l'analyse générale.
+_URL_UNIT_PHRASES = (
+    (r"colher(?:es)?\s+de\s+sopa", "cuillère à soupe"),
+    (r"colher(?:es)?\s+de\s+ch[áa]", "cuillère à café"),
+    (r"sendok\s+makan", "cuillère à soupe"),
+    (r"sendok\s+teh", "cuillère à café"),
+)
+# Articles/prépositions entre l'unité et l'aliment (it, pt).
+_URL_NAME_CONNECTORS = r"^(?:di|del|della|dello|dei|degli|delle|do|da|dos|das)\s+"
 _URL_FOOD_ALIASES = {
  '0% fat free greek yoghurt': 'Yaourt', 'huevo': 'Œuf', 'huevos': 'Œufs', 'ei': 'Œuf', 'eier': 'Œufs',
  'egg': 'Œuf', 'eggs': 'Œufs', 'oeuf': 'Œuf', 'oeuf(s)': 'Œufs',
@@ -5751,8 +5764,20 @@ _URL_FOOD_ALIASES = {
  'plain flour': 'Farine', 'all-purpose flour': 'Farine', 'all purpose flour': 'Farine',
  'flour': 'Farine', 'large eggs': 'Œufs', 'large egg': 'Œuf',
  'egg yolks': "Jaune d'œuf", 'egg whites': "Blanc d'œuf",
- 'semi skimmed milk': 'Lait', 'queso rallado cuatro quesos': 'Fromage',
+ 'semi skimmed milk': 'Lait', 'queso rallado cuatro quesos': 'Fromage', 'tepung': 'Farine',
 }
+
+@functools.lru_cache(maxsize=1)
+def _url_foreign_food_index():
+    # Nom étranger (clé de tri) -> noms français possibles, toutes langues
+    # de l'interface : construit une fois au lieu de parcourir les
+    # traductions pour chaque ingrédient importé.
+    index = {}
+    for lang in UI_TRANSLATED_LANGUAGES:
+        for fr, foreign in load_ingredient_translations(lang).items():
+            index.setdefault(ingredient_sort_key(foreign), set()).add(fr.capitalize())
+    return index
+
 
 def _url_food_name(name):
     # Qualifiers and alternatives must never be erased by a generic mapping.
@@ -5768,11 +5793,7 @@ def _url_food_name(name):
     base = re.sub(r'\s+(?:picado|picada|rallado|rallada|sifted|melted|chopped|beaten)$', '', base)
     canonical = _URL_FOOD_ALIASES.get(base)
     if canonical is None:
-        candidates = set()
-        for lang in ('en', 'es', 'de'):
-            for fr, foreign in load_ingredient_translations(lang).items():
-                if ingredient_sort_key(foreign) == base:
-                    candidates.add(fr.capitalize())
+        candidates = set(_url_foreign_food_index().get(base, ()))
         if len(candidates) == 1:
             canonical = candidates.pop()
     if not canonical:
@@ -5804,6 +5825,8 @@ def _parse_url_ingredient(line):
         line = quantity_range.group(1) + line[quantity_range.end():]
     line = re.sub(r"\b(sachet|pincée|cuillerée|filet|rouleau)\(s\)", r"\1", line, flags=re.I)
     line = re.sub(r"^(?:une?|a|an)\s+", "1 ", line.strip(), flags=re.I)
+    for phrase, canonical in _URL_UNIT_PHRASES:
+        line = re.sub(r"(?<!\w)" + phrase + r"(?!\w)", canonical, line, count=1, flags=re.I)
     # A fish/meat fillet is the food itself, unlike a drizzle of oil.
     food_fillet = re.match(r"^(\d+(?:[.,]\d+)?)\s+(filets?\s+(?:de |d['’]).+)$", line, re.I)
     if food_fillet and not re.search(r"\b(?:huile|vinaigre|jus|miel|crème|sauce)\b", food_fillet.group(2), re.I):
@@ -5823,6 +5846,7 @@ def _parse_url_ingredient(line):
     unit, end = _match_unit_tokens(tokens, 0)
     if unit and len(tokens) > end:
         name = re.sub(r"^(?:de |d['’])", "", ' '.join(tokens[end:]), flags=re.I)
+        name = re.sub(_URL_NAME_CONNECTORS, "", name, flags=re.I)
         return {'name': name.capitalize(), 'quantity': None, 'unit': unit}
     measured = parse_ingredient_line(normalized)
     if not measured:
@@ -5835,6 +5859,7 @@ def _parse_url_ingredient(line):
             measured['quantity'] *= float(weight.group(1).replace(',', '.'))
             measured['name'] = measured['name'][:weight.start()].strip()
             measured['unit'] = 'Gr'
+    measured['name'] = re.sub(_URL_NAME_CONNECTORS, "", measured['name'], flags=re.I).capitalize()
     measured['name'] = _url_food_name(measured['name'])
     return measured
 
@@ -7261,6 +7286,7 @@ def _ui_recolor_open_windows(root, old_palette, new_palette):
         "background", "foreground", "activebackground", "activeforeground",
         "disabledforeground", "highlightbackground", "highlightcolor",
         "selectbackground", "selectforeground", "insertbackground",
+        "selectcolor",
     )
 
     def visit(widget):
@@ -7508,7 +7534,7 @@ class MaintenanceWindow:
         outer.pack(fill="both", expand=True)
 
         ttk.Label(outer, text=t("maintenance_title"),
-                  font=("Segoe UI", 16, "bold")).pack(anchor="w")
+                  font=("Segoe UI", sf(16), "bold")).pack(anchor="w")
         ttk.Label(
             outer,
             text=t("maintenance_intro"),
@@ -9569,7 +9595,7 @@ class RecipeFormWindow(tk.Toplevel):
         ttk.Label(
             row1_right,
             text=t("recipeform_allergens_disclaimer"),
-            font=("Segoe UI", sf(8), "bold"), foreground="#FF0000", justify="center"
+            font=("Segoe UI", sf(8), "bold"), foreground=COLOR_ERROR, justify="center"
         ).pack(pady=(0, 8))
         allergens_frame = ttk.Frame(row1_right)
         allergens_frame.pack()
@@ -13935,7 +13961,25 @@ class ImportExportWindow(tk.Toplevel):
         self.resizable(True, True)
         self.grab_set()
 
-        header_row = ttk.Frame(self)
+        # Contenu défilant : sur un écran de hauteur courante (1080p, mise à
+        # l'échelle 125 %), le bas de la fenêtre (sauvegarde cloud) était
+        # coupé sans moyen d'y accéder.
+        outer = ttk.Frame(self)
+        outer.pack(fill="both", expand=True)
+        canvas = tk.Canvas(outer, highlightthickness=0, background=COLOR_BG)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        body = ttk.Frame(canvas)
+        window_id = canvas.create_window((0, 0), window=body, anchor="nw")
+        body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window_id, width=e.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        _ui_bind_local_mousewheel(canvas, body, lambda ev: canvas.yview_scroll(int(-ev.delta / 120), "units"))
+        self.scroll_canvas, self.scroll_body = canvas, body
+
+
+        header_row = ttk.Frame(body)
         header_row.pack(fill="x", padx=18, pady=(12, 6))
         ttk.Label(header_row, text=t("importexport_heading"),
                   font=("Segoe UI", sf(13), "bold")).pack(side="left")
@@ -13948,7 +13992,7 @@ class ImportExportWindow(tk.Toplevel):
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(0, 10))
 
-        ttk.Button(self, text=t("importexport_export_button"),
+        ttk.Button(body, text=t("importexport_export_button"),
                    width=42, command=self.export_data).pack(pady=6)
 
         ttk.Label(
@@ -13957,42 +14001,42 @@ class ImportExportWindow(tk.Toplevel):
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(10, 10))
 
-        ttk.Button(self, text=t("importexport_import_button"),
+        ttk.Button(body, text=t("importexport_import_button"),
                    width=42, command=self.import_data).pack(pady=6)
 
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=15)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=20, pady=15)
 
-        ttk.Label(self, text=t("importexport_mobile_exchange_heading"),
+        ttk.Label(body, text=t("importexport_mobile_exchange_heading"),
                   font=("Segoe UI", sf(11), "bold")).pack(pady=(0, 6))
         ttk.Label(
             self, text=t("importexport_mobile_exchange_intro"),
             justify="center", font=("Segoe UI", sf(9)), wraplength=390
         ).pack(pady=(0, 10))
-        qr_row = ttk.Frame(self)
+        qr_row = ttk.Frame(body)
         qr_row.pack(pady=(0, 6))
         ttk.Button(qr_row, text=t("importexport_mobile_qr_import"),
                    command=self.import_mobile_qr).pack(side="left", padx=4)
         ttk.Button(qr_row, text=t("importexport_mobile_qr_export"),
                    command=self.choose_recipe_for_qr).pack(side="left", padx=4)
-        ttk.Button(self, text=t("importexport_mobile_qr_paste"), style="Secondary.TButton",
+        ttk.Button(body, text=t("importexport_mobile_qr_paste"), style="Secondary.TButton",
                    command=self.import_mobile_qr_text).pack(pady=(0, 6))
-        ttk.Label(self, text=t("importexport_shared_intro"),
+        ttk.Label(body, text=t("importexport_shared_intro"),
                   justify="center", font=("Segoe UI", sf(8)), wraplength=390).pack(pady=(3, 8))
-        ttk.Button(self, text=t("importexport_export_shared_button"),
+        ttk.Button(body, text=t("importexport_export_shared_button"),
                    width=42, command=self.export_shared_data).pack(pady=6)
-        ttk.Button(self, text=t("importexport_import_shared_button"),
+        ttk.Button(body, text=t("importexport_import_shared_button"),
                    width=42, command=self.import_shared_data).pack(pady=6)
 
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=15)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=20, pady=15)
 
-        ttk.Label(self, text=t("importexport_auto_backups_heading"), font=("Segoe UI", sf(12), "bold")).pack()
+        ttk.Label(body, text=t("importexport_auto_backups_heading"), font=("Segoe UI", sf(12), "bold")).pack()
         ttk.Label(
             self,
             text=t("importexport_auto_backups_intro", hours=AUTO_BACKUP_MIN_INTERVAL_HOURS, retention=AUTO_BACKUP_RETENTION),
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(5, 10))
 
-        list_frame = ttk.Frame(self)
+        list_frame = ttk.Frame(body)
         list_frame.pack(padx=15, fill="both", expand=True)
         self.backup_listbox = tk.Listbox(list_frame, height=8, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.backup_listbox.yview)
@@ -14001,16 +14045,16 @@ class ImportExportWindow(tk.Toplevel):
         scrollbar.pack(side="right", fill="y")
         self._populate_backups()
 
-        btn_frame = ttk.Frame(self)
+        btn_frame = ttk.Frame(body)
         btn_frame.pack(pady=10)
         ttk.Button(btn_frame, text=t("importexport_backup_now_button"),
                    command=self.backup_now).grid(row=0, column=0, padx=5)
         ttk.Button(btn_frame, text=t("importexport_restore_selected_button"),
                    command=self.restore_selected).grid(row=0, column=1, padx=5)
 
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=20, pady=15)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=20, pady=15)
 
-        ttk.Label(self, text=t("importexport_cloud_heading"),
+        ttk.Label(body, text=t("importexport_cloud_heading"),
                   font=("Segoe UI", sf(12), "bold")).pack()
         ttk.Label(
             self,
@@ -14018,19 +14062,19 @@ class ImportExportWindow(tk.Toplevel):
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(5, 8))
 
-        self.cloud_folder_label = ttk.Label(self, text="", font=("Segoe UI", sf(9), "bold"),
-                                             foreground="#266", wraplength=400, justify="center")
+        self.cloud_folder_label = ttk.Label(body, text="", font=("Segoe UI", sf(9), "bold"),
+                                             foreground=COLOR_GREEN, wraplength=400, justify="center")
         self.cloud_folder_label.pack(pady=(0, 8))
         self._refresh_cloud_label()
 
-        cloud_btn_frame = ttk.Frame(self)
+        cloud_btn_frame = ttk.Frame(body)
         cloud_btn_frame.pack(pady=(0, 15))
         ttk.Button(cloud_btn_frame, text=t("importexport_choose_cloud_button"),
                    command=self.choose_cloud_folder).grid(row=0, column=0, padx=5)
         ttk.Button(cloud_btn_frame, text=t("importexport_disable_button"),
                    command=self.disable_cloud_backup).grid(row=0, column=1, padx=5)
 
-        tk.Frame(self, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
+        tk.Frame(body, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
     def import_mobile_qr(self):
         self.destroy()
@@ -14470,7 +14514,7 @@ class ShoppingChecklistWindow(tk.Toplevel):
         style_name = "Checked.TCheckbutton" if var.get() else "TCheckbutton"
         try:
             style = ttk.Style(self)
-            style.configure("Checked.TCheckbutton", foreground="#999")
+            style.configure("Checked.TCheckbutton", foreground=COLOR_TEXT_MUTED)
             chk.configure(style=style_name)
         except tk.TclError:
             pass
@@ -16473,7 +16517,7 @@ class CookingModeWindow(tk.Toplevel):
         self.persons = persons
         self.owner_window = owner
         self.title(t("cookingmode_title", name=recipe['name']))
-        self.configure(bg="white")
+        self.configure(bg=COLOR_CARD)
         self._is_fullscreen = False
         # Une fenêtre maximisée (plutôt qu'un vrai plein écran) s'ouvre
         # instantanément : le vrai plein écran provoque, sur certains
@@ -16496,21 +16540,21 @@ class CookingModeWindow(tk.Toplevel):
         self.bind("<F11>", lambda e: self._toggle_fullscreen())
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        top_bar = tk.Frame(self, bg="white")
+        top_bar = tk.Frame(self, bg=COLOR_CARD)
         top_bar.pack(fill="x", pady=10)
         tk.Button(top_bar, text=t("cookingmode_close_button"), font=("Segoe UI", sf(13)),
                   command=self._on_close).pack(side="right", padx=30)
         tk.Button(top_bar, text=t("cookingmode_cooked_button"), font=("Segoe UI", sf(13)),
                   command=self.mark_as_cooked).pack(side="right", padx=(10, 0))
         tk.Label(top_bar, text=t("cookingmode_fullscreen_hint"), font=("Segoe UI", sf(9)),
-                 bg="white", fg="#999").pack(side="right", padx=10)
+                 bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(side="right", padx=10)
 
-        volume_frame = tk.Frame(top_bar, bg="white")
+        volume_frame = tk.Frame(top_bar, bg=COLOR_CARD)
         volume_frame.pack(side="right", padx=(10, 0))
         tk.Button(volume_frame, text="🔊+", font=("Segoe UI", sf(11)), width=4,
                   command=lambda: self._adjust_volume(0.1)).pack(side="right")
         self.volume_label = tk.Label(volume_frame, text=t("cookingmode_volume_percent", percent=100), font=("Segoe UI", sf(10)),
-                                      bg="white", fg="#666", width=5)
+                                      bg=COLOR_CARD, fg=COLOR_TEXT_MUTED, width=5)
         self.volume_label.pack(side="right", padx=3)
         tk.Button(volume_frame, text="🔉−", font=("Segoe UI", sf(11)), width=4,
                   command=lambda: self._adjust_volume(-0.1)).pack(side="right")
@@ -16519,21 +16563,21 @@ class CookingModeWindow(tk.Toplevel):
                                         command=self.toggle_speech)
         self.speech_button.pack(side="right", padx=(10, 0))
 
-        pers_frame = tk.Frame(top_bar, bg="white")
+        pers_frame = tk.Frame(top_bar, bg=COLOR_CARD)
         pers_frame.pack(side="left", padx=30)
         tk.Button(pers_frame, text="−", font=("Segoe UI", sf(14), "bold"), width=3,
                   command=lambda: self._adjust(-1)).pack(side="left")
         self.pers_label = tk.Label(pers_frame, text=t("cookingmode_persons_suffix", persons=self._fmt(persons)),
-                                    font=("Segoe UI", sf(14)), bg="white")
+                                    font=("Segoe UI", sf(14)), bg=COLOR_CARD, fg=COLOR_TEXT)
         self.pers_label.pack(side="left", padx=10)
         tk.Button(pers_frame, text="+", font=("Segoe UI", sf(14), "bold"), width=3,
                   command=lambda: self._adjust(1)).pack(side="left")
 
-        outer = tk.Frame(self, bg="white")
+        outer = tk.Frame(self, bg=COLOR_CARD)
         outer.pack(fill="both", expand=True)
-        self.canvas = tk.Canvas(outer, bg="white", highlightthickness=0)
+        self.canvas = tk.Canvas(outer, bg=COLOR_CARD, highlightthickness=0)
         scrollbar = ttk.Scrollbar(outer, orient="vertical", command=self.canvas.yview)
-        self.content = tk.Frame(self.canvas, bg="white")
+        self.content = tk.Frame(self.canvas, bg=COLOR_CARD)
         self.content.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self._content_id = self.canvas.create_window((0, 0), window=self.content, anchor="nw")
         self.canvas.bind("<Configure>", self._resize_content)
@@ -16543,30 +16587,30 @@ class CookingModeWindow(tk.Toplevel):
 
         self._text_size = 0
         self._checks = {}
-        self.timer_section = tk.Frame(self, bg="white")
+        self.timer_section = tk.Frame(self, bg=COLOR_CARD)
         self.timer_section.pack(fill="x", before=outer, padx=16)
         self.timer_rows = []
         self._timer_number = 0
-        timer_heading = tk.Frame(self.timer_section, bg="white")
+        timer_heading = tk.Frame(self.timer_section, bg=COLOR_CARD)
         timer_heading.pack(fill="x", pady=(6, 4))
-        tk.Label(timer_heading, text=t("timers_title"), bg="white",
+        tk.Label(timer_heading, text=t("timers_title"), bg=COLOR_CARD, fg=COLOR_TEXT,
                  font=("Segoe UI", sf(18), "bold")).pack(side="left")
         ttk.Button(timer_heading, text="+", width=3, command=self.add_timer).pack(side="left", padx=12)
         ttk.Button(timer_heading, text="A−", width=4,
                    command=lambda: self._change_text_size(-2)).pack(side="right")
         ttk.Button(timer_heading, text="A+", width=4,
                    command=lambda: self._change_text_size(2)).pack(side="right", padx=6)
-        self.timer_canvas = tk.Canvas(self.timer_section, bg="white", height=180, highlightthickness=0)
+        self.timer_canvas = tk.Canvas(self.timer_section, bg=COLOR_CARD, height=180, highlightthickness=0)
         timer_scroll = ttk.Scrollbar(self.timer_section, orient="vertical", command=self.timer_canvas.yview)
         timer_scroll.pack(side="right", fill="y")
         self.timer_canvas.pack(fill="x", expand=True)
         self.timer_canvas.configure(yscrollcommand=timer_scroll.set)
-        self.timer_frame = tk.Frame(self.timer_canvas, bg="white")
+        self.timer_frame = tk.Frame(self.timer_canvas, bg=COLOR_CARD)
         self._timer_window_id = self.timer_canvas.create_window((0, 0), window=self.timer_frame, anchor="nw")
         self._timer_columns = 0
         self.timer_canvas.bind("<Configure>", self._timer_canvas_resized)
         self.timer_frame.bind("<Configure>", self._resize_timers)
-        self.recipe_content = tk.Frame(self.content, bg="white")
+        self.recipe_content = tk.Frame(self.content, bg=COLOR_CARD)
         self.recipe_content.pack(fill="x")
         self.add_timer()
         self._render()
@@ -16639,11 +16683,20 @@ class CookingModeWindow(tk.Toplevel):
     @staticmethod
     def _step_durations(text):
         # Durees entieres explicites ; pour une plage, proposer la borne haute.
-        pattern = r"(?<![\d.,])\b(\d+)(?:\s*[-–àa]\s*(\d+))?\s*(minutes?|mins?|minutos?|heures?|hours?|hrs?|stunden?|horas?|secondes?|seconds?|secs?|segundos?|sekunden?|h|s)\b"
+        # Unités des 9 langues : fr/en/es/de, it (minuti, ore, secondi),
+        # pt (minutos, horas, segundos), id (menit, jam, detik), no
+        # (minutter, timer, sekunder), sv (minuter, timmar, sekunder).
+        # « time » (heure norvégienne) est exclu : « 3 times » = 3 fois.
+        pattern = (r"(?<![\d.,])\b(\d+)(?:\s*[-–àae]\s*(\d+))?\s*"
+                   r"(minutes?|minuten|minuti|minuto|minutos?|minutter|minutt|minuter|minut|menit|mins?"
+                   r"|heures?|hours?|hrs?|stunden?|horas?|hora|ore|ora|jam|timer|timmar|timme"
+                   r"|secondes?|seconds?|secondi|secondo|secs?|segundos?|sekunden?|sekunder|sekund|detik|h|s)\b")
+        hours = ("heure", "hour", "hr", "stund", "hora", "ore", "ora", "jam", "timer", "timmar", "timme", "h")
+        seconds_units = ("second", "sec", "segundo", "sekund", "detik", "s")
         result = []
         for match in re.finditer(pattern, text, re.IGNORECASE):
             unit = match.group(3).lower()
-            factor = 3600 if unit.startswith(('h', 'stund')) else 1 if unit.startswith('s') else 60
+            factor = 3600 if unit.startswith(hours) and unit != "s" else 1 if unit.startswith(seconds_units) else 60
             seconds = int(match.group(2) or match.group(1)) * factor
             if seconds > 0:
                 result.append((match.group(0), seconds))
@@ -16866,7 +16919,7 @@ class CookingModeWindow(tk.Toplevel):
         recipe = self.recipe
         star = "⭐ " if recipe.get("favorite") else ""
         tk.Label(self.recipe_content, text=f"{star}{recipe['name']}", font=("Segoe UI", self._recipe_font(34), "bold"),
-                 bg="white", wraplength=1000, justify="center").pack(pady=(10, 5))
+                 bg=COLOR_CARD, fg=COLOR_TEXT, wraplength=1000, justify="center").pack(pady=(10, 5))
 
         info_bits = []
         if recipe.get("prep_time"):
@@ -16877,19 +16930,19 @@ class CookingModeWindow(tk.Toplevel):
             info_bits.append(t("cookingmode_difficulty_label", value=translate_difficulty_name(recipe['difficulty'])))
         if info_bits:
             tk.Label(self.recipe_content, text="   |   ".join(info_bits), font=("Segoe UI", self._recipe_font(16)),
-                     bg="white", fg="#555").pack(pady=(0, 20))
+                     bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(pady=(0, 20))
 
         self.recipe_content.bind("<Configure>", self._wrap_panel)
-        self.recipe_columns = tk.Frame(self.recipe_content, bg="white")
+        self.recipe_columns = tk.Frame(self.recipe_content, bg=COLOR_CARD)
         self.recipe_columns.pack(fill="x", pady=(0, 30))
-        self.ingredients_panel = tk.Frame(self.recipe_columns, bg="white")
-        self.steps_panel = tk.Frame(self.recipe_columns, bg="white")
+        self.ingredients_panel = tk.Frame(self.recipe_columns, bg=COLOR_CARD)
+        self.steps_panel = tk.Frame(self.recipe_columns, bg=COLOR_CARD)
         self.ingredients_panel.bind("<Configure>", self._wrap_panel)
         self.steps_panel.bind("<Configure>", self._wrap_panel)
         self._wide_recipe = None
 
         tk.Label(self.ingredients_panel, text=t("cookingmode_ingredients_heading"), font=("Segoe UI", self._recipe_font(22), "bold"),
-                 bg="white").pack(pady=(10, 8), anchor="w", fill="x")
+                 bg=COLOR_CARD, fg=COLOR_TEXT).pack(pady=(10, 8), anchor="w", fill="x")
         for index, ing in enumerate(recipe["ingredients"]):
             qty = ingredient_quantity_for_persons(ing, self.persons)
             if qty is None:
@@ -16899,17 +16952,17 @@ class CookingModeWindow(tk.Toplevel):
                 quantity_display = qty
                 unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
             tk.Checkbutton(self.ingredients_panel, variable=self._check(("ingredient", index)), text=f"{translate_ingredient_name(ing['name']).capitalize()} : {quantity_display}{unit}",
-                     font=("Segoe UI", self._recipe_font(18)), bg="white", anchor="w", justify="left",
+                     font=("Segoe UI", self._recipe_font(18)), bg=COLOR_CARD, fg=COLOR_TEXT, selectcolor=COLOR_CARD, activebackground=COLOR_CARD, activeforeground=COLOR_TEXT, anchor="w", justify="left",
                      wraplength=1000).pack(fill="x", pady=3, anchor="w")
 
         description = recipe.get("description", "").strip()
         if description:
             tk.Label(self.steps_panel, text=t("cookingmode_preparation_heading"), font=("Segoe UI", self._recipe_font(22), "bold"),
-                     bg="white").pack(pady=(10, 8), anchor="w", fill="x")
+                     bg=COLOR_CARD, fg=COLOR_TEXT).pack(pady=(10, 8), anchor="w", fill="x")
             steps = [part.strip() for part in description.splitlines() if part.strip()]
             for index, step in enumerate(steps):
                 tk.Checkbutton(self.steps_panel, text=step, variable=self._check(("step", index)),
-                               font=("Segoe UI", self._recipe_font(16)), bg="white", justify="left",
+                               font=("Segoe UI", self._recipe_font(16)), bg=COLOR_CARD, fg=COLOR_TEXT, selectcolor=COLOR_CARD, activebackground=COLOR_CARD, activeforeground=COLOR_TEXT, justify="left",
                                anchor="w", wraplength=1000).pack(fill="x", anchor="w", pady=6)
                 for duration, seconds in self._step_durations(step):
                     ttk.Button(self.steps_panel, text="⏱ " + duration,
@@ -16918,9 +16971,9 @@ class CookingModeWindow(tk.Toplevel):
         personal_notes = recipe.get("personal_notes", "").strip()
         if personal_notes:
             tk.Label(self.steps_panel, text=t("cookingmode_personal_notes_heading"), font=("Segoe UI", self._recipe_font(20), "bold"),
-                     bg="white", fg="#555").pack(pady=(20, 8), anchor="w", fill="x")
-            tk.Label(self.steps_panel, text=personal_notes, font=("Segoe UI", self._recipe_font(14)), bg="white",
-                     fg="#555", justify="left", anchor="w", wraplength=1000).pack(fill="x", anchor="w")
+                     bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(pady=(20, 8), anchor="w", fill="x")
+            tk.Label(self.steps_panel, text=personal_notes, font=("Segoe UI", self._recipe_font(14)), bg=COLOR_CARD,
+                     fg=COLOR_TEXT_MUTED, justify="left", anchor="w", wraplength=1000).pack(fill="x", anchor="w")
 
         self._layout_recipe(self.canvas.winfo_width())
 
@@ -17269,7 +17322,7 @@ class TimerRow(tk.Frame):
             return
         self._flash_on = not self._flash_on
         color = COLOR_ERROR if self._flash_on else COLOR_CARD
-        text_color = "white" if self._flash_on else COLOR_ACCENT_DARK
+        text_color = COLOR_BG if self._flash_on else COLOR_ACCENT_DARK
         self.configure(background=color)
         self._set_children_bg(self, color)
         self.display_label.config(background=color, foreground=text_color)
