@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import shutil
 import tempfile
 import tkinter as tk
 import unittest
@@ -922,6 +923,37 @@ class HomeClipboardRecipeTests(TempDataMixin, unittest.TestCase):
         self.assertIsNotNone(self.app._clipboard_banner)
         self.app._build_home_ui()
         self.assertIsNone(self.app._clipboard_banner)
+
+
+class SilentFailureLoggingTests(unittest.TestCase):
+    """C4 : ces échecs disque étaient avalés sans trace (sauvegardes qui
+    s'accumulent, brouillon reproposé) ; ils vont désormais dans error.log."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.logged = []
+        for name, value in (("BACKUPS_DIR", self.tmp),
+                            ("log_internal_error", lambda ctx, exc: self.logged.append(ctx)),
+                            ("get_cloud_backup_folder", lambda: None)):
+            patcher = patch.object(main, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_backup_rename_failure_is_logged(self):
+        open(os.path.join(self.tmp, "sauvegarde_auto_2026-01-01_120000.zip"), "wb").close()
+        with patch.object(main.os, "rename", side_effect=OSError("verrouillé")):
+            main.migrate_old_backup_filenames()
+        self.assertEqual(self.logged, ["auto_backup_rename"])
+
+    def test_backup_rotation_failure_is_logged(self):
+        for i in range(main.AUTO_BACKUP_RETENTION + 2):
+            path = os.path.join(self.tmp, f"{main.AUTO_BACKUP_PREFIX}2026-01-{i + 1:02d}_120000.zip")
+            open(path, "wb").close()
+            os.utime(path, (i, i))
+        with patch.object(main, "build_full_backup_zip", lambda path, **kw: open(path, "wb").close()),              patch.object(main.os, "remove", side_effect=OSError("verrouillé")):
+            main.create_auto_backup()
+        self.assertEqual(self.logged.count("auto_backup_rotation"), 3)
 
 
 if __name__ == "__main__":

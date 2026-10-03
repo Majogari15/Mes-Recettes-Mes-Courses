@@ -796,14 +796,14 @@ def ask_yes_no(title, message, parent=None, **kwargs):
         result["value"] = value
         dialog.destroy()
 
-    body = ttk.Frame(dialog, padding=20)
+    body = ttk.Frame(dialog, padding=gs(20))
     body.pack(fill="both", expand=True)
     ttk.Label(body, text=message, wraplength=420, justify="left").pack(anchor="w")
 
-    btn_frame = ttk.Frame(dialog, padding=(20, 0, 20, 16))
+    btn_frame = ttk.Frame(dialog, padding=(gs(20), 0, gs(20), gs(SPACE_MD)))
     btn_frame.pack(fill="x")
     no_btn = ttk.Button(btn_frame, text=t("common_no"), command=lambda: _answer(False))
-    no_btn.pack(side="right", padx=(8, 0))
+    no_btn.pack(side="right", padx=(gs(SPACE_SM), 0))
     yes_btn = ttk.Button(btn_frame, text=t("common_yes"), command=lambda: _answer(True))
     yes_btn.pack(side="right")
 
@@ -846,14 +846,14 @@ def ask_merge_duplicate_ingredients(parent, duplicate_display):
         result["value"] = value
         dialog.destroy()
 
-    body = ttk.Frame(dialog, padding=20)
+    body = ttk.Frame(dialog, padding=gs(20))
     body.pack(fill="both", expand=True)
     ttk.Label(
         body, text=t("recipeform_duplicate_ingredient_message", list=duplicate_display),
         wraplength=420, justify="left"
     ).pack(anchor="w")
 
-    btn_frame = ttk.Frame(dialog, padding=(20, 0, 20, 16))
+    btn_frame = ttk.Frame(dialog, padding=(gs(20), 0, gs(20), gs(SPACE_MD)))
     btn_frame.pack(fill="x")
     merge_btn = ttk.Button(
         btn_frame, text=t("recipeform_merge_duplicates_button"),
@@ -864,7 +864,7 @@ def ask_merge_duplicate_ingredients(parent, duplicate_display):
         btn_frame, text=t("recipeform_keep_duplicates_button"),
         style="Secondary.TButton", command=lambda: _answer("keep")
     )
-    keep_btn.pack(side="right", padx=(0, 8))
+    keep_btn.pack(side="right", padx=(0, gs(SPACE_SM)))
 
     dialog.protocol("WM_DELETE_WINDOW", lambda: _answer(None))
     dialog.bind("<Escape>", lambda e: _answer(None))
@@ -1024,12 +1024,12 @@ def print_document(parent, path, subject):
         progress_window.title(t("print_title"))
         progress_window.transient(parent)
         progress_window.resizable(False, False)
-        body = ttk.Frame(progress_window, padding=18)
+        body = ttk.Frame(progress_window, padding=gs(18))
         body.pack(fill="both", expand=True)
         label = ttk.Label(body, text=t("print_preparing"), wraplength=440)
-        label.pack(fill="x", pady=(0, 12))
+        label.pack(fill="x", pady=(0, gs(12)))
         bar = ttk.Progressbar(body, mode="indeterminate", length=360)
-        bar.pack(fill="x", pady=(0, 12))
+        bar.pack(fill="x", pady=(0, gs(12)))
         bar.start(30)
         def request_cancel():
             cancelled.set()
@@ -2646,7 +2646,7 @@ def _render_cart_cost_summary(parent, items):
     ttk.Label(
         parent, text=t("onerecipe_cost_label", cost=f"{cost:.2f}", partial=partial),
         font=("Segoe UI", sf(9), "bold"), foreground=COLOR_ACCENT_DARK
-    ).pack(anchor="w", pady=(0, 4))
+    ).pack(anchor="w", pady=(0, gs(SPACE_XS)))
 
 
 def _render_cart_sort_toggle(parent, sort_var, on_change):
@@ -2654,14 +2654,14 @@ def _render_cart_sort_toggle(parent, sort_var, on_change):
     affichée. Partagé par les trois fenêtres concernées (voir
     _render_cart_cost_summary)."""
     frame = ttk.Frame(parent)
-    frame.pack(anchor="w", pady=(0, 8))
-    ttk.Label(frame, text=t("common_sort_by_label")).pack(side="left", padx=(0, 6))
+    frame.pack(anchor="w", pady=(0, gs(SPACE_SM)))
+    ttk.Label(frame, text=t("common_sort_by_label")).pack(side="left", padx=(0, gs(6)))
     ttk.Radiobutton(
         frame, text=t("pantry_col_section"), value="rayon", variable=sort_var, command=on_change
     ).pack(side="left")
     ttk.Radiobutton(
         frame, text=t("pantry_sort_name"), value="nom", variable=sort_var, command=on_change
-    ).pack(side="left", padx=(8, 0))
+    ).pack(side="left", padx=(gs(SPACE_SM), 0))
 
 
 # ---------------------------------------------------------------------------
@@ -7362,6 +7362,27 @@ def _ui_rescale_open_window_fonts(root, ratio):
         visit(child)
 
 
+def _ui_scrollable_body(window):
+    """Cadre défilant (molette locale + barre) occupant toute la fenêtre.
+
+    Pour les fenêtres qui empilent beaucoup de sections : sur un écran de
+    hauteur courante, surtout en « Texte agrandi », le bas était coupé sans
+    moyen d'y accéder. Renvoie (canvas, body) ; le contenu va dans body."""
+    outer = ttk.Frame(window)
+    outer.pack(fill="both", expand=True)
+    canvas = tk.Canvas(outer, highlightthickness=0, background=COLOR_BG)
+    scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+    body = ttk.Frame(canvas)
+    window_id = canvas.create_window((0, 0), window=body, anchor="nw")
+    body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window_id, width=e.width))
+    canvas.configure(yscrollcommand=scrollbar.set)
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+    _ui_bind_local_mousewheel(canvas, body, lambda ev: canvas.yview_scroll(int(-ev.delta / 120), "units"))
+    return canvas, body
+
+
 def _ui_bind_local_mousewheel(canvas, container, callback):
     """Lie la molette uniquement aux widgets d'une zone défilable.
 
@@ -7428,7 +7449,7 @@ class _Tooltip:
             pass
         self._tip.wm_geometry(f"+{x}+{y}")
         tk.Label(self._tip, text=self.text, background=COLOR_TEXT, foreground=COLOR_BG,
-                 font=("Segoe UI", sf(9)), padx=8, pady=4, wraplength=280, justify="left").pack()
+                 font=("Segoe UI", sf(9)), padx=gs(SPACE_SM), pady=gs(SPACE_XS), wraplength=280, justify="left").pack()
 
     def _hide(self, _event=None):
         if self._after_id is not None:
@@ -7530,7 +7551,7 @@ class MaintenanceWindow:
         _ui_bind_escape(self.win)
         self.win.title(t("maintenance_title"))
         _ui_apply_window_defaults(self.win, "760x560", True)
-        outer = ttk.Frame(self.win, padding=18)
+        outer = ttk.Frame(self.win, padding=gs(18))
         outer.pack(fill="both", expand=True)
 
         ttk.Label(outer, text=t("maintenance_title"),
@@ -7539,17 +7560,17 @@ class MaintenanceWindow:
             outer,
             text=t("maintenance_intro"),
             wraplength=700
-        ).pack(anchor="w", pady=(4, 14))
+        ).pack(anchor="w", pady=(gs(SPACE_XS), gs(14)))
 
         self.report = tk.Text(outer, height=18, wrap="word")
         self.report.pack(fill="both", expand=True)
 
         btns = ttk.Frame(outer)
-        btns.pack(fill="x", pady=(12, 0))
+        btns.pack(fill="x", pady=(gs(12), 0))
         ttk.Button(btns, text=t("maintenance_recheck"),
                    command=self.refresh).pack(side="left")
         ttk.Button(btns, text=t("maintenance_open_backups"),
-                   command=self.open_backups).pack(side="left", padx=(8, 0))
+                   command=self.open_backups).pack(side="left", padx=(gs(SPACE_SM), 0))
         ttk.Button(btns, text=t("maintenance_close"),
                    command=self.win.destroy).pack(side="right")
         self.refresh()
@@ -7624,7 +7645,7 @@ class DisclaimerWindow(tk.Toplevel):
         # ---- Sélecteur de langue, tout en haut : mêmes principe et
         # habillage que le menu déroulant de la page d'accueil. ----
         lang_bar = ttk.Frame(self)
-        lang_bar.pack(fill="x", padx=15, pady=(10, 0))
+        lang_bar.pack(fill="x", padx=gs(15), pady=(gs(10), 0))
         language_names = LANGUAGE_NAMES
         current_flag = self.app.flag_photos.get(self.app.language)
         menubutton_kwargs = {"text": language_names.get(self.app.language, "Français")}
@@ -7649,13 +7670,13 @@ class DisclaimerWindow(tk.Toplevel):
         language_menubutton.pack(side="right")
 
         ttk.Label(self, text=t("disclaimer_heading"), font=("Segoe UI", sf(14), "bold"),
-                  foreground=COLOR_ERROR).pack(pady=(15, 5))
+                  foreground=COLOR_ERROR).pack(pady=(gs(15), gs(5)))
         ttk.Label(self, text=t("disclaimer_intro"),
-                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, 10))
+                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, gs(10)))
 
         text_frame = ttk.Frame(self)
-        text_frame.pack(fill="both", expand=True, padx=15)
-        text_widget = tk.Text(text_frame, wrap="word", padx=10, pady=10, font=("Segoe UI", sf(10)))
+        text_frame.pack(fill="both", expand=True, padx=gs(15))
+        text_widget = tk.Text(text_frame, wrap="word", padx=gs(10), pady=gs(10), font=("Segoe UI", sf(10)))
         scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=text_widget.yview)
         text_widget.configure(yscrollcommand=scrollbar.set)
         text_widget.pack(side="left", fill="both", expand=True)
@@ -7668,17 +7689,17 @@ class DisclaimerWindow(tk.Toplevel):
             self, text=t("disclaimer_checkbox"),
             variable=self.accept_var, command=self._on_toggle
         )
-        check.pack(pady=(12, 5))
+        check.pack(pady=(gs(12), gs(5)))
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=(0, 15))
+        btn_frame.pack(pady=(0, gs(15)))
         self.continue_button = ttk.Button(
             btn_frame, text=t("disclaimer_continue_button"),
             state="normal" if previously_checked else "disabled", command=self._on_continue
         )
-        self.continue_button.grid(row=0, column=0, padx=5)
+        self.continue_button.grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("disclaimer_quit_button"),
-                   style="Secondary.TButton", command=self._quit_app).grid(row=0, column=1, padx=5)
+                   style="Secondary.TButton", command=self._quit_app).grid(row=0, column=1, padx=gs(5))
 
     def _set_language(self, lang):
         if lang == self.app.language:
@@ -8012,7 +8033,7 @@ def configure_app_style(root):
     style.map("TCheckbutton", background=[("active", COLOR_BG)])
 
     style.configure("TButton", background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT,
-                     font=base_font, padding=(12, 7), borderwidth=0, relief="flat")
+                     font=base_font, padding=(gs(12), gs(7)), borderwidth=0, relief="flat")
     # Keyboard/accessibility: keep a visible focus state and generous rows.
     style.map("TButton", relief=[("focus", "solid")])
     # background/fieldbackground/foreground n'étaient jamais stylés ici :
@@ -8033,9 +8054,9 @@ def configure_app_style(root):
 
     style.configure("TEntry", fieldbackground=COLOR_CARD, foreground=COLOR_TEXT,
                      bordercolor=COLOR_BORDER, lightcolor=COLOR_BORDER, darkcolor=COLOR_BORDER,
-                     padding=5)
+                     padding=gs(5))
     style.configure("TCombobox", fieldbackground=COLOR_CARD, foreground=COLOR_TEXT,
-                     bordercolor=COLOR_BORDER, arrowcolor=COLOR_ACCENT_DARK, padding=5)
+                     bordercolor=COLOR_BORDER, arrowcolor=COLOR_ACCENT_DARK, padding=gs(5))
     style.map("TCombobox", fieldbackground=[("readonly", COLOR_CARD)])
 
     style.configure("TLabelframe", background=COLOR_BG, bordercolor=COLOR_BORDER)
@@ -8044,7 +8065,7 @@ def configure_app_style(root):
 
     style.configure("TNotebook", background=COLOR_BG, bordercolor=COLOR_BORDER)
     style.configure("TNotebook.Tab", background=COLOR_ACCENT_LIGHT, foreground=COLOR_TEXT,
-                     padding=(12, 6), font=base_font)
+                     padding=(gs(12), gs(6)), font=base_font)
     style.map("TNotebook.Tab",
               background=[("selected", COLOR_ACCENT)],
               foreground=[("selected", COLOR_ON_ACCENT)])
@@ -8066,7 +8087,7 @@ def configure_app_style(root):
     # désactivé) que TButton, volontairement, pour rester sur une
     # combinaison déjà utilisée en production.
     style.configure("Primary.TButton", background=COLOR_ACCENT, foreground=COLOR_ON_ACCENT,
-                     font=("Segoe UI", sf(10), "bold"), padding=(14, 8), borderwidth=0, relief="flat")
+                     font=("Segoe UI", sf(10), "bold"), padding=(gs(14), gs(SPACE_SM)), borderwidth=0, relief="flat")
     style.map("Primary.TButton",
               background=[("active", COLOR_ACCENT_DARK), ("disabled", "#D8CBB8")],
               foreground=[("disabled", "#F4EEE3")])
@@ -8074,7 +8095,7 @@ def configure_app_style(root):
     # Boutons secondaires plus discrets (utilisés pour des actions annexes) :
     # à activer au cas par cas avec style="Secondary.TButton" si besoin plus tard.
     style.configure("Secondary.TButton", background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
-                     padding=(12, 7))
+                     padding=(gs(12), gs(7)))
     style.map("Secondary.TButton", background=[("active", COLOR_ACCENT_LIGHT)])
 
     # Indicateur de focus clavier pour les étoiles de note (ttk.Label ne
@@ -8088,7 +8109,7 @@ def configure_app_style(root):
     # Menu déroulant de langue : même habillage visuel que les boutons
     # secondaires ci-dessus, pour rester cohérent dans la barre du haut.
     style.configure("Secondary.TMenubutton", background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
-                     padding=(12, 7))
+                     padding=(gs(12), gs(7)))
     style.map("Secondary.TMenubutton", background=[("active", COLOR_ACCENT_LIGHT)])
 
     # Variantes "carte" (fond blanc) pour les encadrés mis en valeur sur la
@@ -8096,11 +8117,11 @@ def configure_app_style(root):
     # aient le même fond que la carte plutôt que le fond général de la page.
     style.configure("Card.TFrame", background=COLOR_CARD)
     style.configure("Card.TLabel", background=COLOR_CARD, foreground=COLOR_TEXT)
-    style.configure("Hero.TButton", font=("Segoe UI", sf(11), "bold"), padding=(16, 10))
+    style.configure("Hero.TButton", font=("Segoe UI", sf(11), "bold"), padding=(gs(SPACE_MD), gs(10)))
     # Fond dédié (comme Secondary.TButton) plutôt que d'hériter du fond ACCENT
     # de TButton : texte ERROR sur fond ACCENT tombait à 1.74:1/1.01:1
     # (clair/sombre), bien en dessous du seuil WCAG AA de 4.5:1.
-    style.configure("Danger.TButton", background=COLOR_CARD, foreground=COLOR_ERROR, padding=(12, 7))
+    style.configure("Danger.TButton", background=COLOR_CARD, foreground=COLOR_ERROR, padding=(gs(12), gs(7)))
     style.map("Danger.TButton", background=[("active", COLOR_ACCENT_LIGHT)], foreground=[("active", COLOR_ERROR)])
     style.configure("Title.TLabel", font=("Segoe UI", sf(19), "bold"), foreground=COLOR_TEXT)
     style.configure("Section.TLabel", font=("Segoe UI", sf(12), "bold"), foreground=COLOR_ACCENT_DARK)
@@ -8433,7 +8454,7 @@ class App(APP_TK_BASE):
         frame = tk.Frame(toast, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
         frame.pack(fill="both", expand=True)
         tk.Label(frame, text=f"✓  {message}", background=COLOR_CARD, foreground=COLOR_TEXT,
-                 font=("Segoe UI", sf(10), "bold"), padx=16, pady=10).pack()
+                 font=("Segoe UI", sf(10), "bold"), padx=gs(SPACE_MD), pady=gs(10)).pack()
         self.update_idletasks()
         toast.update_idletasks()
         x = self.winfo_rootx() + max(10, self.winfo_width() - toast.winfo_reqwidth() - 24)
@@ -8540,7 +8561,7 @@ class App(APP_TK_BASE):
         search_wrap.pack(side="left", fill="x", expand=True, padx=gs(SPACE_SM), pady=gs(SPACE_SM))
         self.home_search_var = tk.StringVar()
         home_search = ttk.Entry(search_wrap, textvariable=self.home_search_var, font=("Segoe UI", sf(10)))
-        home_search.pack(side="left", fill="x", expand=True, ipady=4)
+        home_search.pack(side="left", fill="x", expand=True, ipady=gs(SPACE_XS))
         home_search.insert(0, t("home_search_placeholder"))
         home_search.configure(foreground=COLOR_TEXT_MUTED)
         def _search_focus_in(event):
@@ -8806,7 +8827,7 @@ class App(APP_TK_BASE):
                     command=command
                 ).grid(
                     row=i, column=0, sticky="ew",
-                    padx=2, pady=4, ipady=2
+                    padx=gs(2), pady=gs(SPACE_XS), ipady=gs(2)
                 )
 
         warnings = []
@@ -8869,20 +8890,20 @@ class App(APP_TK_BASE):
                 )),
                 font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED, wraplength=560, justify="left",
                 style="Card.TLabel"
-            ).pack(anchor="w", pady=3)
+            ).pack(anchor="w", pady=gs(3))
             return
 
         ttk.Label(self.today_frame, text=translate_weekday_name(today_name), font=("Segoe UI", sf(9), "bold"),
                   foreground=COLOR_TEXT_MUTED, style="Card.TLabel").pack(anchor="w")
         for slot, recipe_name, persons in entries:
             row = ttk.Frame(self.today_frame, style="Card.TFrame")
-            row.pack(fill="x", pady=1)
+            row.pack(fill="x", pady=gs(1))
             ttk.Label(row, text=f"{translate_mealslot_name(slot)} :", width=18, anchor="w", style="Card.TLabel").pack(side="left")
             ttk.Label(row, text=f"{recipe_name} ({persons} pers.)", anchor="w",
                       style="Card.TLabel").pack(side="left")
             preview_btn = ttk.Button(row, text="👁", width=3,
                        command=lambda n=recipe_name: self._open_today_recipe(n))
-            preview_btn.pack(side="left", padx=5)
+            preview_btn.pack(side="left", padx=gs(5))
             add_tooltip(preview_btn, t("tooltip_preview_recipe"))
 
     def _open_today_recipe(self, recipe_name):
@@ -8905,11 +8926,11 @@ class App(APP_TK_BASE):
             ttk.Label(self.recent_frame, text=t("home_recent_empty_title"), style="Card.TLabel",
                       font=("Segoe UI", sf(10), "bold")).pack(anchor="w")
             ttk.Label(self.recent_frame, text=t("home_recent_empty_sub"), style="Card.TLabel",
-                      foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(2, 0))
+                      foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(gs(2), 0))
             return
         for recipe in self._recent_recipes:
             row = tk.Frame(self.recent_frame, background=COLOR_CARD, cursor="hand2")
-            row.pack(fill="x", pady=2)
+            row.pack(fill="x", pady=gs(2))
             name_lbl = tk.Label(row, text=recipe.get("name", ""), background=COLOR_CARD, foreground=COLOR_TEXT,
                                 font=("Segoe UI", sf(9), "bold"), anchor="w", cursor="hand2")
             name_lbl.pack(side="left", fill="x", expand=True)
@@ -9197,19 +9218,19 @@ class UnknownIngredientsDialog(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self._cancel)
 
         ttk.Label(self, text=t("unknowningredients_heading"), style="Title.TLabel").pack(
-            anchor="w", padx=18, pady=(16, 4)
+            anchor="w", padx=gs(18), pady=(gs(SPACE_MD), gs(SPACE_XS))
         )
         ttk.Label(
             self, text=t("unknowningredients_intro"), wraplength=760,
             justify="left", foreground=COLOR_TEXT_MUTED
-        ).pack(fill="x", padx=18, pady=(0, 12))
+        ).pack(fill="x", padx=gs(18), pady=(0, gs(12)))
         ttk.Label(
             self, text=t("common_filter_hint"),
             foreground=COLOR_TEXT_MUTED,
-        ).pack(anchor="w", padx=18, pady=(0, 8))
+        ).pack(anchor="w", padx=gs(18), pady=(0, gs(SPACE_SM)))
 
         outer = ttk.Frame(self)
-        outer.pack(fill="both", expand=True, padx=18)
+        outer.pack(fill="both", expand=True, padx=gs(18))
         canvas = tk.Canvas(outer, highlightthickness=0)
         scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         content = ttk.Frame(canvas)
@@ -9230,15 +9251,15 @@ class UnknownIngredientsDialog(tk.Toplevel):
             ranked = rank_close_ingredients(raw_name, existing_names)
             ordered = [name for _score, name in ranked]
             top_score = ranked[0][0] if ranked else 0
-            box = ttk.LabelFrame(content, text=f"  {raw_name}  ", padding=10)
-            box.pack(fill="x", pady=5)
+            box = ttk.LabelFrame(content, text=f"  {raw_name}  ", padding=gs(10))
+            box.pack(fill="x", pady=gs(5))
             action = tk.StringVar(value="replace" if top_score >= 0.75 else "create")
             ttk.Radiobutton(
                 box, text=t("unknowningredients_create", name=raw_name),
                 variable=action, value="create"
             ).pack(anchor="w")
             replace_line = ttk.Frame(box)
-            replace_line.pack(fill="x", pady=(5, 0))
+            replace_line.pack(fill="x", pady=(gs(5), 0))
             ttk.Radiobutton(
                 replace_line, text=t("unknowningredients_replace"),
                 variable=action, value="replace"
@@ -9257,7 +9278,7 @@ class UnknownIngredientsDialog(tk.Toplevel):
             closest = translate_ingredient_name(ordered[0]) if ordered else ""
             if closest:
                 choice.insert(0, closest)
-            choice.pack(side="left", padx=(8, 0), fill="x", expand=True)
+            choice.pack(side="left", padx=(gs(SPACE_SM), 0), fill="x", expand=True)
             choice.bind(
                 "<KeyRelease>",
                 lambda event, entry=choice, selected_action=action:
@@ -9275,12 +9296,12 @@ class UnknownIngredientsDialog(tk.Toplevel):
             self.rows.append((raw_name, action, choice, display_to_canonical))
 
         buttons = ttk.Frame(self)
-        buttons.pack(fill="x", padx=18, pady=16)
+        buttons.pack(fill="x", padx=gs(18), pady=gs(SPACE_MD))
         ttk.Button(buttons, text=t("common_cancel"), command=self._cancel).pack(side="right")
         ttk.Button(
             buttons, text=t("unknowningredients_continue"), style="Primary.TButton",
             command=self._accept
-        ).pack(side="right", padx=(0, 8))
+        ).pack(side="right", padx=(0, gs(SPACE_SM)))
 
     def _hide_replacement_suggestions(self, entry):
         popup = getattr(entry, "_suggestion_popup", None)
@@ -9460,21 +9481,21 @@ class RecipeFormWindow(tk.Toplevel):
         scrollbar.pack(side="right", fill="y")
 
         ttk.Label(self.content_frame, text=t("recipeform_title_edit") if self.editing else t("recipeform_title_add"),
-                  style="Title.TLabel").pack(anchor="w", padx=20, pady=(16, 2))
+                  style="Title.TLabel").pack(anchor="w", padx=gs(20), pady=(gs(SPACE_MD), gs(2)))
         self.draft_status_label = ttk.Label(self.content_frame, text=t("recipeform_draft_hint"), style="Muted.TLabel")
-        self.draft_status_label.pack(anchor="w", padx=20, pady=(0, 10))
+        self.draft_status_label.pack(anchor="w", padx=gs(20), pady=(0, gs(10)))
         self.form_notebook = ttk.Notebook(self.content_frame)
-        self.form_notebook.pack(fill="both", expand=True, padx=16, pady=(0, 12))
-        self.tab_info = ttk.Frame(self.form_notebook, padding=16)
-        self.tab_ingredients = ttk.Frame(self.form_notebook, padding=16)
-        self.tab_preparation = ttk.Frame(self.form_notebook, padding=16)
-        self.tab_photos = ttk.Frame(self.form_notebook, padding=16)
+        self.form_notebook.pack(fill="both", expand=True, padx=gs(SPACE_MD), pady=(0, gs(12)))
+        self.tab_info = ttk.Frame(self.form_notebook, padding=gs(SPACE_MD))
+        self.tab_ingredients = ttk.Frame(self.form_notebook, padding=gs(SPACE_MD))
+        self.tab_preparation = ttk.Frame(self.form_notebook, padding=gs(SPACE_MD))
+        self.tab_photos = ttk.Frame(self.form_notebook, padding=gs(SPACE_MD))
         self.form_notebook.add(self.tab_info, text=t("recipeform_tab_info"))
         self.form_notebook.add(self.tab_ingredients, text=t("recipeform_tab_ingredients"))
         self.form_notebook.add(self.tab_preparation, text=t("recipeform_tab_preparation"))
         self.form_notebook.add(self.tab_photos, text=t("recipeform_tab_photos"))
         if self.editing:
-            self.tab_cook_log = ttk.Frame(self.form_notebook, padding=16)
+            self.tab_cook_log = ttk.Frame(self.form_notebook, padding=gs(SPACE_MD))
             self.form_notebook.add(self.tab_cook_log, text=t("recipeform_tab_cook_log"))
             self._build_cook_log_tab()
 
@@ -9484,7 +9505,7 @@ class RecipeFormWindow(tk.Toplevel):
         row1_right = self.tab_info
 
         ttk.Label(row1_left, text=t("recipeform_name_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(15), gs(5)))
         self.name_entry = ttk.Entry(row1_left, width=42)
         self.name_entry.pack()
         if self.editing:
@@ -9496,19 +9517,19 @@ class RecipeFormWindow(tk.Toplevel):
             value=self.existing_recipe.get("favorite", False) if self.editing else False
         )
         ttk.Checkbutton(row1_left, text=t("recipeform_favorite_checkbox"),
-                         variable=self.favorite_var).pack(pady=(8, 0))
+                         variable=self.favorite_var).pack(pady=(gs(SPACE_SM), 0))
 
         self.wishlist_var = tk.BooleanVar(
             value=self.existing_recipe.get("wishlist", False) if self.editing else False
         )
         ttk.Checkbutton(row1_left, text=t("recipeform_wishlist_checkbox"),
-                         variable=self.wishlist_var).pack(pady=(4, 0))
+                         variable=self.wishlist_var).pack(pady=(gs(SPACE_XS), 0))
 
         # ---- Note personnelle (1 à 5 étoiles, cliquables) ----
         self.rating_value = self.existing_recipe.get("rating", 0) if self.editing else 0
         rating_frame = ttk.Frame(row1_left)
-        rating_frame.pack(pady=(8, 0))
-        ttk.Label(rating_frame, text=t("recipeform_rating_label")).pack(side="left", padx=(0, 5))
+        rating_frame.pack(pady=(gs(SPACE_SM), 0))
+        ttk.Label(rating_frame, text=t("recipeform_rating_label")).pack(side="left", padx=(0, gs(5)))
         self.rating_star_labels = []
         for i in range(1, 6):
             lbl = ttk.Label(rating_frame, text="☆", font=("Segoe UI", sf(14)), cursor="hand2", takefocus=1)
@@ -9527,7 +9548,7 @@ class RecipeFormWindow(tk.Toplevel):
         self._refresh_rating_stars()
 
         ttk.Label(row1_left, text=t("recipeform_category_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(15), gs(5)))
         self.category_combo = ttk.Combobox(row1_left, values=[translate_category_name(c) for c in self.CATEGORY_OPTIONS],
                                             state="readonly", width=20)
         self.category_combo.set(
@@ -9537,13 +9558,13 @@ class RecipeFormWindow(tk.Toplevel):
 
         # ---- Temps de préparation / cuisson / difficulté ----
         times_frame = ttk.Frame(row1_left)
-        times_frame.pack(pady=(15, 5))
-        ttk.Label(times_frame, text=t("recipeform_prep_time_label")).grid(row=0, column=0, padx=3, sticky="e")
+        times_frame.pack(pady=(gs(15), gs(5)))
+        ttk.Label(times_frame, text=t("recipeform_prep_time_label")).grid(row=0, column=0, padx=gs(3), sticky="e")
         self.prep_time_entry = ttk.Entry(times_frame, width=6)
-        self.prep_time_entry.grid(row=0, column=1, padx=3)
-        ttk.Label(times_frame, text=t("recipeform_cook_time_label")).grid(row=0, column=2, padx=3, sticky="e")
+        self.prep_time_entry.grid(row=0, column=1, padx=gs(3))
+        ttk.Label(times_frame, text=t("recipeform_cook_time_label")).grid(row=0, column=2, padx=gs(3), sticky="e")
         self.cook_time_entry = ttk.Entry(times_frame, width=6)
-        self.cook_time_entry.grid(row=0, column=3, padx=3)
+        self.cook_time_entry.grid(row=0, column=3, padx=gs(3))
         if self.editing:
             self.prep_time_entry.insert(0, str(self.existing_recipe.get("prep_time", "") or ""))
             self.cook_time_entry.insert(0, str(self.existing_recipe.get("cook_time", "") or ""))
@@ -9552,8 +9573,8 @@ class RecipeFormWindow(tk.Toplevel):
             self.cook_time_entry.insert(0, str(self.prefill.get("cook_time", "") or ""))
 
         difficulty_frame = ttk.Frame(row1_left)
-        difficulty_frame.pack(pady=(5, 5))
-        ttk.Label(difficulty_frame, text=t("recipeform_difficulty_label")).pack(side="left", padx=3)
+        difficulty_frame.pack(pady=(gs(5), gs(5)))
+        ttk.Label(difficulty_frame, text=t("recipeform_difficulty_label")).pack(side="left", padx=gs(3))
         self.difficulty_combo = ttk.Combobox(difficulty_frame, values=[translate_difficulty_name(d) for d in self.DIFFICULTY_OPTIONS],
                                               state="readonly", width=15)
         if self.editing:
@@ -9563,8 +9584,8 @@ class RecipeFormWindow(tk.Toplevel):
         else:
             difficulty_value = "Facile"
         self.difficulty_combo.set(translate_difficulty_name(difficulty_value))
-        self.difficulty_combo.pack(side="left", padx=3)
-        ttk.Label(difficulty_frame, text=t("recipeform_default_persons_label")).pack(side="left", padx=(10, 3))
+        self.difficulty_combo.pack(side="left", padx=gs(3))
+        ttk.Label(difficulty_frame, text=t("recipeform_default_persons_label")).pack(side="left", padx=(gs(10), gs(3)))
         self.default_persons_entry = ttk.Entry(difficulty_frame, width=5)
         if self.editing:
             default_persons_value = str(self.existing_recipe.get("default_persons", 4))
@@ -9577,7 +9598,7 @@ class RecipeFormWindow(tk.Toplevel):
 
         # ---- Étiquettes libres ----
         ttk.Label(row1_left, text=t("recipeform_tags_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(15), gs(5)))
         self.tags_entry = ttk.Entry(row1_left, width=42)
         self.tags_entry.pack()
         if self.editing and self.existing_recipe.get("tags"):
@@ -9587,7 +9608,7 @@ class RecipeFormWindow(tk.Toplevel):
 
         # ---- Allergènes ----
         allergens_header = ttk.Frame(row1_right)
-        allergens_header.pack(fill="x", padx=10, pady=(15, 5))
+        allergens_header.pack(fill="x", padx=gs(10), pady=(gs(15), gs(5)))
         ttk.Label(allergens_header, text=t("recipeform_allergens_label"),
                   font=("Segoe UI", sf(11), "bold")).pack(side="left")
         ttk.Button(allergens_header, text=t("recipeform_detect_allergens_button"),
@@ -9596,7 +9617,7 @@ class RecipeFormWindow(tk.Toplevel):
             row1_right,
             text=t("recipeform_allergens_disclaimer"),
             font=("Segoe UI", sf(8), "bold"), foreground=COLOR_ERROR, justify="center"
-        ).pack(pady=(0, 8))
+        ).pack(pady=(0, gs(SPACE_SM)))
         allergens_frame = ttk.Frame(row1_right)
         allergens_frame.pack()
         if self.editing:
@@ -9614,7 +9635,7 @@ class RecipeFormWindow(tk.Toplevel):
             var = tk.BooleanVar(value=allergen in existing_allergens)
             self.allergen_vars[allergen] = var
             ttk.Checkbutton(allergens_frame, text=translate_allergen_name(allergen), variable=var).grid(
-                row=i // 2, column=i % 2, sticky="w", padx=8, pady=2
+                row=i // 2, column=i % 2, sticky="w", padx=gs(SPACE_SM), pady=gs(2)
             )
         # Sert à ne jamais décocher un allergène que l'utilisateur aurait
         # coché lui-même sans lien avec un ingrédient détecté : on ne
@@ -9631,30 +9652,30 @@ class RecipeFormWindow(tk.Toplevel):
             row1_right,
             text=t("recipeform_allergens_auto_note"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 5))
+        ).pack(pady=(0, gs(5)))
 
         # ---- Photos (galerie) ----
         # Le bouton et les astuces sont placés avant la galerie (et non
         # expand=True) afin de rester visibles sans défiler, même quand la
         # galerie est vide et que l'onglet dispose de beaucoup de hauteur.
         ttk.Label(self.tab_photos, text=t("recipeform_photos_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Button(self.tab_photos, text=t("recipeform_add_photo_button"),
-                   command=self.choose_images).pack(pady=5)
+                   command=self.choose_images).pack(pady=gs(5))
         self.drop_status_label = ttk.Label(
             self.tab_photos,
             text=t("recipeform_drop_photos_hint"),
             style="Muted.TLabel"
         )
-        self.drop_status_label.pack(pady=(2, 1))
+        self.drop_status_label.pack(pady=(gs(2), gs(1)))
         ttk.Label(
             self.tab_photos,
             text=t("recipeform_paste_photo_hint"),
             style="Muted.TLabel"
-        ).pack(pady=(0, 8))
+        ).pack(pady=(0, gs(SPACE_SM)))
 
         gallery_outer = ttk.Frame(self.tab_photos)
-        gallery_outer.pack(fill="both", expand=True, padx=10, pady=(0, 6))
+        gallery_outer.pack(fill="both", expand=True, padx=gs(10), pady=(0, gs(6)))
         # Grande galerie : la hauteur est ajustée en fonction de la taille des
         # aperçus et la largeur disponible est exploitée au maximum.
         self.gallery_canvas = tk.Canvas(gallery_outer, height=380, highlightthickness=0)
@@ -9682,9 +9703,9 @@ class RecipeFormWindow(tk.Toplevel):
         # l'application et offre beaucoup plus de hauteur pour les recettes
         # détaillées.
         ttk.Label(row2_right, text=t("recipeform_description_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(15, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=gs(10), pady=(gs(15), gs(5)))
         desc_frame = ttk.Frame(row2_right)
-        desc_frame.pack(fill="both", expand=True, padx=10)
+        desc_frame.pack(fill="both", expand=True, padx=gs(10))
         desc_scroll = ttk.Scrollbar(desc_frame, orient="vertical")
         self.description_text = tk.Text(
             desc_frame, height=18, wrap="word", font=("Segoe UI", sf(10)),
@@ -9699,7 +9720,7 @@ class RecipeFormWindow(tk.Toplevel):
             self.description_text.insert("1.0", self.prefill["description"])
         self.desc_counter_label = ttk.Label(row2_right, text="", font=("Segoe UI", sf(8)),
                                              foreground=COLOR_TEXT_MUTED)
-        self.desc_counter_label.pack(anchor="e", padx=10, pady=(2, 8))
+        self.desc_counter_label.pack(anchor="e", padx=gs(10), pady=(gs(2), gs(SPACE_SM)))
         self.description_text.bind("<<Modified>>", self._on_description_modified)
         self._on_description_modified()
 
@@ -9707,9 +9728,9 @@ class RecipeFormWindow(tk.Toplevel):
         # Les notes concernent directement la préparation et sont donc placées
         # juste sous la description au lieu d'être isolées dans Compléments.
         ttk.Label(row2_right, text=t("recipeform_notes_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(8, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=gs(10), pady=(gs(SPACE_SM), gs(5)))
         notes_frame = ttk.Frame(row2_right)
-        notes_frame.pack(fill="x", padx=10)
+        notes_frame.pack(fill="x", padx=gs(10))
         notes_scroll = ttk.Scrollbar(notes_frame, orient="vertical")
         self.notes_text = tk.Text(
             notes_frame, height=7, wrap="word", font=("Segoe UI", sf(10)),
@@ -9724,31 +9745,31 @@ class RecipeFormWindow(tk.Toplevel):
             self.notes_text.insert("1.0", self.prefill["personal_notes"])
         self.notes_counter_label = ttk.Label(row2_right, text="", font=("Segoe UI", sf(8)),
                                               foreground=COLOR_TEXT_MUTED)
-        self.notes_counter_label.pack(anchor="e", padx=10, pady=(2, 10))
+        self.notes_counter_label.pack(anchor="e", padx=gs(10), pady=(gs(2), gs(10)))
         self.notes_text.bind("<<Modified>>", self._on_notes_modified)
         self._on_notes_modified()
 
         # ---- Retour après cuisson (aligné sur l'application mobile) ----
         ttk.Label(row2_right, text=t("recipeform_family_opinion_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(8, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=gs(10), pady=(gs(SPACE_SM), gs(5)))
         self.family_opinion_text = tk.Text(row2_right, height=4, wrap="word", font=("Segoe UI", sf(10)))
-        self.family_opinion_text.pack(fill="x", padx=10)
+        self.family_opinion_text.pack(fill="x", padx=gs(10))
         if self.editing and self.existing_recipe.get("family_opinion"):
             self.family_opinion_text.insert("1.0", self.existing_recipe.get("family_opinion", ""))
         elif self.prefill and self.prefill.get("family_opinion"):
             self.family_opinion_text.insert("1.0", self.prefill.get("family_opinion", ""))
 
         ttk.Label(row2_right, text=t("recipeform_improvement_notes_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=10, pady=(8, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", padx=gs(10), pady=(gs(SPACE_SM), gs(5)))
         self.improvement_notes_text = tk.Text(row2_right, height=4, wrap="word", font=("Segoe UI", sf(10)))
-        self.improvement_notes_text.pack(fill="x", padx=10)
+        self.improvement_notes_text.pack(fill="x", padx=gs(10))
         if self.editing and self.existing_recipe.get("improvement_notes"):
             self.improvement_notes_text.insert("1.0", self.existing_recipe.get("improvement_notes", ""))
         elif self.prefill and self.prefill.get("improvement_notes"):
             self.improvement_notes_text.insert("1.0", self.prefill.get("improvement_notes", ""))
 
         actual_diff_frame = ttk.Frame(row2_right)
-        actual_diff_frame.pack(fill="x", padx=10, pady=(8, 12))
+        actual_diff_frame.pack(fill="x", padx=gs(10), pady=(gs(SPACE_SM), gs(12)))
         ttk.Label(actual_diff_frame, text=t("recipeform_actual_difficulty_label"),
                   font=("Segoe UI", sf(10), "bold")).pack(side="left")
         self.actual_difficulty_combo = ttk.Combobox(
@@ -9761,11 +9782,11 @@ class RecipeFormWindow(tk.Toplevel):
         elif self.prefill:
             actual_value = self.prefill.get("actual_difficulty", "") or ""
         self.actual_difficulty_combo.set(translate_difficulty_name(actual_value) if actual_value else "")
-        self.actual_difficulty_combo.pack(side="left", padx=(10, 0))
+        self.actual_difficulty_combo.pack(side="left", padx=(gs(10), 0))
 
         # ---- Ingrédients ----
         ing_header_frame = ttk.Frame(row2_left)
-        ing_header_frame.pack(fill="x", padx=10, pady=(15, 5))
+        ing_header_frame.pack(fill="x", padx=gs(10), pady=(gs(15), gs(5)))
         ttk.Label(ing_header_frame, text=t("recipeform_ingredients_label"),
                   font=("Segoe UI", sf(11), "bold"), wraplength=900,
                   justify="left").pack(side="left")
@@ -9781,12 +9802,12 @@ class RecipeFormWindow(tk.Toplevel):
             ttk.Label(row2_left, text=t("importphoto_uncertain_quantities",
                       names=", ".join(self.prefill["ocr_warnings"])),
                       wraplength=850, justify="left", foreground=COLOR_ERROR).pack(
-                          fill="x", padx=10, pady=6)
+                          fill="x", padx=gs(10), pady=gs(6))
         self.rows_frame = ttk.Frame(row2_left)
-        self.rows_frame.pack(fill="x", padx=10)
+        self.rows_frame.pack(fill="x", padx=gs(10))
 
         header = ttk.Frame(self.rows_frame)
-        header.pack(fill="x", pady=2)
+        header.pack(fill="x", pady=gs(2))
         ttk.Label(header, text=t("recipeform_header_ingredient"), width=17,
                   font=("Segoe UI", sf(9), "bold")).grid(row=0, column=0)
         ttk.Label(header, text=t("recipeform_header_quantity"), width=9,
@@ -9816,9 +9837,9 @@ class RecipeFormWindow(tk.Toplevel):
         self.add_ingredient_button = ttk.Button(
             self.rows_frame, text=t("recipeform_add_ingredient_button"), command=lambda: self.add_ingredient_row()
         )
-        self.add_ingredient_button.pack(pady=10)
+        self.add_ingredient_button.pack(pady=gs(10))
 
-        self.bottom_actions_frame = ttk.Frame(self, padding=(16, 10))
+        self.bottom_actions_frame = ttk.Frame(self, padding=(gs(SPACE_MD), gs(10)))
         self.bottom_actions_frame.pack(fill="x", side="bottom")
         if self.editing:
             ttk.Button(self.bottom_actions_frame, text=t("recipeform_delete_button"), style="Danger.TButton",
@@ -9826,7 +9847,7 @@ class RecipeFormWindow(tk.Toplevel):
         ttk.Button(self.bottom_actions_frame, text=t("recipeform_save_button"), style="Hero.TButton",
                    command=self.save_recipe).pack(side="right")
         ttk.Button(self.bottom_actions_frame, text=t("recipeform_cancel_button"), style="Secondary.TButton",
-                   command=self._close_without_draft).pack(side="right", padx=(0, 8))
+                   command=self._close_without_draft).pack(side="right", padx=(0, gs(SPACE_SM)))
 
         self.bind("<Control-s>", lambda e: (self.save_recipe(), "break"))
         self.protocol("WM_DELETE_WINDOW", self._close_without_draft)
@@ -9932,8 +9953,9 @@ class RecipeFormWindow(tk.Toplevel):
             path = self._draft_file_path()
             if os.path.exists(path):
                 os.remove(path)
-        except OSError:
-            pass
+        except OSError as exc:
+            # Brouillon resté sur disque : il serait reproposé à tort.
+            log_internal_error("draft_delete", exc)
 
     def _maybe_restore_draft(self):
         path = self._draft_file_path()
@@ -10199,7 +10221,7 @@ class RecipeFormWindow(tk.Toplevel):
                 self.drop_status_label.config(
                     text=t("recipeform_drop_unavailable")
                 )
-            except Exception:
+            except tk.TclError:
                 # Mise à jour purement cosmétique : si le widget a déjà été
                 # détruit (fermeture concurrente de la fenêtre), rien à faire.
                 pass
@@ -10221,7 +10243,7 @@ class RecipeFormWindow(tk.Toplevel):
                 if self._photo_drop_enabled
                 else t("recipeform_drop_unavailable")
             )
-        except Exception:
+        except tk.TclError:
             # Idem : mise à jour cosmétique, sans conséquence si le widget
             # n'existe déjà plus.
             pass
@@ -10288,7 +10310,7 @@ class RecipeFormWindow(tk.Toplevel):
         self._gallery_thumb_refs = []
 
         if not self.gallery_items:
-            ttk.Label(self.gallery_frame, text=t("recipeform_no_photo")).pack(side="left", padx=20, pady=30)
+            ttk.Label(self.gallery_frame, text=t("recipeform_no_photo")).pack(side="left", padx=gs(20), pady=gs(30))
             self.gallery_canvas.configure(height=300)
             return
 
@@ -10310,7 +10332,7 @@ class RecipeFormWindow(tk.Toplevel):
 
         for idx, (kind, ref) in enumerate(self.gallery_items):
             cell = ttk.Frame(self.gallery_frame)
-            cell.pack(side="left", padx=8, pady=8)
+            cell.pack(side="left", padx=gs(SPACE_SM), pady=gs(SPACE_SM))
 
             thumb = None
             if PIL_AVAILABLE:
@@ -10337,16 +10359,16 @@ class RecipeFormWindow(tk.Toplevel):
             ttk.Button(
                 cell, text=t("recipeform_remove_photo_button"), style="Secondary.TButton",
                 command=lambda i=idx: self._remove_gallery_item(i)
-            ).pack(fill="x", pady=(6, 0))
+            ).pack(fill="x", pady=(gs(6), 0))
 
     def _build_cook_log_tab(self):
         """Affiche les cuissons enregistrées et leurs photos dans l'édition."""
         ttk.Label(self.tab_cook_log, text=t("recipeform_cook_log_heading"),
-                  font=("Segoe UI", sf(12), "bold")).pack(anchor="w", pady=(0, 4))
+                  font=("Segoe UI", sf(12), "bold")).pack(anchor="w", pady=(0, gs(SPACE_XS)))
         entries = [entry for entry in (self.existing_recipe.get("cook_log", []) or [])
                    if isinstance(entry, dict)]
         ttk.Label(self.tab_cook_log, text=t("recipeform_cook_log_count", count=len(entries)),
-                  foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(0, 10))
+                  foreground=COLOR_TEXT_MUTED).pack(anchor="w", pady=(0, gs(10)))
         outer = ttk.Frame(self.tab_cook_log)
         outer.pack(fill="both", expand=True)
         canvas = tk.Canvas(outer, highlightthickness=0)
@@ -10384,12 +10406,12 @@ class RecipeFormWindow(tk.Toplevel):
         entries.sort(key=lambda entry: entry.get("date", ""), reverse=True)
         if not entries:
             ttk.Label(content, text=t("recipeform_cook_log_empty"),
-                      foreground=COLOR_TEXT_MUTED).pack(pady=30)
+                      foreground=COLOR_TEXT_MUTED).pack(pady=gs(30))
             return
         for entry in entries:
             card = tk.Frame(content, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
                             highlightthickness=1)
-            card.pack(fill="x", pady=6, padx=2)
+            card.pack(fill="x", pady=gs(6), padx=gs(2))
             date_value = entry.get("date", "?")
             try:
                 date_value = datetime.fromisoformat(date_value).strftime("%d/%m/%Y à %H:%M")
@@ -10397,17 +10419,17 @@ class RecipeFormWindow(tk.Toplevel):
                 date_value = str(date_value or "?")
             ttk.Label(card, text=date_value, style="Card.TLabel",
                       font=("Segoe UI", sf(10), "bold"), foreground=COLOR_ACCENT_DARK).pack(
-                          anchor="w", padx=10, pady=(8, 2))
+                          anchor="w", padx=gs(10), pady=(gs(SPACE_SM), gs(2)))
             persons = entry.get("persons")
             if persons not in (None, ""):
                 ttk.Label(card, text=t("cooklog_entry_persons", persons=persons),
                           style="Card.TLabel", foreground=COLOR_TEXT_MUTED).pack(
-                              anchor="w", padx=10, pady=(0, 3))
+                              anchor="w", padx=gs(10), pady=(0, gs(3)))
             rating = int(entry.get("rating", 0) or 0)
             if rating:
                 ttk.Label(card, text=t("cooklog_entry_rating", stars="★" * rating + "☆" * (5 - rating)),
                           style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(
-                              anchor="w", padx=10, pady=(2, 3))
+                              anchor="w", padx=gs(10), pady=(gs(2), gs(3)))
             photo = entry.get("photo")
             if photo:
                 available = self.winfo_width()
@@ -10417,22 +10439,22 @@ class RecipeFormWindow(tk.Toplevel):
                 thumb = load_thumbnail(photo, size=(photo_w, int(photo_w * 0.68)))
                 if thumb is not None:
                     self._cook_log_thumb_refs.append(thumb)
-                    ttk.Label(card, image=thumb).pack(anchor="w", padx=10, pady=4)
+                    ttk.Label(card, image=thumb).pack(anchor="w", padx=gs(10), pady=gs(SPACE_XS))
             note = str(entry.get("note") or "").strip()
             comment = str(entry.get("comment") or "").strip()
             if note:
                 note_label = ttk.Label(card, text=t("cooklog_note_heading") + " " + note,
                                        style="Card.TLabel", justify="left")
-                note_label.pack(anchor="w", padx=10, pady=(3, 3))
+                note_label.pack(anchor="w", padx=gs(10), pady=(gs(3), gs(3)))
                 self._cook_log_wrap_labels.append(note_label)
             if comment:
                 comment_label = ttk.Label(card, text=t("cooklog_comment_heading") + " " + comment,
                                           style="Card.TLabel", justify="left")
-                comment_label.pack(anchor="w", padx=10, pady=(3, 8))
+                comment_label.pack(anchor="w", padx=gs(10), pady=(gs(3), gs(SPACE_SM)))
                 self._cook_log_wrap_labels.append(comment_label)
             if not note and not comment:
                 ttk.Label(card, text=t("cooklog_no_note"), style="Card.TLabel",
-                          foreground=COLOR_TEXT_MUTED).pack(anchor="w", padx=10, pady=(3, 8))
+                          foreground=COLOR_TEXT_MUTED).pack(anchor="w", padx=gs(10), pady=(gs(3), gs(SPACE_SM)))
         self.after_idle(update_wraplength)
         self.after(150, update_wraplength)
 
@@ -10624,14 +10646,14 @@ class RecipeFormWindow(tk.Toplevel):
         # déposer ou boutons ↑/↓) — row garde sa grille interne (colonnes
         # nom/quantité/unité/autre) totalement inchangée.
         wrapper = ttk.Frame(self.rows_frame)
-        wrapper.pack(fill="x", pady=2)
+        wrapper.pack(fill="x", pady=gs(2))
         self.ingredient_row_wrappers.append(wrapper)
 
         handle = ttk.Label(wrapper, text="⠿", width=2, cursor="fleur",
                             font=("Segoe UI", sf(11)), anchor="center")
-        handle.pack(side="left", padx=(0, 2))
+        handle.pack(side="left", padx=(0, gs(2)))
         move_frame = ttk.Frame(wrapper)
-        move_frame.pack(side="left", padx=(0, 4))
+        move_frame.pack(side="left", padx=(0, gs(SPACE_XS)))
         up_btn = ttk.Button(move_frame, text="↑", width=2,
                              command=lambda w=wrapper: self._move_ingredient_row(w, -1))
         up_btn.pack(side="top")
@@ -10653,23 +10675,23 @@ class RecipeFormWindow(tk.Toplevel):
         name_e._suggestion_listbox = None
         if name:
             name_e.insert(0, translate_ingredient_name(name))
-        name_e.grid(row=0, column=0, padx=2)
+        name_e.grid(row=0, column=0, padx=gs(2))
         name_e.bind("<KeyRelease>", lambda e, ent=name_e: self._on_ingredient_keyrelease(e, ent))
         name_e.bind("<FocusIn>", lambda e, ent=name_e: self._on_ingredient_focus_in(e, ent))
         name_e.bind("<FocusOut>", lambda e, ent=name_e: self._on_ingredient_focus_out(e, ent))
         qty_e = ttk.Entry(row, width=9)
         qty_e.insert(0, "" if qty in ("", None) else str(qty))
-        qty_e.grid(row=0, column=1, padx=2)
+        qty_e.grid(row=0, column=1, padx=gs(2))
 
         combo_value, custom_text = self._map_unit_for_edit(unit)
         unit_e = ttk.Combobox(row, width=15, state="readonly",
                                values=[translate_unit_name(u) for u in self.UNIT_OPTIONS])
         unit_e.set(translate_unit_name(combo_value))
-        unit_e.grid(row=0, column=2, padx=2)
+        unit_e.grid(row=0, column=2, padx=gs(2))
 
         custom_e = ttk.Entry(row, width=10)
         custom_e.insert(0, custom_text)
-        custom_e.grid(row=0, column=3, padx=2)
+        custom_e.grid(row=0, column=3, padx=gs(2))
         if combo_value != "autre":
             custom_e.grid_remove()
 
@@ -10684,7 +10706,7 @@ class RecipeFormWindow(tk.Toplevel):
         self.ingredient_rows.append((name_e, qty_e, unit_e, custom_e))
 
         if has_controls:
-            self.add_ingredient_button.pack(pady=10)
+            self.add_ingredient_button.pack(pady=gs(10))
             # Fait défiler la fenêtre pour amener la nouvelle ligne en vue.
             # yview_moveto(1.0) irait tout en bas de la zone de défilement
             # PARTAGÉE par tous les onglets du formulaire (celle-ci reste
@@ -10716,8 +10738,8 @@ class RecipeFormWindow(tk.Toplevel):
         for wrapper in self.ingredient_row_wrappers:
             wrapper.pack_forget()
         for wrapper in self.ingredient_row_wrappers:
-            wrapper.pack(fill="x", pady=2)
-        self.add_ingredient_button.pack(pady=10)
+            wrapper.pack(fill="x", pady=gs(2))
+        self.add_ingredient_button.pack(pady=gs(10))
 
     def _move_ingredient_row(self, wrapper, delta):
         """Équivalent clavier/souris du glisser-déposer (boutons ↑/↓) :
@@ -11124,17 +11146,17 @@ class ManageRecipesWindow(tk.Toplevel):
         safe_minsize(self, gs(820), gs(540))
         self.grab_set()
 
-        header = ttk.Frame(self, padding=(20, 16, 20, 8))
+        header = ttk.Frame(self, padding=(gs(20), gs(SPACE_MD), gs(20), gs(SPACE_SM)))
         header.pack(fill="x")
         ttk.Label(header, text=t("managerecipes_library_title"), style="Title.TLabel").pack(side="left")
         ttk.Button(header, text=t("managerecipes_new_button"), style="Hero.TButton",
                    command=self._new_recipe).pack(side="right")
 
-        searchbar = ttk.Frame(self, padding=(20, 4, 20, 6))
+        searchbar = ttk.Frame(self, padding=(gs(20), gs(SPACE_XS), gs(20), gs(6)))
         searchbar.pack(fill="x")
         ttk.Label(searchbar, text=t("managerecipes_search_label")).pack(side="left")
         self.search_entry = ttk.Entry(searchbar, font=("Segoe UI", sf(10)))
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=(8, 10), ipady=4)
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=(gs(SPACE_SM), gs(10)), ipady=gs(SPACE_XS))
         if initial_search:
             self.search_entry.insert(0, initial_search)
         self.search_entry.bind("<KeyRelease>", lambda e: self._filters_changed())
@@ -11142,7 +11164,7 @@ class ManageRecipesWindow(tk.Toplevel):
         self.sort_combo = ttk.Combobox(searchbar, values=[translate_sort_option(o) for o in RECIPE_SORT_OPTIONS],
                                        state="readonly", width=20)
         self.sort_combo.set(translate_sort_option(RECIPE_SORT_OPTIONS[0]))
-        self.sort_combo.pack(side="left", padx=(0, 8))
+        self.sort_combo.pack(side="left", padx=(0, gs(SPACE_SM)))
         self.sort_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
 
         self.view_button = ttk.Button(searchbar, style="Secondary.TButton", command=self._toggle_view)
@@ -11150,44 +11172,44 @@ class ManageRecipesWindow(tk.Toplevel):
         self._update_view_button()
 
         # Filtres rapides historiques.
-        chips = ttk.Frame(self, padding=(20, 0, 20, 6))
+        chips = ttk.Frame(self, padding=(gs(20), 0, gs(20), gs(6)))
         chips.pack(fill="x")
         for text, qf in [(t("home_quick_filter_favorites"), "favoris"),
                          (t("home_quick_filter_quick"), "rapide"),
                          (t("home_quick_filter_vegetarian"), "vegetarien"),
                          (t("home_quick_filter_wishlist"), "envie")]:
             ttk.Button(chips, text=text, style="Secondary.TButton",
-                       command=lambda f=qf: self._set_quick_filter(f)).pack(side="left", padx=(0, 6))
+                       command=lambda f=qf: self._set_quick_filter(f)).pack(side="left", padx=(0, gs(6)))
 
         # Filtres combinables : catégorie, temps, difficulté, favoris,
         # jamais cuisinées, disponibilité garde-manger et étiquette.
-        filters = ttk.LabelFrame(self, text=t("managerecipes_more_filters"), padding=(12, 8))
-        filters.pack(fill="x", padx=20, pady=(0, 8))
-        ttk.Label(filters, text=t("managerecipes_category_label")).grid(row=0, column=0, padx=(0, 4), pady=3, sticky="w")
+        filters = ttk.LabelFrame(self, text=t("managerecipes_more_filters"), padding=(gs(12), gs(SPACE_SM)))
+        filters.pack(fill="x", padx=gs(20), pady=(0, gs(SPACE_SM)))
+        ttk.Label(filters, text=t("managerecipes_category_label")).grid(row=0, column=0, padx=(0, gs(SPACE_XS)), pady=gs(3), sticky="w")
         self.category_filter_combo = ttk.Combobox(
             filters, values=[t("common_all_categories")] + [translate_category_name(c) for c in RecipeFormWindow.CATEGORY_OPTIONS],
             state="readonly", width=17)
         self.category_filter_combo.set(t("common_all_categories"))
-        self.category_filter_combo.grid(row=0, column=1, padx=(0, 12), pady=3, sticky="w")
+        self.category_filter_combo.grid(row=0, column=1, padx=(0, gs(12)), pady=gs(3), sticky="w")
         self.category_filter_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
 
-        ttk.Label(filters, text=t("managerecipes_max_time")).grid(row=0, column=2, padx=(0, 4), pady=3, sticky="w")
+        ttk.Label(filters, text=t("managerecipes_max_time")).grid(row=0, column=2, padx=(0, gs(SPACE_XS)), pady=gs(3), sticky="w")
         self.time_combo = ttk.Combobox(filters, values=[t("managerecipes_all_times"), "≤ 30 min", "≤ 60 min", "≤ 90 min", "≤ 120 min"],
                                        state="readonly", width=14)
         self.time_combo.set(t("managerecipes_all_times"))
-        self.time_combo.grid(row=0, column=3, padx=(0, 12), pady=3, sticky="w")
+        self.time_combo.grid(row=0, column=3, padx=(0, gs(12)), pady=gs(3), sticky="w")
         self.time_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
 
         self.difficulty_combo = ttk.Combobox(filters,
             values=[t("managerecipes_all_difficulties")] + [translate_difficulty_name(x) for x in RecipeFormWindow.DIFFICULTY_OPTIONS],
             state="readonly", width=18)
         self.difficulty_combo.set(t("managerecipes_all_difficulties"))
-        self.difficulty_combo.grid(row=0, column=4, padx=(0, 12), pady=3, sticky="w")
+        self.difficulty_combo.grid(row=0, column=4, padx=(0, gs(12)), pady=gs(3), sticky="w")
         self.difficulty_combo.bind("<<ComboboxSelected>>", lambda e: self._filters_changed())
 
-        ttk.Label(filters, text=t("managerecipes_tags")).grid(row=0, column=5, padx=(0, 4), pady=3, sticky="w")
+        ttk.Label(filters, text=t("managerecipes_tags")).grid(row=0, column=5, padx=(0, gs(SPACE_XS)), pady=gs(3), sticky="w")
         self.tag_entry = ttk.Entry(filters, width=18)
-        self.tag_entry.grid(row=0, column=6, padx=(0, 8), pady=3, sticky="ew")
+        self.tag_entry.grid(row=0, column=6, padx=(0, gs(SPACE_SM)), pady=gs(3), sticky="ew")
         self.tag_entry.bind("<KeyRelease>", lambda e: self._filters_changed())
         filters.columnconfigure(6, weight=1)
 
@@ -11195,19 +11217,19 @@ class ManageRecipesWindow(tk.Toplevel):
         self.never_cooked_var = tk.BooleanVar(value=False)
         self.pantry_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(filters, text=t("managerecipes_only_favorites"), variable=self.favorite_var,
-                        command=self._filters_changed).grid(row=1, column=0, columnspan=2, sticky="w", pady=(5, 2))
+                        command=self._filters_changed).grid(row=1, column=0, columnspan=2, sticky="w", pady=(gs(5), gs(2)))
         ttk.Checkbutton(filters, text=t("managerecipes_never_cooked"), variable=self.never_cooked_var,
-                        command=self._filters_changed).grid(row=1, column=2, columnspan=2, sticky="w", pady=(5, 2))
+                        command=self._filters_changed).grid(row=1, column=2, columnspan=2, sticky="w", pady=(gs(5), gs(2)))
         ttk.Checkbutton(filters, text=t("managerecipes_pantry_80"), variable=self.pantry_var,
-                        command=self._filters_changed).grid(row=1, column=4, columnspan=2, sticky="w", pady=(5, 2))
+                        command=self._filters_changed).grid(row=1, column=4, columnspan=2, sticky="w", pady=(gs(5), gs(2)))
         ttk.Button(filters, text=t("managerecipes_clear_filters"), style="Secondary.TButton",
-                   command=self._clear_all_filters).grid(row=1, column=6, sticky="e", pady=(5, 2))
+                   command=self._clear_all_filters).grid(row=1, column=6, sticky="e", pady=(gs(5), gs(2)))
 
         # Zone de contenu commune aux deux modes.
-        self.content_outer = ttk.Frame(self, padding=(20, 2, 20, 2))
+        self.content_outer = ttk.Frame(self, padding=(gs(20), gs(2), gs(20), gs(2)))
         self.content_outer.pack(fill="both", expand=True)
 
-        footer = ttk.Frame(self, padding=(20, 8, 20, 14))
+        footer = ttk.Frame(self, padding=(gs(20), gs(SPACE_SM), gs(20), gs(14)))
         footer.pack(fill="x")
         self.count_label = ttk.Label(footer, text="", style="Muted.TLabel")
         self.count_label.pack(side="left")
@@ -11381,13 +11403,13 @@ class ManageRecipesWindow(tk.Toplevel):
 
         if not shown:
             empty = tk.Frame(self.content_outer, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
-            empty.pack(fill="both", expand=True, padx=2, pady=8)
-            tk.Label(empty, text="📖", font=("Segoe UI Emoji", sf(34)), background=COLOR_CARD).pack(pady=(70, 8))
+            empty.pack(fill="both", expand=True, padx=gs(2), pady=gs(SPACE_SM))
+            tk.Label(empty, text="📖", font=("Segoe UI Emoji", sf(34)), background=COLOR_CARD).pack(pady=(gs(70), gs(SPACE_SM)))
             tk.Label(empty, text=t("managerecipes_empty_title"), font=("Segoe UI", sf(14), "bold"),
                      background=COLOR_CARD, foreground=COLOR_TEXT).pack()
             tk.Label(empty, text=t("managerecipes_empty_hint"), font=("Segoe UI", sf(10)),
-                     background=COLOR_CARD, foreground=COLOR_TEXT_MUTED).pack(pady=6)
-            ttk.Button(empty, text=t("managerecipes_new_button"), style="Hero.TButton", command=self._new_recipe).pack(pady=12)
+                     background=COLOR_CARD, foreground=COLOR_TEXT_MUTED).pack(pady=gs(6))
+            ttk.Button(empty, text=t("managerecipes_new_button"), style="Hero.TButton", command=self._new_recipe).pack(pady=gs(12))
             return
 
         if self.view_mode == "list":
@@ -11515,7 +11537,7 @@ class ManageRecipesWindow(tk.Toplevel):
             # d'indicateur de focus clavier visible.
             card = tk.Frame(self.grid_frame, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
                             highlightcolor=COLOR_BORDER, highlightthickness=1, cursor="hand2", takefocus=1)
-            card.grid(row=row, column=col, padx=7, pady=7, sticky="nsew")
+            card.grid(row=row, column=col, padx=gs(7), pady=gs(7), sticky="nsew")
             self._grid_items.append((idx, card))
 
             photo_box = tk.Frame(card, background=COLOR_ACCENT_LIGHT, height=gs(155))
@@ -11531,7 +11553,7 @@ class ManageRecipesWindow(tk.Toplevel):
                                  foreground=COLOR_TEXT_MUTED, font=("Segoe UI", sf(10)), justify="center", cursor="hand2")
             photo.pack(fill="both", expand=True)
 
-            body = tk.Frame(card, background=COLOR_CARD, padx=12, pady=9)
+            body = tk.Frame(card, background=COLOR_CARD, padx=gs(12), pady=gs(9))
             body.pack(fill="both", expand=True)
             title = ("⭐ " if recipe.get("favorite") else "") + recipe.get("name", "")
             title_label = tk.Label(body, text=title, background=COLOR_CARD, foreground=COLOR_TEXT,
@@ -11545,7 +11567,7 @@ class ManageRecipesWindow(tk.Toplevel):
             if total: meta.append(f"{int(total) if total == int(total) else total} min")
             if recipe.get("difficulty"): meta.append(translate_difficulty_name(recipe.get("difficulty")))
             tk.Label(body, text=" · ".join(meta), background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
-                     font=("Segoe UI", sf(9)), anchor="w", cursor="hand2").pack(fill="x", pady=(3, 2))
+                     font=("Segoe UI", sf(9)), anchor="w", cursor="hand2").pack(fill="x", pady=(gs(3), gs(2)))
             rating = int(recipe.get("rating", 0) or 0)
             stat = f"{rating_stars(rating) if rating else '☆☆☆☆☆'}    🍳 {int(recipe.get('times_cooked', 0) or 0)}"
             tk.Label(body, text=stat, background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
@@ -11554,11 +11576,11 @@ class ManageRecipesWindow(tk.Toplevel):
             tags = [str(x).strip() for x in recipe.get("tags", []) if str(x).strip()][:3]
             if tags:
                 tags_frame = tk.Frame(body, background=COLOR_CARD)
-                tags_frame.pack(fill="x", pady=(6, 0))
+                tags_frame.pack(fill="x", pady=(gs(6), 0))
                 for tag in tags:
                     lab=tk.Label(tags_frame, text=f"  {tag}  ", background=COLOR_ACCENT_LIGHT,
                                  foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(8)), cursor="hand2")
-                    lab.pack(side="left", padx=(0,4))
+                    lab.pack(side="left", padx=(0, gs(SPACE_XS)))
                     lab.bind("<Button-1>", lambda e, value=tag: self._filter_by_tag(value))
 
             for widget in (card, photo_box, photo, body, title_label):
@@ -11599,7 +11621,7 @@ class ManageRecipesWindow(tk.Toplevel):
             # Anti-rebond du redimensionnement : annuler un after() déjà
             # exécuté lève une TclError sans conséquence, à ignorer.
             try: self.after_cancel(self._resize_after)
-            except Exception: pass
+            except (tk.TclError, ValueError): pass
         self._resize_after = self.after(180, self._rerender_grid_after_resize)
 
     def _rerender_grid_after_resize(self):
@@ -11785,15 +11807,15 @@ class TrashWindow(tk.Toplevel):
         fit_window_to_workarea(self, gs(560), gs(520), margin=14)
         self.grab_set()
 
-        ttk.Label(self, text=t("trash_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("trash_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self,
             text=t("trash_intro"),
             justify="center", font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(padx=15, pady=5, fill="both", expand=True)
+        list_frame.pack(padx=gs(15), pady=gs(5), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, width=56, height=14, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -11802,12 +11824,12 @@ class TrashWindow(tk.Toplevel):
         self._populate()
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=12)
-        ttk.Button(btn_frame, text=t("trash_restore_button"), command=self.restore_selected).grid(row=0, column=0, padx=5)
+        btn_frame.pack(pady=gs(12))
+        ttk.Button(btn_frame, text=t("trash_restore_button"), command=self.restore_selected).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("trash_delete_forever_button"),
-                   command=self.delete_selected_forever).grid(row=0, column=1, padx=5)
+                   command=self.delete_selected_forever).grid(row=0, column=1, padx=gs(5))
         ttk.Button(btn_frame, text=t("trash_empty_button"),
-                   command=self.empty_trash).grid(row=0, column=2, padx=5)
+                   command=self.empty_trash).grid(row=0, column=2, padx=gs(5))
 
     def _populate(self):
         self.listbox.delete(0, tk.END)
@@ -11885,17 +11907,17 @@ class ManageIngredientsWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("manageing_list_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(10), gs(5)))
 
         search_frame = ttk.Frame(self)
-        search_frame.pack(pady=(0, 5), fill="x", padx=15)
+        search_frame.pack(pady=(0, gs(5)), fill="x", padx=gs(15))
         ttk.Label(search_frame, text=t("common_search_label")).pack(side="left")
         self.search_entry = ttk.Entry(search_frame, width=28)
-        self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.search_entry.pack(side="left", padx=gs(5), fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", lambda e: self._populate())
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(pady=5, padx=15, fill="both", expand=True)
+        list_frame.pack(pady=gs(5), padx=gs(15), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, width=36, height=14, font=("Segoe UI", sf(9)))
         list_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=list_scrollbar.set)
@@ -11905,9 +11927,9 @@ class ManageIngredientsWindow(tk.Toplevel):
         self._populate()
 
         add_frame = ttk.Frame(self)
-        add_frame.pack(pady=10)
+        add_frame.pack(pady=gs(10))
         self.new_entry = ttk.Entry(add_frame, width=25)
-        self.new_entry.grid(row=0, column=0, padx=5)
+        self.new_entry.grid(row=0, column=0, padx=gs(5))
         ttk.Button(add_frame, text=t("manageing_add_button"), command=self.add_ingredient).grid(row=0, column=1)
         self.new_entry.bind("<Return>", lambda e: self.add_ingredient())
 
@@ -11918,12 +11940,12 @@ class ManageIngredientsWindow(tk.Toplevel):
         compact_actions = (get_usable_screen_height(self) < gs(700) or FONT_SCALE > 1.0)
         if not compact_actions:
             btn_frame = ttk.Frame(self)
-            btn_frame.pack(pady=8)
-            ttk.Button(btn_frame, text=t("manageing_edit_button"), command=self.edit_selected).grid(row=0, column=0, padx=5)
-            ttk.Button(btn_frame, text=t("manageing_delete_button"), command=self.delete_selected).grid(row=0, column=1, padx=5)
+            btn_frame.pack(pady=gs(SPACE_SM))
+            ttk.Button(btn_frame, text=t("manageing_edit_button"), command=self.edit_selected).grid(row=0, column=0, padx=gs(5))
+            ttk.Button(btn_frame, text=t("manageing_delete_button"), command=self.delete_selected).grid(row=0, column=1, padx=gs(5))
 
         tools_button = ttk.Button(self, text=t("manageing_more_tools_button"))
-        tools_button.pack(pady=(4, 8), padx=15, fill="x")
+        tools_button.pack(pady=(gs(SPACE_XS), gs(SPACE_SM)), padx=gs(15), fill="x")
         tools_menu = tk.Menu(tools_button, tearoff=0)
         if compact_actions:
             tools_menu.add_command(label=t("manageing_edit_button"), command=self.edit_selected)
@@ -11937,7 +11959,7 @@ class ManageIngredientsWindow(tk.Toplevel):
             tools_button.winfo_rootx(), tools_button.winfo_rooty() + tools_button.winfo_height()))
 
         ttk.Label(self, text=t("manageing_edit_hint"),
-                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center").pack(pady=(0, 10))
+                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center").pack(pady=(0, gs(10)))
 
     def _populate(self):
         self.listbox.delete(0, tk.END)
@@ -12030,16 +12052,16 @@ class SubstitutionEditWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("subedit_heading", name=ingredient_name),
-                  font=("Segoe UI", sf(12), "bold"), wraplength=440, justify="center").pack(pady=(15, 5))
+                  font=("Segoe UI", sf(12), "bold"), wraplength=440, justify="center").pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self, text=t("subedit_disclaimer"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         self.current_list = [dict(s) for s in get_ingredient_substitutions(ingredient_name)]
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(padx=15, pady=5, fill="both", expand=True)
+        list_frame.pack(padx=gs(15), pady=gs(5), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, height=6, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -12048,31 +12070,31 @@ class SubstitutionEditWindow(tk.Toplevel):
         self._refresh_listbox()
 
         ttk.Button(self, text=t("subedit_remove_button"),
-                   command=self.remove_selected).pack(pady=(0, 10))
+                   command=self.remove_selected).pack(pady=(0, gs(10)))
 
         add_frame = ttk.LabelFrame(self, text=t("subedit_add_frame_title"))
-        add_frame.pack(padx=15, pady=(0, 10), fill="x")
-        ttk.Label(add_frame, text=t("subedit_name_label")).grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        add_frame.pack(padx=gs(15), pady=(0, gs(10)), fill="x")
+        ttk.Label(add_frame, text=t("subedit_name_label")).grid(row=0, column=0, padx=gs(5), pady=gs(5), sticky="e")
         self.new_name_entry = ttk.Entry(add_frame, width=28)
         self.new_name_entry.full_values = get_display_ingredient_values(sorted(self.app.ingredient_names, key=ingredient_sort_key))
-        self.new_name_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.new_name_entry.grid(row=0, column=1, padx=gs(5), pady=gs(5), sticky="w")
         self.new_name_entry.bind("<KeyRelease>", lambda e: self._on_name_entry_keyrelease(e))
         self.new_name_entry.bind("<FocusIn>", lambda e: self._on_name_entry_focus_in(e))
         self.new_name_entry.bind("<FocusOut>", lambda e: self._on_name_entry_focus_out(e))
-        ttk.Label(add_frame, text=t("subedit_note_label")).grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(add_frame, text=t("subedit_note_label")).grid(row=1, column=0, padx=gs(5), pady=gs(5), sticky="e")
         self.new_note_entry = ttk.Entry(add_frame, width=28)
-        self.new_note_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        self.new_note_entry.grid(row=1, column=1, padx=gs(5), pady=gs(5), sticky="w")
         ttk.Button(add_frame, text=t("subedit_add_to_list_button"), command=self.add_substitute).grid(
-            row=2, column=0, columnspan=2, pady=(5, 5))
+            row=2, column=0, columnspan=2, pady=(gs(5), gs(5)))
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
-        ttk.Button(btn_frame, text=t("common_save_button"), command=self.save_and_close).grid(row=0, column=0, padx=5)
+        btn_frame.pack(pady=gs(10))
+        ttk.Button(btn_frame, text=t("common_save_button"), command=self.save_and_close).grid(row=0, column=0, padx=gs(5))
         if load_default_substitutions().get(ingredient_name.strip().lower()):
             ttk.Button(btn_frame, text=t("subedit_revert_button"),
-                       command=self.revert_to_default).grid(row=0, column=1, padx=5)
+                       command=self.revert_to_default).grid(row=0, column=1, padx=gs(5))
         ttk.Button(btn_frame, text=t("subedit_cancel_button"), style="Secondary.TButton",
-                   command=self.destroy).grid(row=0, column=2, padx=5)
+                   command=self.destroy).grid(row=0, column=2, padx=gs(5))
 
         tk.Frame(self, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -12218,21 +12240,21 @@ class ManageSubstitutionsWindow(tk.Toplevel):
         self.resizable(True, True)
         self.grab_set()
 
-        ttk.Label(self, text=t("managesub_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("managesub_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self, text=t("managesub_intro"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         search_frame = ttk.Frame(self)
-        search_frame.pack(pady=(0, 5), fill="x", padx=15)
+        search_frame.pack(pady=(0, gs(5)), fill="x", padx=gs(15))
         ttk.Label(search_frame, text=t("common_search_label")).pack(side="left")
         self.search_entry = ttk.Entry(search_frame)
-        self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.search_entry.pack(side="left", padx=gs(5), fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", lambda e: self._populate())
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(pady=5, padx=15, fill="both", expand=True)
+        list_frame.pack(pady=gs(5), padx=gs(15), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -12244,20 +12266,20 @@ class ManageSubstitutionsWindow(tk.Toplevel):
         self._populate()
 
         add_frame = ttk.Frame(self)
-        add_frame.pack(pady=(5, 5), padx=15, fill="x")
+        add_frame.pack(pady=(gs(5), gs(5)), padx=gs(15), fill="x")
         ttk.Label(add_frame, text=t("common_ingredient_label")).pack(side="left")
         self.name_entry = ttk.Entry(add_frame, width=20)
         self.name_entry.full_values = get_display_ingredient_values(sorted(self.app.ingredient_names, key=ingredient_sort_key))
-        self.name_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.name_entry.pack(side="left", padx=gs(5), fill="x", expand=True)
         self.name_entry.bind("<KeyRelease>", lambda e: self._on_name_entry_keyrelease(e))
         self.name_entry.bind("<FocusIn>", lambda e: self._on_name_entry_focus_in(e))
         self.name_entry.bind("<FocusOut>", lambda e: self._on_name_entry_focus_out(e))
-        ttk.Button(add_frame, text=t("managesub_manage_button"), command=self.edit_typed).pack(side="left", padx=(5, 0))
+        ttk.Button(add_frame, text=t("managesub_manage_button"), command=self.edit_typed).pack(side="left", padx=(gs(5), 0))
 
         ttk.Label(
             self, text=t("managesub_hint"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(10, 5))
+        ).pack(pady=(gs(10), gs(5)))
 
         tk.Frame(self, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -12411,22 +12433,22 @@ class IngredientPricesWindow(tk.Toplevel):
         fit_window_to_workarea(self, gs(480), gs(620), margin=18)
         self.grab_set()
 
-        ttk.Label(self, text=t("ingprices_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("ingprices_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self,
             text=t("ingprices_intro"),
             justify="center", font=("Segoe UI", sf(9))
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         search_frame = ttk.Frame(self)
-        search_frame.pack(pady=(0, 5), fill="x", padx=15)
+        search_frame.pack(pady=(0, gs(5)), fill="x", padx=gs(15))
         ttk.Label(search_frame, text=t("common_search_label")).pack(side="left")
         self.search_entry = ttk.Entry(search_frame, width=28)
-        self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.search_entry.pack(side="left", padx=gs(5), fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", lambda e: self._populate())
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(pady=5, padx=15, fill="both", expand=True)
+        list_frame.pack(pady=gs(5), padx=gs(15), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, width=48, height=13, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -12436,28 +12458,28 @@ class IngredientPricesWindow(tk.Toplevel):
         self._populate()
 
         edit_frame = ttk.Frame(self)
-        edit_frame.pack(pady=10, padx=15, fill="x")
-        ttk.Label(edit_frame, text=t("ingprices_price_label")).grid(row=0, column=0, padx=3)
+        edit_frame.pack(pady=gs(10), padx=gs(15), fill="x")
+        ttk.Label(edit_frame, text=t("ingprices_price_label")).grid(row=0, column=0, padx=gs(3))
         self.price_entry = ttk.Entry(edit_frame, width=8)
-        self.price_entry.grid(row=0, column=1, padx=3)
-        ttk.Label(edit_frame, text=t("ingprices_for_one_label")).grid(row=0, column=2, padx=3)
+        self.price_entry.grid(row=0, column=1, padx=gs(3))
+        ttk.Label(edit_frame, text=t("ingprices_for_one_label")).grid(row=0, column=2, padx=gs(3))
         self.unit_combo = ttk.Combobox(edit_frame, values=[translate_unit_name(u) for u in PRICE_UNIT_OPTIONS],
                                         state="readonly", width=15)
         self.unit_combo.set(translate_unit_name(PRICE_UNIT_OPTIONS[0]))
-        self.unit_combo.grid(row=0, column=3, padx=3)
+        self.unit_combo.grid(row=0, column=3, padx=gs(3))
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=gs(10))
         ttk.Button(btn_frame, text=t("ingprices_save_button"),
-                   command=self.save_price).grid(row=0, column=0, padx=5)
+                   command=self.save_price).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("ingprices_clear_button"),
-                   command=self.clear_price).grid(row=0, column=1, padx=5)
+                   command=self.clear_price).grid(row=0, column=1, padx=gs(5))
 
         ttk.Label(
             self,
             text=t("ingprices_units_note"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
     def _populate(self):
         self.listbox.delete(0, tk.END)
@@ -12537,21 +12559,21 @@ class IngredientEditWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("ingedit_heading_edit") if self.editing else t("ingedit_heading_new"),
-                  font=("Segoe UI", sf(13), "bold")).pack(pady=(12, 8))
+                  font=("Segoe UI", sf(13), "bold")).pack(pady=(gs(12), gs(SPACE_SM)))
 
         notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, padx=14, pady=(0, 8))
-        general_tab = ttk.Frame(notebook, padding=14)
-        nutrition_tab = ttk.Frame(notebook, padding=14)
+        notebook.pack(fill="both", expand=True, padx=gs(14), pady=(0, gs(SPACE_SM)))
+        general_tab = ttk.Frame(notebook, padding=gs(14))
+        nutrition_tab = ttk.Frame(notebook, padding=gs(14))
         notebook.add(general_tab, text=t("ingedit_tab_general"))
         notebook.add(nutrition_tab, text=t("ingedit_tab_nutrition_price"))
 
         ttk.Label(general_tab, text=t("ingedit_name_label"), font=("Segoe UI", sf(10), "bold")).pack()
         self.name_entry = ttk.Entry(general_tab, width=40)
-        self.name_entry.pack(pady=(2, 12), fill="x")
+        self.name_entry.pack(pady=(gs(2), gs(12)), fill="x")
         self.name_entry.insert(0, existing_name if self.editing else prefill_name)
 
-        ttk.Label(general_tab, text=t("ingedit_allergens_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(5, 5))
+        ttk.Label(general_tab, text=t("ingedit_allergens_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(gs(5), gs(5)))
         allergens_frame = ttk.Frame(general_tab)
         allergens_frame.pack(fill="x")
         existing_allergens = set(get_ingredient_allergens(existing_name)) if self.editing else set()
@@ -12560,11 +12582,11 @@ class IngredientEditWindow(tk.Toplevel):
             var = tk.BooleanVar(value=allergen in existing_allergens)
             self.allergen_vars[allergen] = var
             ttk.Checkbutton(allergens_frame, text=translate_allergen_name(allergen), variable=var).grid(
-                row=i // 3, column=i % 3, sticky="w", padx=8, pady=2
+                row=i // 3, column=i % 3, sticky="w", padx=gs(SPACE_SM), pady=gs(2)
             )
 
         ttk.Label(nutrition_tab, text=t("ingedit_nutrition_label"),
-                  font=("Segoe UI", sf(10), "bold")).pack(pady=(2, 5))
+                  font=("Segoe UI", sf(10), "bold")).pack(pady=(gs(2), gs(5)))
         nutri_frame = ttk.Frame(nutrition_tab)
         nutri_frame.pack()
         existing_nutri = (get_ingredient_nutrition(existing_name) or {}) if self.editing else {}
@@ -12572,14 +12594,14 @@ class IngredientEditWindow(tk.Toplevel):
                          ("carbs_g", t("ingedit_nutri_carbs")), ("fat_g", t("ingedit_nutri_fat"))]
         self.nutri_entries = {}
         for i, (key, label) in enumerate(nutri_labels):
-            ttk.Label(nutri_frame, text=f"{label} :").grid(row=i, column=0, sticky="e", padx=5, pady=4)
+            ttk.Label(nutri_frame, text=f"{label} :").grid(row=i, column=0, sticky="e", padx=gs(5), pady=gs(SPACE_XS))
             entry = ttk.Entry(nutri_frame, width=12)
             if key in existing_nutri:
                 entry.insert(0, str(existing_nutri[key]))
-            entry.grid(row=i, column=1, sticky="w", padx=5, pady=4)
+            entry.grid(row=i, column=1, sticky="w", padx=gs(5), pady=gs(SPACE_XS))
             self.nutri_entries[key] = entry
         ttk.Label(nutrition_tab, text=t("ingedit_nutrition_hint"), wraplength=460,
-                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).pack(pady=(4, 10))
+                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).pack(pady=(gs(SPACE_XS), gs(10)))
         source = existing_nutri.get("_ciqual", {})
         if source:
             source_text = t("ingedit_ciqual_source", code=source["code"], food=source["food"])
@@ -12590,27 +12612,27 @@ class IngredientEditWindow(tk.Toplevel):
         else:
             source_text = t("ingedit_unverified_nutrition")
         ttk.Label(nutrition_tab, text=source_text, wraplength=460,
-                  foreground=COLOR_TEXT_MUTED).pack(fill="x", pady=(0, 8))
+                  foreground=COLOR_TEXT_MUTED).pack(fill="x", pady=(0, gs(SPACE_SM)))
 
-        ttk.Label(nutrition_tab, text=t("ingedit_price_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(8, 5))
+        ttk.Label(nutrition_tab, text=t("ingedit_price_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(gs(SPACE_SM), gs(5)))
         price_frame = ttk.Frame(nutrition_tab)
         price_frame.pack()
         existing_price = get_ingredient_price(existing_name) if self.editing else None
-        ttk.Label(price_frame, text=t("ingprices_price_label")).grid(row=0, column=0, padx=3)
+        ttk.Label(price_frame, text=t("ingprices_price_label")).grid(row=0, column=0, padx=gs(3))
         self.price_entry = ttk.Entry(price_frame, width=9)
         if existing_price:
             self.price_entry.insert(0, str(existing_price["price"]))
-        self.price_entry.grid(row=0, column=1, padx=3)
-        ttk.Label(price_frame, text=t("ingprices_for_one_label")).grid(row=0, column=2, padx=3)
+        self.price_entry.grid(row=0, column=1, padx=gs(3))
+        ttk.Label(price_frame, text=t("ingprices_for_one_label")).grid(row=0, column=2, padx=gs(3))
         self.unit_combo = ttk.Combobox(price_frame, values=[translate_unit_name(u) for u in PRICE_UNIT_OPTIONS], state="readonly", width=15)
         self.unit_combo.set(translate_unit_name(existing_price["unit"]) if existing_price else translate_unit_name(PRICE_UNIT_OPTIONS[0]))
-        self.unit_combo.grid(row=0, column=3, padx=3)
+        self.unit_combo.grid(row=0, column=3, padx=gs(3))
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=(0, 12))
-        ttk.Button(btn_frame, text=t("ingedit_save_button"), style="Primary.TButton", command=self.save).grid(row=0, column=0, padx=5)
+        btn_frame.pack(pady=(0, gs(12)))
+        ttk.Button(btn_frame, text=t("ingedit_save_button"), style="Primary.TButton", command=self.save).grid(row=0, column=0, padx=gs(5))
         if self.editing:
-            ttk.Button(btn_frame, text=t("ingedit_delete_button"), command=self.delete_ingredient).grid(row=0, column=1, padx=5)
+            ttk.Button(btn_frame, text=t("ingedit_delete_button"), command=self.delete_ingredient).grid(row=0, column=1, padx=gs(5))
 
     def _parse_float_or_none(self, entry, field_label):
         raw = entry.get().strip().replace(",", ".")
@@ -12744,15 +12766,15 @@ class IngredientSpellCheckWindow(tk.Toplevel):
             self,
             text=t("spellcheck_heading"),
             font=("Segoe UI", sf(11), "bold"), justify="center"
-        ).pack(pady=10)
+        ).pack(pady=gs(10))
         ttk.Label(
             self,
             text=t("spellcheck_multi_select_hint"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 5))
+        ).pack(pady=(0, gs(5)))
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(padx=15, pady=5, fill="both", expand=True)
+        list_frame.pack(padx=gs(15), pady=gs(5), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, width=64, height=16, selectmode="extended", font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -12763,19 +12785,19 @@ class IngredientSpellCheckWindow(tk.Toplevel):
         self._scan()
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=gs(10))
         ttk.Button(btn_frame, text=t("spellcheck_merge_button"),
-                   command=self.merge_selected).grid(row=0, column=0, padx=5)
+                   command=self.merge_selected).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("spellcheck_not_duplicate_button"),
-                   command=self.dismiss_selected).grid(row=0, column=1, padx=5)
+                   command=self.dismiss_selected).grid(row=0, column=1, padx=gs(5))
         ttk.Button(btn_frame, text=t("spellcheck_rerun_button"),
-                   command=self._scan).grid(row=0, column=2, padx=5)
+                   command=self._scan).grid(row=0, column=2, padx=gs(5))
 
         ttk.Label(
             self,
             text=t("spellcheck_footer_hint"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
     def _scan(self):
         self.listbox.delete(0, tk.END)
@@ -13875,8 +13897,9 @@ def create_auto_backup(cancel_event=None, progress=None):
     for old_path in existing[AUTO_BACKUP_RETENTION:]:
         try:
             os.remove(old_path)
-        except OSError:
-            pass
+        except OSError as exc:
+            # Rotation bloquée : les sauvegardes s'accumuleraient sans bruit.
+            log_internal_error("auto_backup_rotation", exc)
 
     cloud_folder = get_cloud_backup_folder()
     if cloud_folder:
@@ -13891,8 +13914,8 @@ def create_auto_backup(cancel_event=None, progress=None):
             for old_cloud_path in cloud_backups[AUTO_BACKUP_RETENTION:]:
                 try:
                     os.remove(old_cloud_path)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    log_internal_error("cloud_backup_rotation", exc)
         except Exception as exc:
             log_internal_error("suppressed_exception", exc)  # un souci côté dossier cloud ne doit jamais faire échouer la sauvegarde locale
 
@@ -13914,8 +13937,8 @@ def migrate_old_backup_filenames():
             if not os.path.exists(new_path):
                 try:
                     os.rename(os.path.join(BACKUPS_DIR, fname), new_path)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    log_internal_error("auto_backup_rename", exc)
 
 
 def maybe_create_auto_backup():
@@ -13961,26 +13984,13 @@ class ImportExportWindow(tk.Toplevel):
         self.resizable(True, True)
         self.grab_set()
 
-        # Contenu défilant : sur un écran de hauteur courante (1080p, mise à
-        # l'échelle 125 %), le bas de la fenêtre (sauvegarde cloud) était
-        # coupé sans moyen d'y accéder.
-        outer = ttk.Frame(self)
-        outer.pack(fill="both", expand=True)
-        canvas = tk.Canvas(outer, highlightthickness=0, background=COLOR_BG)
-        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        body = ttk.Frame(canvas)
-        window_id = canvas.create_window((0, 0), window=body, anchor="nw")
-        body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window_id, width=e.width))
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        _ui_bind_local_mousewheel(canvas, body, lambda ev: canvas.yview_scroll(int(-ev.delta / 120), "units"))
+        # Contenu défilant : la section sauvegarde cloud était coupée en 1080p.
+        canvas, body = _ui_scrollable_body(self)
         self.scroll_canvas, self.scroll_body = canvas, body
 
 
         header_row = ttk.Frame(body)
-        header_row.pack(fill="x", padx=18, pady=(12, 6))
+        header_row.pack(fill="x", padx=gs(18), pady=(gs(12), gs(6)))
         ttk.Label(header_row, text=t("importexport_heading"),
                   font=("Segoe UI", sf(13), "bold")).pack(side="left")
         ttk.Button(header_row, text=t("diagnostic_button"), style="Secondary.TButton",
@@ -13990,54 +14000,54 @@ class ImportExportWindow(tk.Toplevel):
             self,
             text=t("importexport_export_intro"),
             justify="center", font=("Segoe UI", sf(9))
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         ttk.Button(body, text=t("importexport_export_button"),
-                   width=42, command=self.export_data).pack(pady=6)
+                   width=42, command=self.export_data).pack(pady=gs(6))
 
         ttk.Label(
             self,
             text=t("importexport_import_intro"),
             justify="center", font=("Segoe UI", sf(9))
-        ).pack(pady=(10, 10))
+        ).pack(pady=(gs(10), gs(10)))
 
         ttk.Button(body, text=t("importexport_import_button"),
-                   width=42, command=self.import_data).pack(pady=6)
+                   width=42, command=self.import_data).pack(pady=gs(6))
 
-        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=20, pady=15)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=gs(20), pady=gs(15))
 
         ttk.Label(body, text=t("importexport_mobile_exchange_heading"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(0, 6))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(0, gs(6)))
         ttk.Label(
             self, text=t("importexport_mobile_exchange_intro"),
             justify="center", font=("Segoe UI", sf(9)), wraplength=390
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
         qr_row = ttk.Frame(body)
-        qr_row.pack(pady=(0, 6))
+        qr_row.pack(pady=(0, gs(6)))
         ttk.Button(qr_row, text=t("importexport_mobile_qr_import"),
-                   command=self.import_mobile_qr).pack(side="left", padx=4)
+                   command=self.import_mobile_qr).pack(side="left", padx=gs(SPACE_XS))
         ttk.Button(qr_row, text=t("importexport_mobile_qr_export"),
-                   command=self.choose_recipe_for_qr).pack(side="left", padx=4)
+                   command=self.choose_recipe_for_qr).pack(side="left", padx=gs(SPACE_XS))
         ttk.Button(body, text=t("importexport_mobile_qr_paste"), style="Secondary.TButton",
-                   command=self.import_mobile_qr_text).pack(pady=(0, 6))
+                   command=self.import_mobile_qr_text).pack(pady=(0, gs(6)))
         ttk.Label(body, text=t("importexport_shared_intro"),
-                  justify="center", font=("Segoe UI", sf(8)), wraplength=390).pack(pady=(3, 8))
+                  justify="center", font=("Segoe UI", sf(8)), wraplength=390).pack(pady=(gs(3), gs(SPACE_SM)))
         ttk.Button(body, text=t("importexport_export_shared_button"),
-                   width=42, command=self.export_shared_data).pack(pady=6)
+                   width=42, command=self.export_shared_data).pack(pady=gs(6))
         ttk.Button(body, text=t("importexport_import_shared_button"),
-                   width=42, command=self.import_shared_data).pack(pady=6)
+                   width=42, command=self.import_shared_data).pack(pady=gs(6))
 
-        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=20, pady=15)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=gs(20), pady=gs(15))
 
         ttk.Label(body, text=t("importexport_auto_backups_heading"), font=("Segoe UI", sf(12), "bold")).pack()
         ttk.Label(
             self,
             text=t("importexport_auto_backups_intro", hours=AUTO_BACKUP_MIN_INTERVAL_HOURS, retention=AUTO_BACKUP_RETENTION),
             justify="center", font=("Segoe UI", sf(9))
-        ).pack(pady=(5, 10))
+        ).pack(pady=(gs(5), gs(10)))
 
         list_frame = ttk.Frame(body)
-        list_frame.pack(padx=15, fill="both", expand=True)
+        list_frame.pack(padx=gs(15), fill="both", expand=True)
         self.backup_listbox = tk.Listbox(list_frame, height=8, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.backup_listbox.yview)
         self.backup_listbox.configure(yscrollcommand=scrollbar.set)
@@ -14046,13 +14056,13 @@ class ImportExportWindow(tk.Toplevel):
         self._populate_backups()
 
         btn_frame = ttk.Frame(body)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=gs(10))
         ttk.Button(btn_frame, text=t("importexport_backup_now_button"),
-                   command=self.backup_now).grid(row=0, column=0, padx=5)
+                   command=self.backup_now).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("importexport_restore_selected_button"),
-                   command=self.restore_selected).grid(row=0, column=1, padx=5)
+                   command=self.restore_selected).grid(row=0, column=1, padx=gs(5))
 
-        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=20, pady=15)
+        ttk.Separator(body, orient="horizontal").pack(fill="x", padx=gs(20), pady=gs(15))
 
         ttk.Label(body, text=t("importexport_cloud_heading"),
                   font=("Segoe UI", sf(12), "bold")).pack()
@@ -14060,19 +14070,19 @@ class ImportExportWindow(tk.Toplevel):
             self,
             text=t("importexport_cloud_intro"),
             justify="center", font=("Segoe UI", sf(9))
-        ).pack(pady=(5, 8))
+        ).pack(pady=(gs(5), gs(SPACE_SM)))
 
         self.cloud_folder_label = ttk.Label(body, text="", font=("Segoe UI", sf(9), "bold"),
                                              foreground=COLOR_GREEN, wraplength=400, justify="center")
-        self.cloud_folder_label.pack(pady=(0, 8))
+        self.cloud_folder_label.pack(pady=(0, gs(SPACE_SM)))
         self._refresh_cloud_label()
 
         cloud_btn_frame = ttk.Frame(body)
-        cloud_btn_frame.pack(pady=(0, 15))
+        cloud_btn_frame.pack(pady=(0, gs(15)))
         ttk.Button(cloud_btn_frame, text=t("importexport_choose_cloud_button"),
-                   command=self.choose_cloud_folder).grid(row=0, column=0, padx=5)
+                   command=self.choose_cloud_folder).grid(row=0, column=0, padx=gs(5))
         ttk.Button(cloud_btn_frame, text=t("importexport_disable_button"),
-                   command=self.disable_cloud_backup).grid(row=0, column=1, padx=5)
+                   command=self.disable_cloud_backup).grid(row=0, column=1, padx=gs(5))
 
         tk.Frame(body, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -14142,15 +14152,15 @@ class ImportExportWindow(tk.Toplevel):
         dialog.resizable(False, False)
         dialog.grab_set()
         dialog.protocol("WM_DELETE_WINDOW", lambda: cancel_event.set())
-        ttk.Label(dialog, text=t("backgroundtask_running"), padding=(22, 16, 22, 8)).pack()
+        ttk.Label(dialog, text=t("backgroundtask_running"), padding=(gs(22), gs(SPACE_MD), gs(22), gs(SPACE_SM))).pack()
         bar = ttk.Progressbar(dialog, mode="indeterminate", length=320)
-        bar.pack(padx=22, pady=8)
+        bar.pack(padx=gs(22), pady=gs(SPACE_SM))
         bar.start(12)
         cancel_button = ttk.Button(
             dialog, text=t("backgroundtask_cancel"),
             command=lambda: (cancel_event.set(), cancel_button.configure(state="disabled"))
         )
-        cancel_button.pack(pady=(4, 16))
+        cancel_button.pack(pady=(gs(SPACE_XS), gs(SPACE_MD)))
         dialog.update_idletasks()
         x = self.winfo_rootx() + max(0, (self.winfo_width() - dialog.winfo_width()) // 2)
         y = self.winfo_rooty() + max(0, (self.winfo_height() - dialog.winfo_height()) // 2)
@@ -14365,17 +14375,17 @@ class DiagnosticWindow(tk.Toplevel):
         self.resizable(True, True)
         self.grab_set()
 
-        ttk.Label(self, text=t("diagnostic_heading"), style="Title.TLabel").pack(anchor="w", padx=18, pady=(16, 8))
+        ttk.Label(self, text=t("diagnostic_heading"), style="Title.TLabel").pack(anchor="w", padx=gs(18), pady=(gs(SPACE_MD), gs(SPACE_SM)))
         self.text = tk.Text(self, wrap="word", font=("Consolas", sf(9)), height=18)
-        self.text.pack(fill="both", expand=True, padx=18, pady=(0, 10))
+        self.text.pack(fill="both", expand=True, padx=gs(18), pady=(0, gs(10)))
         self.report = self._build_report()
         self.text.insert("1.0", self.report)
         self.text.configure(state="disabled")
 
         buttons = ttk.Frame(self)
-        buttons.pack(fill="x", padx=18, pady=(0, 16))
+        buttons.pack(fill="x", padx=gs(18), pady=(0, gs(SPACE_MD)))
         ttk.Button(buttons, text=t("diagnostic_copy"), command=self.copy_report).pack(side="left")
-        ttk.Button(buttons, text=t("diagnostic_open_data"), command=self.open_data_folder).pack(side="left", padx=8)
+        ttk.Button(buttons, text=t("diagnostic_open_data"), command=self.open_data_folder).pack(side="left", padx=gs(SPACE_SM))
         ttk.Button(buttons, text=t("common_close"), command=self.destroy).pack(side="right")
 
     def _build_report(self):
@@ -14451,12 +14461,12 @@ class ShoppingChecklistWindow(tk.Toplevel):
         fit_window_to_workarea(self, gs(960), gs(900), margin=18)
         self.grab_set()
 
-        ttk.Label(self, text=f"☑️ {title}", font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=f"☑️ {title}", font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(self, text=t("checklist_instruction"),
-                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, 10))
+                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, gs(10)))
 
         container = ttk.Frame(self)
-        container.pack(fill="both", expand=True, padx=15)
+        container.pack(fill="both", expand=True, padx=gs(15))
         canvas = tk.Canvas(container, highlightthickness=0)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
         rows_frame = ttk.Frame(canvas)
@@ -14495,19 +14505,19 @@ class ShoppingChecklistWindow(tk.Toplevel):
                 lbl_text = f"{translate_ingredient_name(name)} : {qty}{unit_display}"
                 chk = ttk.Checkbutton(group, text=lbl_text, variable=var,
                                        command=lambda: None)
-                chk.pack(anchor="w", padx=10, pady=1)
+                chk.pack(anchor="w", padx=gs(10), pady=gs(1))
                 self.checks.append((var, chk, lbl_text))
                 var.trace_add("write", lambda *args, v=var, c=chk: self._update_style(v, c))
             group.pack(fill="x")
             self.rayon_frames.append((rayon, group))
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
-        ttk.Button(btn_frame, text=t("checklist_check_all_button"), command=self.check_all).grid(row=0, column=0, padx=5)
-        ttk.Button(btn_frame, text=t("checklist_uncheck_all_button"), command=self.uncheck_all).grid(row=0, column=1, padx=5)
+        btn_frame.pack(pady=gs(10))
+        ttk.Button(btn_frame, text=t("checklist_check_all_button"), command=self.check_all).grid(row=0, column=0, padx=gs(5))
+        ttk.Button(btn_frame, text=t("checklist_uncheck_all_button"), command=self.uncheck_all).grid(row=0, column=1, padx=gs(5))
 
         self.progress_label = ttk.Label(self, text="", font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED)
-        self.progress_label.pack(pady=(0, 10))
+        self.progress_label.pack(pady=(0, gs(10)))
         self._update_progress()
 
     def _update_style(self, var, chk):
@@ -14598,18 +14608,18 @@ class ExportFormatDialog(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("exportformat_heading"),
-                  font=("Segoe UI", sf(12), "bold"), wraplength=340, justify="center").pack(pady=(20, 5))
+                  font=("Segoe UI", sf(12), "bold"), wraplength=340, justify="center").pack(pady=(gs(20), gs(5)))
         ttk.Label(self, text=t("exportformat_choose_label"),
-                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, 15))
+                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, gs(15)))
 
         ttk.Button(self, text=t("exportformat_txt_button"),
-                   command=lambda: self._run(export_txt_callback)).pack(pady=6, padx=40, fill="x")
+                   command=lambda: self._run(export_txt_callback)).pack(pady=gs(6), padx=gs(40), fill="x")
         ttk.Button(self, text=t("exportformat_excel_button"),
-                   command=lambda: self._run(export_excel_callback)).pack(pady=6, padx=40, fill="x")
+                   command=lambda: self._run(export_excel_callback)).pack(pady=gs(6), padx=gs(40), fill="x")
         ttk.Button(self, text=t("exportformat_pdf_button"),
-                   command=lambda: self._run(export_pdf_callback)).pack(pady=6, padx=40, fill="x")
+                   command=lambda: self._run(export_pdf_callback)).pack(pady=gs(6), padx=gs(40), fill="x")
         ttk.Button(self, text=t("exportformat_cancel_button"), style="Secondary.TButton",
-                   command=self.destroy).pack(pady=(15, 10))
+                   command=self.destroy).pack(pady=(gs(15), gs(10)))
 
     def _run(self, callback):
         self.destroy()
@@ -14636,55 +14646,55 @@ class AddManualIngredientDialog(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("addmanual_heading"),
-                  font=("Segoe UI", sf(12), "bold"), wraplength=420, justify="center").pack(pady=(15, 5))
+                  font=("Segoe UI", sf(12), "bold"), wraplength=420, justify="center").pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self, text=t("addmanual_intro"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         name_frame = ttk.Frame(self)
-        name_frame.pack(pady=5)
-        ttk.Label(name_frame, text=t("common_ingredient_label")).grid(row=0, column=0, padx=5, sticky="e")
+        name_frame.pack(pady=gs(5))
+        ttk.Label(name_frame, text=t("common_ingredient_label")).grid(row=0, column=0, padx=gs(5), sticky="e")
         self.name_combo = ttk.Combobox(name_frame, values=get_display_ingredient_values(sorted(self.app.ingredient_names, key=ingredient_sort_key)),
                                         width=26)
-        self.name_combo.grid(row=0, column=1, padx=5)
+        self.name_combo.grid(row=0, column=1, padx=gs(5))
         ttk.Button(name_frame, text=t("addmanual_new_ingredient_button"),
-                   command=self.create_new_ingredient).grid(row=0, column=2, padx=5)
+                   command=self.create_new_ingredient).grid(row=0, column=2, padx=gs(5))
 
         qty_frame = ttk.Frame(self)
-        qty_frame.pack(pady=10)
-        ttk.Label(qty_frame, text=t("common_quantity_label")).grid(row=0, column=0, padx=5)
+        qty_frame.pack(pady=gs(10))
+        ttk.Label(qty_frame, text=t("common_quantity_label")).grid(row=0, column=0, padx=gs(5))
         self.qty_entry = ttk.Entry(qty_frame, width=8)
         self.qty_entry.insert(0, "1")
-        self.qty_entry.grid(row=0, column=1, padx=5)
-        ttk.Label(qty_frame, text=t("common_unit_label")).grid(row=0, column=2, padx=5)
+        self.qty_entry.grid(row=0, column=1, padx=gs(5))
+        ttk.Label(qty_frame, text=t("common_unit_label")).grid(row=0, column=2, padx=gs(5))
         self.unit_options = RecipeFormWindow.UNIT_OPTIONS[:-1] + ["boîte", "paquet", "rouleau", "bouteille"]
         self.unit_combo = ttk.Combobox(qty_frame, values=[translate_unit_name(u) for u in self.unit_options], width=14)  # texte libre autorisé
         self.unit_combo.set(translate_unit_name("pièce"))
-        self.unit_combo.grid(row=0, column=3, padx=5)
+        self.unit_combo.grid(row=0, column=3, padx=gs(5))
         ttk.Button(qty_frame, text=t("addmanual_add_to_list_button"),
-                   command=self.stage_item).grid(row=0, column=4, padx=(10, 0))
+                   command=self.stage_item).grid(row=0, column=4, padx=(gs(10), 0))
         self.name_combo.bind("<Return>", lambda e: self.stage_item())
         self.qty_entry.bind("<Return>", lambda e: self.stage_item())
 
         ttk.Label(self, text=t("addmanual_staged_label"),
-                  font=("Segoe UI", sf(10), "bold")).pack(pady=(10, 3))
+                  font=("Segoe UI", sf(10), "bold")).pack(pady=(gs(10), gs(3)))
         staged_frame = ttk.Frame(self)
-        staged_frame.pack(padx=15, fill="both", expand=True)
+        staged_frame.pack(padx=gs(15), fill="both", expand=True)
         self.staged_listbox = tk.Listbox(staged_frame, height=10, font=("Segoe UI", sf(9)))
         staged_scrollbar = ttk.Scrollbar(staged_frame, orient="vertical", command=self.staged_listbox.yview)
         self.staged_listbox.configure(yscrollcommand=staged_scrollbar.set)
         self.staged_listbox.pack(side="left", fill="both", expand=True)
         staged_scrollbar.pack(side="right", fill="y")
         ttk.Button(self, text=t("addmanual_remove_staged_button"),
-                   command=self.remove_staged).pack(pady=(5, 0))
+                   command=self.remove_staged).pack(pady=(gs(5), 0))
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=15)
+        btn_frame.pack(pady=gs(15))
         ttk.Button(btn_frame, text=t("addmanual_confirm_all_button"),
-                   command=self.confirm_all).grid(row=0, column=0, padx=5)
+                   command=self.confirm_all).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("addmanual_close_button"), style="Secondary.TButton",
-                   command=self.close).grid(row=0, column=1, padx=5)
+                   command=self.close).grid(row=0, column=1, padx=gs(5))
         self.protocol("WM_DELETE_WINDOW", self.close)
 
     def close(self):
@@ -14758,20 +14768,20 @@ class SavedShoppingListsWindow(tk.Toplevel):
         self.title(t("savedlists_title")); fit_window_to_workarea(self, gs(720), gs(500), margin=14)
         safe_minsize(self, gs(600), gs(420)); self.resizable(True, True); self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self.close)
-        ttk.Label(self, text=t("savedlists_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15,10))
-        frame=ttk.Frame(self); frame.pack(fill="both", expand=True, padx=15)
+        ttk.Label(self, text=t("savedlists_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(10)))
+        frame=ttk.Frame(self); frame.pack(fill="both", expand=True, padx=gs(15))
         self.tree=ttk.Treeview(frame, columns=("name","items","date"), show="headings", selectmode="browse")
         for c,txt,w in (("name",t("savedlists_col_name"),330),("items",t("savedlists_col_items"),90),("date",t("savedlists_col_date"),180)):
             self.tree.heading(c,text=txt); self.tree.column(c,width=gs(w),anchor="w" if c!="items" else "center")
         sb=ttk.Scrollbar(frame,orient="vertical",command=self.tree.yview); self.tree.configure(yscrollcommand=sb.set)
         self.tree.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")
         self.tree.bind("<Double-1>",lambda e:self.load_selected())
-        btn=ttk.Frame(self); btn.pack(pady=15)
-        ttk.Button(btn,text=t("savedlists_load_button"),style="Primary.TButton",command=self.load_selected).grid(row=0,column=0,padx=4)
-        ttk.Button(btn,text=t("savedlists_rename_button"),command=self.rename_selected).grid(row=0,column=1,padx=4)
-        ttk.Button(btn,text=t("savedlists_duplicate_button"),command=self.duplicate_selected).grid(row=0,column=2,padx=4)
-        ttk.Button(btn,text=t("savedlists_delete_button"),command=self.delete_selected).grid(row=0,column=3,padx=4)
-        ttk.Button(btn,text=t("addmanual_close_button"),style="Secondary.TButton",command=self.close).grid(row=0,column=4,padx=4)
+        btn=ttk.Frame(self); btn.pack(pady=gs(15))
+        ttk.Button(btn,text=t("savedlists_load_button"),style="Primary.TButton",command=self.load_selected).grid(row=0,column=0,padx=gs(SPACE_XS))
+        ttk.Button(btn,text=t("savedlists_rename_button"),command=self.rename_selected).grid(row=0,column=1,padx=gs(SPACE_XS))
+        ttk.Button(btn,text=t("savedlists_duplicate_button"),command=self.duplicate_selected).grid(row=0,column=2,padx=gs(SPACE_XS))
+        ttk.Button(btn,text=t("savedlists_delete_button"),command=self.delete_selected).grid(row=0,column=3,padx=gs(SPACE_XS))
+        ttk.Button(btn,text=t("addmanual_close_button"),style="Secondary.TButton",command=self.close).grid(row=0,column=4,padx=gs(SPACE_XS))
         self.saved_lists=[]; self._populate()
     def _populate(self):
         for iid in self.tree.get_children(): self.tree.delete(iid)
@@ -14870,11 +14880,11 @@ class ShoppingCartRenderMixin:
                 self.result_frame,
                 text=t(self._shopping_empty_message_key),
                 foreground=COLOR_TEXT_MUTED, justify="center"
-            ).pack(pady=20)
+            ).pack(pady=gs(20))
             return
 
         ttk.Label(self.result_frame, text=t(self._shopping_heading_key),
-                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", pady=(5, 2))
+                  font=("Segoe UI", sf(11), "bold")).pack(anchor="w", pady=(gs(5), gs(2)))
         if self.manual_items:
             ttk.Label(
                 self.result_frame,
@@ -14894,17 +14904,17 @@ class ShoppingCartRenderMixin:
         def render_row(idx):
             item = self.current_items[idx]
             row = ttk.Frame(self.result_frame)
-            row.pack(fill="x", pady=1)
+            row.pack(fill="x", pady=gs(1))
             ttk.Label(row, text=f"- {translate_ingredient_name(item['name'])}", width=30, anchor="w").pack(side="left")
             qty_entry = ttk.Entry(row, width=8)
             qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
-            qty_entry.pack(side="left", padx=3)
+            qty_entry.pack(side="left", padx=gs(3))
             qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
             qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
-            ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=3)
+            ttk.Label(row, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), width=18, anchor="w").pack(side="left", padx=gs(3))
             delete_btn = ttk.Button(row, text="🗑", width=3,
                        command=lambda i=idx: self._delete_item(i))
-            delete_btn.pack(side="left", padx=3)
+            delete_btn.pack(side="left", padx=gs(3))
             add_tooltip(delete_btn, t("tooltip_delete_item"))
 
         if self._shopping_sort_var.get() == "nom":
@@ -14913,7 +14923,7 @@ class ShoppingCartRenderMixin:
         else:
             for rayon, idxs in self._grouped_current_items():
                 ttk.Label(self.result_frame, text=translate_rayon_name(rayon), font=("Segoe UI", sf(10), "bold"),
-                          foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(12, 4))
+                          foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(gs(12), gs(SPACE_XS)))
                 for idx in idxs:
                     render_row(idx)
 
@@ -14939,11 +14949,11 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         ttk.Label(self, text=t("allrecipes_select_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(10), gs(5)))
 
         compact_layout = self.winfo_screenwidth() < 1100 or FONT_SCALE > 1.0
         top_frame = ttk.Frame(self)
-        top_frame.pack(pady=(0, 5), fill="x", padx=15)
+        top_frame.pack(pady=(0, gs(5)), fill="x", padx=gs(15))
         self.search_entry = ttk.Entry(top_frame, width=20)
         self.sort_combo = ttk.Combobox(top_frame, values=[translate_sort_option(o) for o in self.SORT_OPTIONS], state="readonly", width=18)
         self.sort_combo.set(translate_sort_option(self.SORT_OPTIONS[0]))
@@ -14954,26 +14964,26 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
         self.category_filter_combo.set(t("common_all_categories"))
         if compact_layout:
             ttk.Label(top_frame, text=t("common_search_label")).grid(row=0, column=0, sticky="w")
-            self.search_entry.grid(row=0, column=1, columnspan=3, padx=(5, 0), sticky="ew")
-            ttk.Label(top_frame, text=t("common_sort_by_label")).grid(row=1, column=0, sticky="w", pady=(5, 0))
-            self.sort_combo.grid(row=1, column=1, padx=(5, 10), pady=(5, 0), sticky="ew")
-            ttk.Label(top_frame, text=t("common_category_label")).grid(row=1, column=2, sticky="w", pady=(5, 0))
-            self.category_filter_combo.grid(row=1, column=3, padx=(5, 0), pady=(5, 0), sticky="ew")
+            self.search_entry.grid(row=0, column=1, columnspan=3, padx=(gs(5), 0), sticky="ew")
+            ttk.Label(top_frame, text=t("common_sort_by_label")).grid(row=1, column=0, sticky="w", pady=(gs(5), 0))
+            self.sort_combo.grid(row=1, column=1, padx=(gs(5), gs(10)), pady=(gs(5), 0), sticky="ew")
+            ttk.Label(top_frame, text=t("common_category_label")).grid(row=1, column=2, sticky="w", pady=(gs(5), 0))
+            self.category_filter_combo.grid(row=1, column=3, padx=(gs(5), 0), pady=(gs(5), 0), sticky="ew")
             top_frame.columnconfigure(1, weight=1)
             top_frame.columnconfigure(3, weight=1)
         else:
             ttk.Label(top_frame, text=t("common_search_label")).pack(side="left")
-            self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
-            ttk.Label(top_frame, text=t("common_sort_by_label")).pack(side="left", padx=(10, 2))
+            self.search_entry.pack(side="left", padx=gs(5), fill="x", expand=True)
+            ttk.Label(top_frame, text=t("common_sort_by_label")).pack(side="left", padx=(gs(10), gs(2)))
             self.sort_combo.pack(side="left")
-            ttk.Label(top_frame, text=t("common_category_label")).pack(side="left", padx=(10, 2))
+            ttk.Label(top_frame, text=t("common_category_label")).pack(side="left", padx=(gs(10), gs(2)))
             self.category_filter_combo.pack(side="left")
         self.search_entry.bind("<KeyRelease>", lambda e: self._filter_rows())
         self.sort_combo.bind("<<ComboboxSelected>>", lambda e: self._apply_sort())
         self.category_filter_combo.bind("<<ComboboxSelected>>", lambda e: self._filter_rows())
 
         ingredient_filter_frame = ttk.LabelFrame(self, text=t("allrecipes_ingredient_filter_title"))
-        ingredient_filter_frame.pack(pady=(0, 8), padx=15, fill="x")
+        ingredient_filter_frame.pack(pady=(0, gs(SPACE_SM)), padx=gs(15), fill="x")
         ingredient_values = get_display_ingredient_values(sorted(self.app.ingredient_names, key=ingredient_sort_key))
 
         self.want_entries = [self._make_ingredient_filter_entry(ingredient_filter_frame, ingredient_values) for _ in range(2)]
@@ -14988,31 +14998,31 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
                 (t("common_tags_filter_label"), self.tag_filter_entries),
             ]
             for row_i, (label_text, entries) in enumerate(groups):
-                ttk.Label(ingredient_filter_frame, text=label_text).grid(row=row_i, column=0, sticky="w", padx=5, pady=3)
-                entries[0].grid(row=row_i, column=1, padx=5, pady=3, sticky="ew")
-                entries[1].grid(row=row_i, column=2, padx=5, pady=3, sticky="ew")
+                ttk.Label(ingredient_filter_frame, text=label_text).grid(row=row_i, column=0, sticky="w", padx=gs(5), pady=gs(3))
+                entries[0].grid(row=row_i, column=1, padx=gs(5), pady=gs(3), sticky="ew")
+                entries[1].grid(row=row_i, column=2, padx=gs(5), pady=gs(3), sticky="ew")
             ingredient_filter_frame.columnconfigure(1, weight=1)
             ingredient_filter_frame.columnconfigure(2, weight=1)
             ttk.Button(ingredient_filter_frame, text=t("common_reset_button"),
-                       command=self._reset_ingredient_filters).grid(row=3, column=0, padx=5, pady=(3, 5), sticky="w")
+                       command=self._reset_ingredient_filters).grid(row=3, column=0, padx=gs(5), pady=(gs(3), gs(5)), sticky="w")
             ttk.Label(ingredient_filter_frame, text=t("common_filter_hint"),
                       font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).grid(
-                row=3, column=1, columnspan=2, sticky="w", padx=5, pady=(3, 5))
+                row=3, column=1, columnspan=2, sticky="w", padx=gs(5), pady=(gs(3), gs(5)))
         else:
-            ttk.Label(ingredient_filter_frame, text=t("common_want_label")).grid(row=0, column=0, sticky="w", padx=5, pady=3)
-            for i, entry in enumerate(self.want_entries): entry.grid(row=0, column=1+i, padx=5, pady=3)
-            ttk.Label(ingredient_filter_frame, text=t("common_exclude_label")).grid(row=1, column=0, sticky="w", padx=5, pady=3)
-            for i, entry in enumerate(self.exclude_entries): entry.grid(row=1, column=1+i, padx=5, pady=3)
-            ttk.Label(ingredient_filter_frame, text=t("common_tags_filter_label")).grid(row=2, column=0, sticky="w", padx=5, pady=3)
-            for i, entry in enumerate(self.tag_filter_entries): entry.grid(row=2, column=1+i, padx=5, pady=3)
+            ttk.Label(ingredient_filter_frame, text=t("common_want_label")).grid(row=0, column=0, sticky="w", padx=gs(5), pady=gs(3))
+            for i, entry in enumerate(self.want_entries): entry.grid(row=0, column=1+i, padx=gs(5), pady=gs(3))
+            ttk.Label(ingredient_filter_frame, text=t("common_exclude_label")).grid(row=1, column=0, sticky="w", padx=gs(5), pady=gs(3))
+            for i, entry in enumerate(self.exclude_entries): entry.grid(row=1, column=1+i, padx=gs(5), pady=gs(3))
+            ttk.Label(ingredient_filter_frame, text=t("common_tags_filter_label")).grid(row=2, column=0, sticky="w", padx=gs(5), pady=gs(3))
+            for i, entry in enumerate(self.tag_filter_entries): entry.grid(row=2, column=1+i, padx=gs(5), pady=gs(3))
             ttk.Button(ingredient_filter_frame, text=t("common_reset_button"),
-                       command=self._reset_ingredient_filters).grid(row=0, column=3, rowspan=3, padx=8)
+                       command=self._reset_ingredient_filters).grid(row=0, column=3, rowspan=3, padx=gs(SPACE_SM))
             ttk.Label(ingredient_filter_frame, text=t("common_filter_hint"),
                       font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).grid(
-                row=3, column=0, columnspan=4, sticky="w", padx=5, pady=(0, 3))
+                row=3, column=0, columnspan=4, sticky="w", padx=gs(5), pady=(0, gs(3)))
 
         container = ttk.Frame(self)
-        container.pack(fill="both", expand=True, padx=10)
+        container.pack(fill="both", expand=True, padx=gs(10))
 
         canvas = tk.Canvas(container, height=240, highlightthickness=0)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
@@ -15034,8 +15044,8 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
         self._recipe_cart_persons = {}  # id stable -> personnes ; un second ajout remplace le précédent
         rows_frame.columnconfigure(0, weight=1)
         for row_index, recipe in enumerate(self.app.recipes):
-            row = ttk.Frame(rows_frame, padding=(8, 5))
-            row.grid(row=row_index, column=0, sticky="ew", pady=3)
+            row = ttk.Frame(rows_frame, padding=(gs(SPACE_SM), gs(5)))
+            row.grid(row=row_index, column=0, sticky="ew", pady=gs(3))
             row.columnconfigure(0, weight=1)
 
             # Le nom occupe une ligne complète. Les contrôles sont placés
@@ -15043,10 +15053,10 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
             ttk.Label(
                 row, text=format_recipe_list_label(recipe), anchor="w",
                 font=("Segoe UI", sf(9), "bold")
-            ).grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 4))
+            ).grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, gs(SPACE_XS)))
 
             controls = ttk.Frame(row)
-            controls.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, 2))
+            controls.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, gs(2)))
 
             ttk.Label(controls, text=t("allrecipes_persons_count_label")).pack(
                 side="left"
@@ -15061,11 +15071,11 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
                 pers_entry.insert(0, str(preselected))
             else:
                 pers_entry.insert(0, str(recipe.get("default_persons") or 1))
-            pers_entry.pack(side="left", padx=(6, 10))
+            pers_entry.pack(side="left", padx=(gs(6), gs(10)))
             ttk.Button(
                 controls, text=t("allrecipes_add_to_cart_button"),
                 command=lambda r=recipe, e=pers_entry: self._add_recipe_to_cart(r, e)
-            ).pack(side="left", padx=(0, 6))
+            ).pack(side="left", padx=(0, gs(6)))
             ttk.Button(
                 controls, text=t("common_edit_button"),
                 command=lambda idx=row_index: self._edit_recipe(idx)
@@ -15076,21 +15086,21 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
             row=len(self.app.recipes), column=0, sticky="ew")
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=6)
+        btn_frame.pack(pady=gs(6))
         for col in range(4):
             btn_frame.columnconfigure(col, weight=1)
         compact_actions = screen_height < 800 or self.winfo_screenwidth() < 1100
         ttk.Button(btn_frame, text=t("allrecipes_checklist_mode_button"),
-                   command=self.open_checklist).grid(row=0, column=0, padx=4, pady=2, sticky="ew")
+                   command=self.open_checklist).grid(row=0, column=0, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
         ttk.Button(btn_frame, text=t("allrecipes_clear_list_button"),
-                   command=self.clear_selection).grid(row=0, column=1, padx=4, pady=2, sticky="ew")
+                   command=self.clear_selection).grid(row=0, column=1, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
         ttk.Button(btn_frame, text=t("allrecipes_export_button"),
-                   command=self.open_export_dialog).grid(row=0, column=2, padx=4, pady=2, sticky="ew")
+                   command=self.open_export_dialog).grid(row=0, column=2, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
         ttk.Button(btn_frame, text=t("allrecipes_print_button"),
-                   command=self.print_shopping_list).grid(row=0, column=3, padx=4, pady=2, sticky="ew")
+                   command=self.print_shopping_list).grid(row=0, column=3, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
         if compact_actions:
             more = ttk.Button(btn_frame, text=t("weekplan_more_actions"), style="Secondary.TButton")
-            more.grid(row=1, column=0, columnspan=4, padx=4, pady=2, sticky="ew")
+            more.grid(row=1, column=0, columnspan=4, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
             _ui_attach_more_menu(more, [
                 (t("allrecipes_add_manual_ingredient_button"), self.open_add_manual_ingredient),
                 (t("allrecipes_save_list_button"), self.save_list_for_later),
@@ -15098,16 +15108,16 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
             ])
         else:
             ttk.Button(btn_frame, text=t("allrecipes_add_manual_ingredient_button"),
-                       command=self.open_add_manual_ingredient).grid(row=1, column=0, columnspan=4, padx=4, pady=2, sticky="ew")
+                       command=self.open_add_manual_ingredient).grid(row=1, column=0, columnspan=4, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
             ttk.Button(btn_frame, text=t("allrecipes_save_list_button"),
-                       command=self.save_list_for_later).grid(row=2, column=0, columnspan=2, padx=4, pady=2, sticky="ew")
+                       command=self.save_list_for_later).grid(row=2, column=0, columnspan=2, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
             ttk.Button(btn_frame, text=t("allrecipes_load_list_button"),
-                       command=self.open_saved_lists).grid(row=2, column=2, columnspan=2, padx=4, pady=2, sticky="ew")
+                       command=self.open_saved_lists).grid(row=2, column=2, columnspan=2, padx=gs(SPACE_XS), pady=gs(2), sticky="ew")
 
         # ---- Zone de résultat éditable : chaque ingrédient peut voir sa
         # quantité modifiée ou être retiré, sans devoir tout recalculer. ----
         result_container = ttk.Frame(self)
-        result_container.pack(pady=10, padx=15, fill="both", expand=True)
+        result_container.pack(pady=gs(10), padx=gs(15), fill="both", expand=True)
         result_canvas = tk.Canvas(result_container, highlightthickness=0)
         result_scrollbar = ttk.Scrollbar(result_container, orient="vertical", command=result_canvas.yview)
         self.result_frame = ttk.Frame(result_canvas)
@@ -15171,7 +15181,7 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
         reverse = option in ("Ajoutées récemment",)
         ordered = sorted(self.checks, key=lambda t: recipe_sort_key(t[0], option), reverse=reverse)
         for new_index, (recipe, pers_entry, row) in enumerate(ordered):
-            row.grid(row=new_index, column=0, sticky="ew", pady=4)
+            row.grid(row=new_index, column=0, sticky="ew", pady=gs(SPACE_XS))
         self.checks = ordered
         self._filter_rows()
 
@@ -15404,32 +15414,32 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
 
         def render_cell(parent, idx, row_no, col_no):
             item = self.current_items[idx]
-            cell = ttk.Frame(parent, padding=(5, 3))
-            cell.grid(row=row_no, column=col_no, sticky="ew", padx=(0, 8), pady=1)
+            cell = ttk.Frame(parent, padding=(gs(5), gs(3)))
+            cell.grid(row=row_no, column=col_no, sticky="ew", padx=(0, gs(SPACE_SM)), pady=gs(1))
             cell.columnconfigure(0, weight=1)
 
             ttk.Label(
                 cell, text=f"- {translate_ingredient_name(item['name'])}",
                 anchor="w"
-            ).grid(row=0, column=0, sticky="ew", padx=(0, 4))
+            ).grid(row=0, column=0, sticky="ew", padx=(0, gs(SPACE_XS)))
             qty_entry = ttk.Entry(cell, width=7)
             qty_entry.insert(0, "" if item["quantity"] is None else str(item["quantity"]))
-            qty_entry.grid(row=0, column=1, padx=3)
+            qty_entry.grid(row=0, column=1, padx=gs(3))
             qty_entry.bind("<FocusOut>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
             qty_entry.bind("<Return>", lambda e, i=idx, ent=qty_entry: self._update_item_quantity(i, ent))
             ttk.Label(
                 cell, text=(t("quantity_unspecified") if item["quantity"] is None else translate_unit_name(item["unit"])), anchor="w"
-            ).grid(row=0, column=2, padx=3, sticky="w")
+            ).grid(row=0, column=2, padx=gs(3), sticky="w")
             delete_btn = ttk.Button(
                 cell, text="🗑", width=3,
                 command=lambda i=idx: self._delete_item(i)
             )
-            delete_btn.grid(row=0, column=3, padx=(3, 0))
+            delete_btn.grid(row=0, column=3, padx=(gs(3), 0))
             add_tooltip(delete_btn, t("tooltip_delete_item"))
 
         if self._shopping_sort_var.get() == "nom":
             items_frame = ttk.Frame(self.result_frame)
-            items_frame.pack(fill="x", pady=(10, 2))
+            items_frame.pack(fill="x", pady=(gs(10), gs(2)))
             for c in range(columns):
                 items_frame.columnconfigure(c, weight=1, uniform="shopping_items")
             for pos, idx in enumerate(_cart_items_sorted_by_name(self.current_items)):
@@ -15438,11 +15448,11 @@ class AllRecipesWindow(ShoppingCartRenderMixin, tk.Toplevel):
         else:
             for rayon, idxs in self._grouped_current_items():
                 section = ttk.Frame(self.result_frame)
-                section.pack(fill="x", pady=(10, 2))
+                section.pack(fill="x", pady=(gs(10), gs(2)))
                 ttk.Label(
                     section, text=translate_rayon_name(rayon),
                     font=("Segoe UI", sf(10), "bold"), foreground=COLOR_ACCENT_DARK
-                ).grid(row=0, column=0, columnspan=columns, sticky="w", pady=(2, 5))
+                ).grid(row=0, column=0, columnspan=columns, sticky="w", pady=(gs(2), gs(5)))
 
                 items_frame = ttk.Frame(section)
                 items_frame.grid(row=1, column=0, columnspan=columns, sticky="ew")
@@ -15627,9 +15637,9 @@ class QuickSearchWindow(tk.Toplevel):
             pass
 
         ttk.Label(self, text=t("quicksearch_heading"),
-                  font=("Segoe UI", sf(12), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(12), "bold")).pack(pady=(gs(15), gs(5)))
         self.search_entry = ttk.Entry(self, font=("Segoe UI", sf(11)))
-        self.search_entry.pack(padx=15, pady=(0, 10), fill="x")
+        self.search_entry.pack(padx=gs(15), pady=(0, gs(10)), fill="x")
         self.search_entry.focus_set()
         self.search_entry.bind("<KeyRelease>", lambda e: self._populate())
         self.search_entry.bind("<Return>", lambda e: self._open_first_or_selected())
@@ -15639,10 +15649,10 @@ class QuickSearchWindow(tk.Toplevel):
         self.fuzzy_hint_label = ttk.Label(
             self, text="", foreground=COLOR_TEXT_MUTED, font=("Segoe UI", sf(8))
         )
-        self.fuzzy_hint_label.pack(padx=15, pady=(0, 2), fill="x")
+        self.fuzzy_hint_label.pack(padx=gs(15), pady=(0, gs(2)), fill="x")
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(padx=15, pady=(0, 10), fill="both", expand=True)
+        list_frame.pack(padx=gs(15), pady=(0, gs(10)), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -15656,7 +15666,7 @@ class QuickSearchWindow(tk.Toplevel):
         self._populate()
 
         ttk.Label(self, text=t("quicksearch_footer_hint"),
-                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, 10))
+                  font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, gs(10)))
 
     def _populate(self):
         self.listbox.delete(0, tk.END)
@@ -15752,20 +15762,20 @@ class OneRecipeWindow(tk.Toplevel):
         self.filtered_indices = []
         self._compact_vertical = screen_height < 760 or self.winfo_screenheight() < 760
 
-        ttk.Label(self, text=t("onerecipe_choose_recipe_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
+        ttk.Label(self, text=t("onerecipe_choose_recipe_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(10), gs(5)))
 
         top_frame = ttk.Frame(self)
-        top_frame.pack(pady=(0, 5), fill="x", padx=15)
+        top_frame.pack(pady=(0, gs(5)), fill="x", padx=gs(15))
         ttk.Label(top_frame, text=t("onerecipe_search_label")).pack(side="left")
         self.search_entry = ttk.Entry(top_frame, width=16)
-        self.search_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.search_entry.pack(side="left", padx=gs(5), fill="x", expand=True)
         self.search_entry.bind("<KeyRelease>", lambda e: self._populate())
-        ttk.Label(top_frame, text=t("onerecipe_sort_label")).pack(side="left", padx=(5, 2))
+        ttk.Label(top_frame, text=t("onerecipe_sort_label")).pack(side="left", padx=(gs(5), gs(2)))
         self.sort_combo = ttk.Combobox(top_frame, values=[translate_sort_option(o) for o in RECIPE_SORT_OPTIONS], state="readonly", width=16)
         self.sort_combo.set(translate_sort_option(RECIPE_SORT_OPTIONS[0]))
         self.sort_combo.pack(side="left")
         self.sort_combo.bind("<<ComboboxSelected>>", lambda e: self._populate())
-        ttk.Label(top_frame, text=t("onerecipe_category_label")).pack(side="left", padx=(5, 2))
+        ttk.Label(top_frame, text=t("onerecipe_category_label")).pack(side="left", padx=(gs(5), gs(2)))
         self.category_filter_combo = ttk.Combobox(
             top_frame, values=[t("common_all_categories")] + [translate_category_name(c) for c in RecipeFormWindow.CATEGORY_OPTIONS],
             state="readonly", width=14
@@ -15775,7 +15785,7 @@ class OneRecipeWindow(tk.Toplevel):
         self.category_filter_combo.bind("<<ComboboxSelected>>", lambda e: self._populate())
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(pady=5, padx=15, fill="both")
+        list_frame.pack(pady=gs(5), padx=gs(15), fill="both")
         list_canvas = tk.Canvas(list_frame, height=80 if self._compact_vertical else 170, highlightthickness=0)
         list_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=list_canvas.yview)
         self.rows_frame = ttk.Frame(list_canvas)
@@ -15791,7 +15801,7 @@ class OneRecipeWindow(tk.Toplevel):
 
         # ---- Galerie de photos ----
         gallery_outer = ttk.Frame(self)
-        gallery_outer.pack(fill="x", padx=15, pady=(10, 0))
+        gallery_outer.pack(fill="x", padx=gs(15), pady=(gs(10), 0))
         self.gallery_canvas = tk.Canvas(gallery_outer, height=80 if self._compact_vertical else 140, highlightthickness=0)
         gallery_scrollbar = ttk.Scrollbar(gallery_outer, orient="horizontal",
                                            command=self.gallery_canvas.xview)
@@ -15806,24 +15816,24 @@ class OneRecipeWindow(tk.Toplevel):
 
         # ---- Nombre de personnes + ajustement rapide ----
         persons_frame = ttk.Frame(self)
-        persons_frame.pack(pady=(10, 5))
-        ttk.Label(persons_frame, text=t("onerecipe_persons_label")).grid(row=0, column=0, columnspan=4, pady=(0, 5))
+        persons_frame.pack(pady=(gs(10), gs(5)))
+        ttk.Label(persons_frame, text=t("onerecipe_persons_label")).grid(row=0, column=0, columnspan=4, pady=(0, gs(5)))
         self.pers_entry = ttk.Entry(persons_frame, width=8)
         self.pers_entry.insert(0, "1")
-        self.pers_entry.grid(row=1, column=0, padx=3)
+        self.pers_entry.grid(row=1, column=0, padx=gs(3))
         ttk.Button(persons_frame, text="−1", width=4,
-                   command=lambda: self._adjust_persons(delta=-1)).grid(row=1, column=1, padx=3)
+                   command=lambda: self._adjust_persons(delta=-1)).grid(row=1, column=1, padx=gs(3))
         ttk.Button(persons_frame, text="+1", width=4,
-                   command=lambda: self._adjust_persons(delta=1)).grid(row=1, column=2, padx=3)
+                   command=lambda: self._adjust_persons(delta=1)).grid(row=1, column=2, padx=gs(3))
         ttk.Button(persons_frame, text="÷2", width=4,
-                   command=lambda: self._adjust_persons(factor=0.5)).grid(row=1, column=3, padx=3)
+                   command=lambda: self._adjust_persons(factor=0.5)).grid(row=1, column=3, padx=gs(3))
         ttk.Button(persons_frame, text="×2", width=4,
-                   command=lambda: self._adjust_persons(factor=2)).grid(row=1, column=4, padx=3)
+                   command=lambda: self._adjust_persons(factor=2)).grid(row=1, column=4, padx=gs(3))
 
         # ---- Actions : compactées sur les écrans peu hauts afin de ne jamais
         # repousser les contrôles sous la barre des tâches. ----
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=5, padx=15, fill="x")
+        btn_frame.pack(pady=gs(5), padx=gs(15), fill="x")
         primary_actions = [
             (t("onerecipe_btn_show"), self.show_recipe),
             (t("onerecipe_btn_add_to_shopping"), self.add_to_shopping_list),
@@ -15842,30 +15852,30 @@ class OneRecipeWindow(tk.Toplevel):
             btn_frame.columnconfigure(col, weight=1)
         if self._compact_vertical:
             for col, (label, command) in enumerate(primary_actions):
-                ttk.Button(btn_frame, text=label, command=command).grid(row=0, column=col, padx=3, pady=2, sticky="ew")
+                ttk.Button(btn_frame, text=label, command=command).grid(row=0, column=col, padx=gs(3), pady=gs(2), sticky="ew")
             more = ttk.Button(btn_frame, text=t("onerecipe_more_actions"), style="Secondary.TButton")
-            more.grid(row=0, column=4, padx=3, pady=2, sticky="ew")
+            more.grid(row=0, column=4, padx=gs(3), pady=gs(2), sticky="ew")
             _ui_attach_more_menu(more, secondary_actions)
         else:
             action_buttons = primary_actions + secondary_actions
             for i, (label, command) in enumerate(action_buttons):
                 row, col = divmod(i, 4)
-                ttk.Button(btn_frame, text=label, command=command).grid(row=row, column=col, padx=4, pady=3, sticky="ew")
+                ttk.Button(btn_frame, text=label, command=command).grid(row=row, column=col, padx=gs(SPACE_XS), pady=gs(3), sticky="ew")
 
         # ---- Deux panneaux côte à côte : ingrédients/infos à gauche,
         # description/notes à droite. ----
         results_frame = ttk.Frame(self)
-        results_frame.pack(pady=5, padx=15, fill="both", expand=True)
+        results_frame.pack(pady=gs(5), padx=gs(15), fill="both", expand=True)
 
         left_results = ttk.Frame(results_frame)
-        left_results.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        left_results.pack(side="left", fill="both", expand=True, padx=(0, gs(SPACE_SM)))
         ttk.Label(left_results, text=t("onerecipe_ingredients_info_label"),
                   font=("Segoe UI", sf(9), "bold")).pack(anchor="w")
         self.result_text = tk.Text(left_results, width=48, height=7 if self._compact_vertical else 14, wrap="word", font=("Segoe UI", sf(10)))
         self.result_text.pack(fill="both", expand=True)
 
         right_results = ttk.Frame(results_frame)
-        right_results.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        right_results.pack(side="left", fill="both", expand=True, padx=(gs(SPACE_SM), 0))
         ttk.Label(right_results, text=t("onerecipe_description_notes_label"),
                   font=("Segoe UI", sf(9), "bold")).pack(anchor="w")
         self.description_result_text = tk.Text(right_results, width=48, height=7 if self._compact_vertical else 14, wrap="word", font=("Segoe UI", sf(10)))
@@ -15874,7 +15884,7 @@ class OneRecipeWindow(tk.Toplevel):
         # ---- Recettes similaires : suggestions basées sur la catégorie, les
         # étiquettes et les ingrédients en commun. ----
         self.similar_frame = ttk.Frame(self)
-        self.similar_frame.pack(pady=(0, 10), padx=15, fill="x")
+        self.similar_frame.pack(pady=(0, gs(10)), padx=gs(15), fill="x")
 
         # Espace vide en bas de la fenêtre, pour que "Recettes similaires"
         # ne se retrouve jamais collé au bord inférieur (ou caché derrière
@@ -15904,14 +15914,14 @@ class OneRecipeWindow(tk.Toplevel):
         indexed.sort(key=lambda pair: recipe_sort_key(pair[1], option), reverse=reverse)
         for row_index, (idx, recipe) in enumerate(indexed):
             row = tk.Frame(self.rows_frame, background=COLOR_BG)
-            row.grid(row=row_index, column=0, sticky="ew", pady=1)
+            row.grid(row=row_index, column=0, sticky="ew", pady=gs(1))
             label = tk.Label(row, text=format_recipe_list_label(recipe), background=COLOR_BG,
-                              anchor="w", cursor="hand2", padx=4, font=("Segoe UI", sf(10)))
+                              anchor="w", cursor="hand2", padx=gs(SPACE_XS), font=("Segoe UI", sf(10)))
             label.pack(side="left", fill="x", expand=True)
             label.bind("<Button-1>", lambda e, i=idx, r=row: self._select_row(i, r))
             label.bind("<Double-Button-1>", lambda e, i=idx, r=row: self._select_row(i, r, show=True))
             ttk.Button(row, text=t("onerecipe_edit_button"), width=10,
-                       command=lambda i=idx: self._edit_recipe(i)).pack(side="right", padx=4)
+                       command=lambda i=idx: self._edit_recipe(i)).pack(side="right", padx=gs(SPACE_XS))
             self._row_widgets.append((idx, row, label))
             self.filtered_indices.append(idx)
         if self.selected_actual_index is not None:
@@ -15989,12 +15999,12 @@ class OneRecipeWindow(tk.Toplevel):
 
         images = get_recipe_images(recipe)
         if not images:
-            ttk.Label(self.gallery_frame, text=t("onerecipe_no_photo")).pack(side="left", padx=10, pady=10)
+            ttk.Label(self.gallery_frame, text=t("onerecipe_no_photo")).pack(side="left", padx=gs(10), pady=gs(10))
         else:
             for fname in images:
                 thumb = load_thumbnail(fname, size=(160, 120))
                 cell = ttk.Frame(self.gallery_frame)
-                cell.pack(side="left", padx=5, pady=5)
+                cell.pack(side="left", padx=gs(5), pady=gs(5))
                 if thumb is not None:
                     self._gallery_thumb_refs.append(thumb)
                     ttk.Label(cell, image=thumb).pack()
@@ -16014,7 +16024,7 @@ class OneRecipeWindow(tk.Toplevel):
             latest_photo = cook_log[0].get("photo")
             thumb = load_thumbnail(latest_photo, size=(160, 120))
             cell = ttk.Frame(self.gallery_frame)
-            cell.pack(side="left", padx=5, pady=5)
+            cell.pack(side="left", padx=gs(5), pady=gs(5))
             ttk.Label(cell, text=t("onerecipe_latest_cook_photo")).pack()
             if thumb is not None:
                 self._gallery_thumb_refs.append(thumb)
@@ -16179,14 +16189,14 @@ class OneRecipeWindow(tk.Toplevel):
         win.grab_set()
 
         ttk.Label(win, text=t("onerecipe_substitutes_heading", name=recipe['name']),
-                  font=("Segoe UI", sf(12), "bold"), wraplength=480, justify="center").pack(pady=(15, 5))
+                  font=("Segoe UI", sf(12), "bold"), wraplength=480, justify="center").pack(pady=(gs(15), gs(5)))
         ttk.Label(
             win, text=t("onerecipe_substitutes_disclaimer"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         container = ttk.Frame(win)
-        container.pack(fill="both", expand=True, padx=15, pady=5)
+        container.pack(fill="both", expand=True, padx=gs(15), pady=gs(5))
         canvas = tk.Canvas(container, highlightthickness=0)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
         inner = ttk.Frame(canvas)
@@ -16198,14 +16208,14 @@ class OneRecipeWindow(tk.Toplevel):
 
         for ing_name, subs in entries:
             ttk.Label(inner, text=translate_ingredient_name(ing_name).capitalize(), font=("Segoe UI", sf(10), "bold"),
-                      foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(10, 2))
+                      foreground=COLOR_ACCENT_DARK).pack(anchor="w", pady=(gs(10), gs(2)))
             for sub in subs:
                 note = f" — {sub['note']}" if sub.get("note") else ""
                 ttk.Label(inner, text=f"  • {sub['nom']}{note}", wraplength=440,
                           justify="left").pack(anchor="w")
 
         tk.Frame(win, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
-        ttk.Button(win, text=t("onerecipe_close_button"), command=win.destroy).pack(pady=10)
+        ttk.Button(win, text=t("onerecipe_close_button"), command=win.destroy).pack(pady=gs(10))
 
     def _display_recipe(self, recipe):
         try:
@@ -16346,14 +16356,14 @@ class OneRecipeWindow(tk.Toplevel):
         ttk.Label(self.similar_frame, text=t("onerecipe_similar_label"),
                   font=("Segoe UI", sf(9), "bold"), foreground=COLOR_ACCENT_DARK).pack(anchor="w")
         links_frame = ttk.Frame(self.similar_frame)
-        links_frame.pack(anchor="w", pady=(2, 0))
+        links_frame.pack(anchor="w", pady=(gs(2), 0))
         for other in similar:
             cat = translate_category_name(other.get("category", "Autre"))
             btn = tk.Label(
                 links_frame, text=f"[{cat}] {other['name']}", foreground=COLOR_ACCENT_DARK,
                 cursor="hand2", font=("Segoe UI", sf(9), "underline")
             )
-            btn.pack(side="left", padx=(0, 12))
+            btn.pack(side="left", padx=(0, gs(12)))
             btn.bind("<Button-1>", lambda e, name=other["name"]: self._open_similar_recipe(name))
 
     def _open_similar_recipe(self, recipe_name):
@@ -16541,35 +16551,35 @@ class CookingModeWindow(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         top_bar = tk.Frame(self, bg=COLOR_CARD)
-        top_bar.pack(fill="x", pady=10)
+        top_bar.pack(fill="x", pady=gs(10))
         tk.Button(top_bar, text=t("cookingmode_close_button"), font=("Segoe UI", sf(13)),
-                  command=self._on_close).pack(side="right", padx=30)
+                  command=self._on_close).pack(side="right", padx=gs(30))
         tk.Button(top_bar, text=t("cookingmode_cooked_button"), font=("Segoe UI", sf(13)),
-                  command=self.mark_as_cooked).pack(side="right", padx=(10, 0))
+                  command=self.mark_as_cooked).pack(side="right", padx=(gs(10), 0))
         tk.Label(top_bar, text=t("cookingmode_fullscreen_hint"), font=("Segoe UI", sf(9)),
-                 bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(side="right", padx=10)
+                 bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(side="right", padx=gs(10))
 
         volume_frame = tk.Frame(top_bar, bg=COLOR_CARD)
-        volume_frame.pack(side="right", padx=(10, 0))
+        volume_frame.pack(side="right", padx=(gs(10), 0))
         tk.Button(volume_frame, text="🔊+", font=("Segoe UI", sf(11)), width=4,
                   command=lambda: self._adjust_volume(0.1)).pack(side="right")
         self.volume_label = tk.Label(volume_frame, text=t("cookingmode_volume_percent", percent=100), font=("Segoe UI", sf(10)),
                                       bg=COLOR_CARD, fg=COLOR_TEXT_MUTED, width=5)
-        self.volume_label.pack(side="right", padx=3)
+        self.volume_label.pack(side="right", padx=gs(3))
         tk.Button(volume_frame, text="🔉−", font=("Segoe UI", sf(11)), width=4,
                   command=lambda: self._adjust_volume(-0.1)).pack(side="right")
 
         self.speech_button = tk.Button(top_bar, text=t("cookingmode_speech_button"), font=("Segoe UI", sf(13)),
                                         command=self.toggle_speech)
-        self.speech_button.pack(side="right", padx=(10, 0))
+        self.speech_button.pack(side="right", padx=(gs(10), 0))
 
         pers_frame = tk.Frame(top_bar, bg=COLOR_CARD)
-        pers_frame.pack(side="left", padx=30)
+        pers_frame.pack(side="left", padx=gs(30))
         tk.Button(pers_frame, text="−", font=("Segoe UI", sf(14), "bold"), width=3,
                   command=lambda: self._adjust(-1)).pack(side="left")
         self.pers_label = tk.Label(pers_frame, text=t("cookingmode_persons_suffix", persons=self._fmt(persons)),
                                     font=("Segoe UI", sf(14)), bg=COLOR_CARD, fg=COLOR_TEXT)
-        self.pers_label.pack(side="left", padx=10)
+        self.pers_label.pack(side="left", padx=gs(10))
         tk.Button(pers_frame, text="+", font=("Segoe UI", sf(14), "bold"), width=3,
                   command=lambda: self._adjust(1)).pack(side="left")
 
@@ -16582,24 +16592,24 @@ class CookingModeWindow(tk.Toplevel):
         self._content_id = self.canvas.create_window((0, 0), window=self.content, anchor="nw")
         self.canvas.bind("<Configure>", self._resize_content)
         self.canvas.configure(yscrollcommand=scrollbar.set)
-        self.canvas.pack(side="left", fill="both", expand=True, padx=16)
+        self.canvas.pack(side="left", fill="both", expand=True, padx=gs(SPACE_MD))
         scrollbar.pack(side="right", fill="y")
 
         self._text_size = 0
         self._checks = {}
         self.timer_section = tk.Frame(self, bg=COLOR_CARD)
-        self.timer_section.pack(fill="x", before=outer, padx=16)
+        self.timer_section.pack(fill="x", before=outer, padx=gs(SPACE_MD))
         self.timer_rows = []
         self._timer_number = 0
         timer_heading = tk.Frame(self.timer_section, bg=COLOR_CARD)
-        timer_heading.pack(fill="x", pady=(6, 4))
+        timer_heading.pack(fill="x", pady=(gs(6), gs(SPACE_XS)))
         tk.Label(timer_heading, text=t("timers_title"), bg=COLOR_CARD, fg=COLOR_TEXT,
                  font=("Segoe UI", sf(18), "bold")).pack(side="left")
-        ttk.Button(timer_heading, text="+", width=3, command=self.add_timer).pack(side="left", padx=12)
+        ttk.Button(timer_heading, text="+", width=3, command=self.add_timer).pack(side="left", padx=gs(12))
         ttk.Button(timer_heading, text="A−", width=4,
                    command=lambda: self._change_text_size(-2)).pack(side="right")
         ttk.Button(timer_heading, text="A+", width=4,
-                   command=lambda: self._change_text_size(2)).pack(side="right", padx=6)
+                   command=lambda: self._change_text_size(2)).pack(side="right", padx=gs(6))
         self.timer_canvas = tk.Canvas(self.timer_section, bg=COLOR_CARD, height=180, highlightthickness=0)
         timer_scroll = ttk.Scrollbar(self.timer_section, orient="vertical", command=self.timer_canvas.yview)
         timer_scroll.pack(side="right", fill="y")
@@ -16620,7 +16630,7 @@ class CookingModeWindow(tk.Toplevel):
         row = TimerRow(self.timer_frame, self,
                        label or t("cookingmode_timer_number", number=self._timer_number), 10)
         row.set_text_size(self._text_size)
-        row.grid(row=len(self.timer_rows), column=0, sticky="new", padx=6, pady=6)
+        row.grid(row=len(self.timer_rows), column=0, sticky="new", padx=gs(6), pady=gs(6))
         self.timer_rows.append(row)
         if seconds is not None:
             minutes, secs = divmod(seconds, 60)
@@ -16658,7 +16668,7 @@ class CookingModeWindow(tk.Toplevel):
         self._timer_columns = columns
         for index, row in enumerate(self.timer_rows):
             row.grid(row=index // columns, column=index % columns,
-                     sticky="new", padx=6, pady=6)
+                     sticky="new", padx=gs(6), pady=gs(6))
         self.timer_canvas.configure(height=max(180, height))
 
     def _resize_timers(self, event):
@@ -16919,7 +16929,7 @@ class CookingModeWindow(tk.Toplevel):
         recipe = self.recipe
         star = "⭐ " if recipe.get("favorite") else ""
         tk.Label(self.recipe_content, text=f"{star}{recipe['name']}", font=("Segoe UI", self._recipe_font(34), "bold"),
-                 bg=COLOR_CARD, fg=COLOR_TEXT, wraplength=1000, justify="center").pack(pady=(10, 5))
+                 bg=COLOR_CARD, fg=COLOR_TEXT, wraplength=1000, justify="center").pack(pady=(gs(10), gs(5)))
 
         info_bits = []
         if recipe.get("prep_time"):
@@ -16930,11 +16940,11 @@ class CookingModeWindow(tk.Toplevel):
             info_bits.append(t("cookingmode_difficulty_label", value=translate_difficulty_name(recipe['difficulty'])))
         if info_bits:
             tk.Label(self.recipe_content, text="   |   ".join(info_bits), font=("Segoe UI", self._recipe_font(16)),
-                     bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(pady=(0, 20))
+                     bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(pady=(0, gs(20)))
 
         self.recipe_content.bind("<Configure>", self._wrap_panel)
         self.recipe_columns = tk.Frame(self.recipe_content, bg=COLOR_CARD)
-        self.recipe_columns.pack(fill="x", pady=(0, 30))
+        self.recipe_columns.pack(fill="x", pady=(0, gs(30)))
         self.ingredients_panel = tk.Frame(self.recipe_columns, bg=COLOR_CARD)
         self.steps_panel = tk.Frame(self.recipe_columns, bg=COLOR_CARD)
         self.ingredients_panel.bind("<Configure>", self._wrap_panel)
@@ -16942,7 +16952,7 @@ class CookingModeWindow(tk.Toplevel):
         self._wide_recipe = None
 
         tk.Label(self.ingredients_panel, text=t("cookingmode_ingredients_heading"), font=("Segoe UI", self._recipe_font(22), "bold"),
-                 bg=COLOR_CARD, fg=COLOR_TEXT).pack(pady=(10, 8), anchor="w", fill="x")
+                 bg=COLOR_CARD, fg=COLOR_TEXT).pack(pady=(gs(10), gs(SPACE_SM)), anchor="w", fill="x")
         for index, ing in enumerate(recipe["ingredients"]):
             qty = ingredient_quantity_for_persons(ing, self.persons)
             if qty is None:
@@ -16953,25 +16963,25 @@ class CookingModeWindow(tk.Toplevel):
                 unit = f" {translate_unit_name(ing['unit'])}" if ing["unit"] else ""
             tk.Checkbutton(self.ingredients_panel, variable=self._check(("ingredient", index)), text=f"{translate_ingredient_name(ing['name']).capitalize()} : {quantity_display}{unit}",
                      font=("Segoe UI", self._recipe_font(18)), bg=COLOR_CARD, fg=COLOR_TEXT, selectcolor=COLOR_CARD, activebackground=COLOR_CARD, activeforeground=COLOR_TEXT, anchor="w", justify="left",
-                     wraplength=1000).pack(fill="x", pady=3, anchor="w")
+                     wraplength=1000).pack(fill="x", pady=gs(3), anchor="w")
 
         description = recipe.get("description", "").strip()
         if description:
             tk.Label(self.steps_panel, text=t("cookingmode_preparation_heading"), font=("Segoe UI", self._recipe_font(22), "bold"),
-                     bg=COLOR_CARD, fg=COLOR_TEXT).pack(pady=(10, 8), anchor="w", fill="x")
+                     bg=COLOR_CARD, fg=COLOR_TEXT).pack(pady=(gs(10), gs(SPACE_SM)), anchor="w", fill="x")
             steps = [part.strip() for part in description.splitlines() if part.strip()]
             for index, step in enumerate(steps):
                 tk.Checkbutton(self.steps_panel, text=step, variable=self._check(("step", index)),
                                font=("Segoe UI", self._recipe_font(16)), bg=COLOR_CARD, fg=COLOR_TEXT, selectcolor=COLOR_CARD, activebackground=COLOR_CARD, activeforeground=COLOR_TEXT, justify="left",
-                               anchor="w", wraplength=1000).pack(fill="x", anchor="w", pady=6)
+                               anchor="w", wraplength=1000).pack(fill="x", anchor="w", pady=gs(6))
                 for duration, seconds in self._step_durations(step):
                     ttk.Button(self.steps_panel, text="⏱ " + duration,
-                               command=lambda sec=seconds, label=duration: self.add_timer(sec, label)).pack(anchor="w", padx=24, pady=2)
+                               command=lambda sec=seconds, label=duration: self.add_timer(sec, label)).pack(anchor="w", padx=gs(SPACE_LG), pady=gs(2))
 
         personal_notes = recipe.get("personal_notes", "").strip()
         if personal_notes:
             tk.Label(self.steps_panel, text=t("cookingmode_personal_notes_heading"), font=("Segoe UI", self._recipe_font(20), "bold"),
-                     bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(pady=(20, 8), anchor="w", fill="x")
+                     bg=COLOR_CARD, fg=COLOR_TEXT_MUTED).pack(pady=(gs(20), gs(SPACE_SM)), anchor="w", fill="x")
             tk.Label(self.steps_panel, text=personal_notes, font=("Segoe UI", self._recipe_font(14)), bg=COLOR_CARD,
                      fg=COLOR_TEXT_MUTED, justify="left", anchor="w", wraplength=1000).pack(fill="x", anchor="w")
 
@@ -16990,17 +17000,17 @@ class IngredientSearchWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("ingsearch_question_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(10), gs(5)))
 
         search_frame = ttk.Frame(self)
-        search_frame.pack(fill="x", padx=15, pady=(0, 5))
+        search_frame.pack(fill="x", padx=gs(15), pady=(0, gs(5)))
         ttk.Label(search_frame, text="🔍").pack(side="left")
         self.search_entry = ttk.Entry(search_frame)
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=5)
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=gs(5))
         self.search_entry.bind("<KeyRelease>", lambda e: self._populate_ingredients())
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(fill="both", padx=15, pady=5)
+        list_frame.pack(fill="both", padx=gs(15), pady=gs(5))
         self.ing_listbox = tk.Listbox(list_frame, height=10, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.ing_listbox.yview)
         self.ing_listbox.configure(yscrollcommand=scrollbar.set)
@@ -17010,13 +17020,13 @@ class IngredientSearchWindow(tk.Toplevel):
         self._populate_ingredients()
 
         ttk.Button(self, text=t("ingsearch_view_recipes_button"),
-                   command=self.search_recipes).pack(pady=8)
+                   command=self.search_recipes).pack(pady=gs(SPACE_SM))
 
         self.result_label = ttk.Label(self, text="", font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED)
-        self.result_label.pack(padx=15, anchor="w")
+        self.result_label.pack(padx=gs(15), anchor="w")
 
         result_frame = ttk.Frame(self)
-        result_frame.pack(pady=5, padx=15, fill="both", expand=True)
+        result_frame.pack(pady=gs(5), padx=gs(15), fill="both", expand=True)
         self.result_listbox = tk.Listbox(result_frame, height=12, font=("Segoe UI", sf(9)))
         result_scrollbar = ttk.Scrollbar(result_frame, orient="vertical", command=self.result_listbox.yview)
         self.result_listbox.configure(yscrollcommand=result_scrollbar.set)
@@ -17026,7 +17036,7 @@ class IngredientSearchWindow(tk.Toplevel):
         self.matched_recipe_names = []
 
         ttk.Button(self, text=t("ingsearch_view_selected_button"),
-                   command=self.open_selected_recipe).pack(pady=(5, 10))
+                   command=self.open_selected_recipe).pack(pady=(gs(5), gs(10)))
 
     def _populate_ingredients(self):
         search = self.search_entry.get().strip()
@@ -17110,43 +17120,43 @@ class TimerRow(tk.Frame):
         self._flash_on = False
 
         top_row = tk.Frame(self, background=COLOR_CARD)
-        top_row.pack(fill="x", padx=8, pady=(8, 2))
+        top_row.pack(fill="x", padx=gs(SPACE_SM), pady=(gs(SPACE_SM), gs(2)))
         self.name_entry = ttk.Entry(top_row, width=18)
         self.name_entry.insert(0, label)
         self.name_entry.pack(side="left")
         self.display_label = tk.Label(top_row, text=self._format_time(), font=("Segoe UI", sf(18), "bold"),
                                        background=COLOR_CARD, foreground=COLOR_ACCENT_DARK, width=7)
-        self.display_label.pack(side="left", padx=10)
+        self.display_label.pack(side="left", padx=gs(10))
         delete_timer_btn = ttk.Button(top_row, text="🗑", width=3,
                    command=lambda: self.timers_window.remove_timer(self))
         delete_timer_btn.pack(side="right")
         add_tooltip(delete_timer_btn, t("tooltip_delete_timer"))
 
         bottom_row = tk.Frame(self, background=COLOR_CARD)
-        bottom_row.pack(fill="x", padx=8, pady=(0, 8))
+        bottom_row.pack(fill="x", padx=gs(SPACE_SM), pady=(0, gs(SPACE_SM)))
         ttk.Label(bottom_row, text=t("timerrow_minutes_label"), style="Card.TLabel").pack(side="left")
         self.minutes_entry = ttk.Entry(bottom_row, width=4)
         self.minutes_entry.insert(0, str(minutes))
-        self.minutes_entry.pack(side="left", padx=(2, 8))
+        self.minutes_entry.pack(side="left", padx=(gs(2), gs(SPACE_SM)))
         ttk.Label(bottom_row, text=t("timerrow_seconds_label"), style="Card.TLabel").pack(side="left")
         self.seconds_entry = ttk.Entry(bottom_row, width=4)
         self.seconds_entry.insert(0, "0")
-        self.seconds_entry.pack(side="left", padx=(2, 8))
+        self.seconds_entry.pack(side="left", padx=(gs(2), gs(SPACE_SM)))
 
         self.start_button = ttk.Button(bottom_row, text="▶️", width=3, command=self.start)
-        self.start_button.pack(side="left", padx=2)
+        self.start_button.pack(side="left", padx=gs(2))
         add_tooltip(self.start_button, t("tooltip_start_timer"))
         self.pause_button = ttk.Button(bottom_row, text="⏸️", width=3, command=self.pause, state="disabled")
-        self.pause_button.pack(side="left", padx=2)
+        self.pause_button.pack(side="left", padx=gs(2))
         add_tooltip(self.pause_button, t("tooltip_pause_timer"))
         reset_btn = ttk.Button(bottom_row, text="🔄", width=3, command=self.reset)
-        reset_btn.pack(side="left", padx=2)
+        reset_btn.pack(side="left", padx=gs(2))
         add_tooltip(reset_btn, t("tooltip_reset_timer"))
 
         extend_row = tk.Frame(self, background=COLOR_CARD)
-        extend_row.pack(fill="x", padx=8, pady=(0, 8))
-        ttk.Button(extend_row, text="+1 min", command=lambda: self.extend(60)).pack(side="left", padx=2)
-        ttk.Button(extend_row, text="+5 min", command=lambda: self.extend(300)).pack(side="left", padx=2)
+        extend_row.pack(fill="x", padx=gs(SPACE_SM), pady=(0, gs(SPACE_SM)))
+        ttk.Button(extend_row, text="+1 min", command=lambda: self.extend(60)).pack(side="left", padx=gs(2))
+        ttk.Button(extend_row, text="+5 min", command=lambda: self.extend(300)).pack(side="left", padx=gs(2))
 
         # Cliquer n'importe où sur la ligne (ou sur le gros affichage du
         # temps) fait taire l'alarme si le minuteur est terminé.
@@ -17383,22 +17393,22 @@ class CookLogEntryDialog(tk.Toplevel):
             self, text=t("cooklogentry_heading", name=recipe_name),
             font=("Segoe UI", sf(12), "bold"),
             wraplength=520, justify="center"
-        ).pack(pady=(15, 2))
+        ).pack(pady=(gs(15), gs(2)))
         ttk.Label(
             self, text=t("cooklogentry_intro_v32"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED,
             justify="center", wraplength=520
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         form = ttk.Frame(self)
-        form.pack(fill="both", expand=True, padx=18)
+        form.pack(fill="both", expand=True, padx=gs(18))
 
         if persons is not None:
             ttk.Label(
                 form,
                 text=t("cooklogentry_persons_label", persons=persons),
                 font=("Segoe UI", sf(9), "bold")
-            ).pack(anchor="w", pady=(0, 8))
+            ).pack(anchor="w", pady=(0, gs(SPACE_SM)))
 
         ttk.Label(
             form, text=t("cooklogentry_note_label"),
@@ -17407,7 +17417,7 @@ class CookLogEntryDialog(tk.Toplevel):
         self.note_text = tk.Text(
             form, height=4, wrap="word", font=("Segoe UI", sf(10))
         )
-        self.note_text.pack(fill="x", pady=(3, 10))
+        self.note_text.pack(fill="x", pady=(gs(3), gs(10)))
 
         ttk.Label(
             form, text=t("cooklogentry_comment_label"),
@@ -17416,10 +17426,10 @@ class CookLogEntryDialog(tk.Toplevel):
         self.comment_text = tk.Text(
             form, height=4, wrap="word", font=("Segoe UI", sf(10))
         )
-        self.comment_text.pack(fill="x", pady=(3, 10))
+        self.comment_text.pack(fill="x", pady=(gs(3), gs(10)))
 
         rating_frame = ttk.Frame(form)
-        rating_frame.pack(fill="x", pady=(0, 10))
+        rating_frame.pack(fill="x", pady=(0, gs(10)))
         ttk.Label(
             rating_frame, text=t("cooklogentry_rating_label"),
             font=("Segoe UI", sf(9), "bold")
@@ -17430,34 +17440,34 @@ class CookLogEntryDialog(tk.Toplevel):
             state="readonly", width=10
         )
         self.rating_combo.current(0)
-        self.rating_combo.pack(side="left", padx=(10, 0))
+        self.rating_combo.pack(side="left", padx=(gs(10), 0))
 
         photo_frame = ttk.Frame(form)
-        photo_frame.pack(fill="x", pady=(0, 10))
+        photo_frame.pack(fill="x", pady=(0, gs(10)))
         self.photo_label = ttk.Label(
             photo_frame, text=t("cooklogentry_no_photo_chosen"),
             foreground=COLOR_TEXT_MUTED
         )
-        self.photo_label.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.photo_label.pack(side="left", fill="x", expand=True, padx=(0, gs(SPACE_SM)))
         ttk.Button(
             photo_frame, text=t("cooklogentry_choose_photo_button"),
             command=self.choose_photo
         ).pack(side="right")
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=(5, 15))
+        btn_frame.pack(pady=(gs(5), gs(15)))
         ttk.Button(
             btn_frame, text=t("common_save_button"),
             style="Primary.TButton", command=self.save
-        ).grid(row=0, column=0, padx=5)
+        ).grid(row=0, column=0, padx=gs(5))
         ttk.Button(
             btn_frame, text=t("cooklogentry_skip_button"),
             style="Secondary.TButton", command=self.skip
-        ).grid(row=0, column=1, padx=5)
+        ).grid(row=0, column=1, padx=gs(5))
         ttk.Button(
             btn_frame, text=t("cooklogentry_cancel_button"),
             style="Secondary.TButton", command=self.cancel
-        ).grid(row=0, column=2, padx=5)
+        ).grid(row=0, column=2, padx=gs(5))
 
         # Fermer la fenêtre (✕) équivalait jusqu'ici à "Passer" : un clic
         # accidentel sur "J'ai cuisiné ça" comptait donc quand même comme
@@ -17540,17 +17550,17 @@ class CookLogWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("cooklog_heading", name=recipe['name']), font=("Segoe UI", sf(13), "bold"),
-                  wraplength=440, justify="center").pack(pady=(15, 2))
+                  wraplength=440, justify="center").pack(pady=(gs(15), gs(2)))
         times_cooked = recipe.get("times_cooked", 0)
         ttk.Label(self, text=t("cooklog_times_cooked", count=times_cooked),
-                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, 2))
+                  font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, gs(2)))
         rated_entries = [int(e.get("rating", 0) or 0) for e in recipe.get("cook_log", []) if int(e.get("rating", 0) or 0) > 0]
         if rated_entries:
             ttk.Label(self, text=t("cooklog_rating_summary", avg=f"{sum(rated_entries)/len(rated_entries):.1f}", count=len(rated_entries)),
-                      font=("Segoe UI", sf(9), "bold"), foreground=COLOR_ACCENT_DARK).pack(pady=(0, 10))
+                      font=("Segoe UI", sf(9), "bold"), foreground=COLOR_ACCENT_DARK).pack(pady=(0, gs(10)))
 
         container = ttk.Frame(self)
-        container.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        container.pack(fill="both", expand=True, padx=gs(15), pady=(0, gs(15)))
         canvas = tk.Canvas(container, highlightthickness=0)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
         rows_frame = ttk.Frame(canvas)
@@ -17574,18 +17584,18 @@ class CookLogWindow(tk.Toplevel):
                 rows_frame,
                 text=t("cooklog_no_entry"),
                 foreground=COLOR_TEXT_MUTED, justify="center"
-            ).pack(pady=30)
+            ).pack(pady=gs(30))
 
         for entry in cook_log:
             entry_card = tk.Frame(rows_frame, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
                                    highlightthickness=1)
-            entry_card.pack(fill="x", pady=6, padx=2)
+            entry_card.pack(fill="x", pady=gs(6), padx=gs(2))
             try:
                 date_display = datetime.fromisoformat(entry["date"]).strftime("%d/%m/%Y")
             except (KeyError, ValueError, TypeError):
                 date_display = entry.get("date", "?")
             ttk.Label(entry_card, text=date_display, font=("Segoe UI", sf(10), "bold"),
-                      style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(anchor="w", padx=10, pady=(8, 2))
+                      style="Card.TLabel", foreground=COLOR_ACCENT_DARK).pack(anchor="w", padx=gs(10), pady=(gs(SPACE_SM), gs(2)))
 
             persons = entry.get("persons")
             if persons not in (None, ""):
@@ -17595,19 +17605,19 @@ class CookLogWindow(tk.Toplevel):
                     style="Card.TLabel",
                     foreground=COLOR_TEXT_MUTED,
                     font=("Segoe UI", sf(8))
-                ).pack(anchor="w", padx=10, pady=(0, 4))
+                ).pack(anchor="w", padx=gs(10), pady=(0, gs(SPACE_XS)))
 
             photo_filename = entry.get("photo")
             if photo_filename:
                 thumb = load_thumbnail(photo_filename, size=(220, 160))
                 if thumb is not None:
                     self._thumb_refs.append(thumb)
-                    tk.Label(entry_card, image=thumb, background=COLOR_CARD).pack(padx=10, pady=4)
+                    tk.Label(entry_card, image=thumb, background=COLOR_CARD).pack(padx=gs(10), pady=gs(SPACE_XS))
 
             entry_rating = int(entry.get("rating", 0) or 0)
             if entry_rating > 0:
                 ttk.Label(entry_card, text=t("cooklog_entry_rating", stars="★" * entry_rating + "☆" * (5-entry_rating)),
-                          style="Card.TLabel", foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(9), "bold")).pack(anchor="w", padx=10, pady=(2, 4))
+                          style="Card.TLabel", foreground=COLOR_ACCENT_DARK, font=("Segoe UI", sf(9), "bold")).pack(anchor="w", padx=gs(10), pady=(gs(2), gs(SPACE_XS)))
 
             note = (entry.get("note") or "").strip()
             if note:
@@ -17615,11 +17625,11 @@ class CookLogWindow(tk.Toplevel):
                     entry_card, text=t("cooklog_note_heading"),
                     style="Card.TLabel", font=("Segoe UI", sf(8), "bold"),
                     foreground=COLOR_ACCENT_DARK
-                ).pack(anchor="w", padx=10, pady=(2, 1))
+                ).pack(anchor="w", padx=gs(10), pady=(gs(2), gs(1)))
                 ttk.Label(
                     entry_card, text=note, style="Card.TLabel",
                     wraplength=420, justify="left"
-                ).pack(anchor="w", padx=10, pady=(0, 6))
+                ).pack(anchor="w", padx=gs(10), pady=(0, gs(6)))
 
             comment = (entry.get("comment") or "").strip()
             if comment:
@@ -17627,18 +17637,18 @@ class CookLogWindow(tk.Toplevel):
                     entry_card, text=t("cooklog_comment_heading"),
                     style="Card.TLabel", font=("Segoe UI", sf(8), "bold"),
                     foreground=COLOR_ACCENT_DARK
-                ).pack(anchor="w", padx=10, pady=(2, 1))
+                ).pack(anchor="w", padx=gs(10), pady=(gs(2), gs(1)))
                 ttk.Label(
                     entry_card, text=comment, style="Card.TLabel",
                     wraplength=420, justify="left"
-                ).pack(anchor="w", padx=10, pady=(0, 8))
+                ).pack(anchor="w", padx=gs(10), pady=(0, gs(SPACE_SM)))
 
             if not note and not comment:
                 ttk.Label(
                     entry_card, text=t("cooklog_no_note"),
                     style="Card.TLabel", foreground=COLOR_TEXT_MUTED,
                     font=("Segoe UI", sf(8))
-                ).pack(anchor="w", padx=10, pady=(0, 8))
+                ).pack(anchor="w", padx=gs(10), pady=(0, gs(SPACE_SM)))
 
 
 class TimersWindow(tk.Toplevel):
@@ -17664,14 +17674,14 @@ class TimersWindow(tk.Toplevel):
         except tk.TclError:
             pass
 
-        ttk.Label(self, text=t("timers_title"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("timers_title"), font=("Segoe UI", sf(13), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self, text=t("timers_intro"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 8))
+        ).pack(pady=(0, gs(SPACE_SM)))
 
         container = ttk.Frame(self)
-        container.pack(fill="both", expand=True, padx=10)
+        container.pack(fill="both", expand=True, padx=gs(10))
         canvas = tk.Canvas(container, highlightthickness=0)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
         self.rows_frame = ttk.Frame(canvas)
@@ -17685,7 +17695,7 @@ class TimersWindow(tk.Toplevel):
         self.add_timer(initial_label, initial_minutes)
 
         ttk.Button(self, text=t("timers_add_button"),
-                   command=lambda: self.add_timer()).pack(pady=10)
+                   command=lambda: self.add_timer()).pack(pady=gs(10))
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -17693,7 +17703,7 @@ class TimersWindow(tk.Toplevel):
         if label is None:
             label = t("onerecipe_default_timer_label")
         row = TimerRow(self.rows_frame, self, label, minutes)
-        row.pack(fill="x", pady=6, padx=4)
+        row.pack(fill="x", pady=gs(6), padx=gs(SPACE_XS))
         self.timer_rows.append(row)
         self.update_idletasks()
 
@@ -18157,20 +18167,20 @@ class QRCodeWindow(tk.Toplevel):
         ttk.Label(
             self, text=t("qrcode_title", name=recipe["name"]),
             font=("Segoe UI", sf(12), "bold"), wraplength=440, justify="center"
-        ).pack(pady=(12, 6))
+        ).pack(pady=(gs(12), gs(6)))
 
         self.qr_label = ttk.Label(self)
-        self.qr_label.pack(fill="both", expand=True, padx=18, pady=6)
+        self.qr_label.pack(fill="both", expand=True, padx=gs(18), pady=gs(6))
 
         ttk.Label(
             self, text=t("qrcode_mobile_compatible"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED,
             justify="center", wraplength=440
-        ).pack(pady=(2, 8))
+        ).pack(pady=(gs(2), gs(SPACE_SM)))
 
         self.nav_frame = ttk.Frame(self)
         if len(self.parts) > 1:
-            self.nav_frame.pack(fill="x", padx=18, pady=(0, 6))
+            self.nav_frame.pack(fill="x", padx=gs(18), pady=(0, gs(6)))
             ttk.Button(
                 self.nav_frame, text=t("qrcode_part_prev"),
                 command=self._previous_part
@@ -18185,7 +18195,7 @@ class QRCodeWindow(tk.Toplevel):
             self.part_label = None
 
         save_buttons = ttk.Frame(self)
-        save_buttons.pack(pady=(4, 12))
+        save_buttons.pack(pady=(gs(SPACE_XS), gs(12)))
         ttk.Button(
             save_buttons,
             text=t(
@@ -18193,14 +18203,14 @@ class QRCodeWindow(tk.Toplevel):
                 if len(self.parts) > 1 else "qrcode_save_single_button"
             ),
             command=self.save_image,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=gs(SPACE_XS))
         if len(self.parts) > 1:
             ttk.Button(
                 save_buttons,
                 text=t("qrcode_save_all_button", count=len(self.parts)),
                 command=self.save_all_images,
                 style="Primary.TButton",
-            ).pack(side="left", padx=4)
+            ).pack(side="left", padx=gs(SPACE_XS))
 
         self._render_current_part()
 
@@ -18334,35 +18344,35 @@ class UnitConverterWindow(tk.Toplevel):
         # français au chargement du module.
         self.converter_units = {t(key): factor for key, factor in CONVERTER_UNIT_KEYS}
 
-        ttk.Label(self, text=t("unitconv_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("unitconv_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self,
             text=t("unitconv_intro"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 15))
+        ).pack(pady=(0, gs(15)))
 
         form = ttk.Frame(self)
-        form.pack(pady=5)
-        ttk.Label(form, text=t("unitconv_quantity_label")).grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        form.pack(pady=gs(5))
+        ttk.Label(form, text=t("unitconv_quantity_label")).grid(row=0, column=0, padx=gs(5), pady=gs(5), sticky="e")
         self.qty_entry = ttk.Entry(form, width=10)
         self.qty_entry.insert(0, "1")
-        self.qty_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.qty_entry.grid(row=0, column=1, padx=gs(5), pady=gs(5))
 
         unit_names = list(self.converter_units.keys())
-        ttk.Label(form, text=t("unitconv_from_label")).grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form, text=t("unitconv_from_label")).grid(row=1, column=0, padx=gs(5), pady=gs(5), sticky="e")
         self.from_combo = ttk.Combobox(form, values=unit_names, state="readonly", width=22)
         self.from_combo.set(unit_names[0])
-        self.from_combo.grid(row=1, column=1, padx=5, pady=5)
+        self.from_combo.grid(row=1, column=1, padx=gs(5), pady=gs(5))
 
-        ttk.Label(form, text=t("unitconv_to_label")).grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form, text=t("unitconv_to_label")).grid(row=2, column=0, padx=gs(5), pady=gs(5), sticky="e")
         self.to_combo = ttk.Combobox(form, values=unit_names, state="readonly", width=22)
         self.to_combo.set(unit_names[1])
-        self.to_combo.grid(row=2, column=1, padx=5, pady=5)
+        self.to_combo.grid(row=2, column=1, padx=gs(5), pady=gs(5))
 
-        ttk.Button(self, text=t("unitconv_convert_button"), command=self.convert).pack(pady=10)
+        ttk.Button(self, text=t("unitconv_convert_button"), command=self.convert).pack(pady=gs(10))
         self.result_label = ttk.Label(self, text="", font=("Segoe UI", sf(12), "bold"),
                                        foreground=COLOR_ACCENT_DARK)
-        self.result_label.pack(pady=5)
+        self.result_label.pack(pady=gs(5))
 
         self.qty_entry.bind("<Return>", lambda e: self.convert())
 
@@ -18391,10 +18401,10 @@ class PantryWindow(tk.Toplevel):
         screen_height = get_usable_screen_height(self)
         fit_window_to_workarea(self, gs(1050), get_usable_screen_height(self), margin=18)
         safe_minsize(self, gs(820),gs(560)); self.resizable(True, True); self.grab_set()
-        ttk.Label(self,text=t("pantry_heading"),font=("Segoe UI",sf(15),"bold")).pack(pady=(14,3))
-        self.summary_label=ttk.Label(self,text="",foreground=COLOR_TEXT_MUTED); self.summary_label.pack(pady=(0,8))
+        ttk.Label(self,text=t("pantry_heading"),font=("Segoe UI",sf(15),"bold")).pack(pady=(gs(14), gs(3)))
+        self.summary_label=ttk.Label(self,text="",foreground=COLOR_TEXT_MUTED); self.summary_label.pack(pady=(0, gs(SPACE_SM)))
         compact = self.winfo_screenwidth() < 1200 or screen_height < 700 or FONT_SCALE > 1.0
-        add=ttk.LabelFrame(self,text=t("common_save_button")); add.pack(fill="x",padx=15,pady=(0,6))
+        add=ttk.LabelFrame(self,text=t("common_save_button")); add.pack(fill="x",padx=gs(15),pady=(0, gs(6)))
         self.name_entry=ttk.Entry(add,width=24); self.name_entry.full_values=get_display_ingredient_values(sorted(self.app.ingredient_names,key=ingredient_sort_key))
         self.qty_entry=ttk.Entry(add,width=7); self.qty_entry.insert(0,"1")
         self.unit_options=RecipeFormWindow.UNIT_OPTIONS[:-1]+["boîte","paquet","rouleau","bouteille"]
@@ -18405,25 +18415,25 @@ class PantryWindow(tk.Toplevel):
         self.expiration_photo_button=ttk.Button(expiration_box,text="📷",width=3,style="Secondary.TButton",command=self.read_expiration_from_photo)
         self.expiration_photo_button.pack(side="left",padx=(gs(SPACE_XS),0)); add_tooltip(self.expiration_photo_button,t("pantry_expiration_photo_tooltip"))
         if compact:
-            ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=4,pady=4,sticky="e"); self.name_entry.grid(row=0,column=1,padx=4,sticky="ew")
-            ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=4); self.qty_entry.grid(row=0,column=3,padx=4)
-            self.unit_combo.grid(row=0,column=4,padx=4)
-            ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=4,pady=4,sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=4,sticky="w")
-            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=4,pady=4,sticky="e"); expiration_box.grid(row=1,column=3,padx=4,sticky="w")
-            ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=2,column=0,columnspan=2,padx=4,pady=4,sticky="ew")
-            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=2,column=2,columnspan=3,padx=4,pady=4,sticky="ew")
-            ttk.Button(add,text=t("pantry_barcode_button"),style="Secondary.TButton",command=self.open_barcode_dialog).grid(row=3,column=0,columnspan=5,padx=4,pady=(0,4),sticky="ew")
+            ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=gs(SPACE_XS),pady=gs(SPACE_XS),sticky="e"); self.name_entry.grid(row=0,column=1,padx=gs(SPACE_XS),sticky="ew")
+            ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=gs(SPACE_XS)); self.qty_entry.grid(row=0,column=3,padx=gs(SPACE_XS))
+            self.unit_combo.grid(row=0,column=4,padx=gs(SPACE_XS))
+            ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=gs(SPACE_XS),pady=gs(SPACE_XS),sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=gs(SPACE_XS),sticky="w")
+            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=gs(SPACE_XS),pady=gs(SPACE_XS),sticky="e"); expiration_box.grid(row=1,column=3,padx=gs(SPACE_XS),sticky="w")
+            ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=2,column=0,columnspan=2,padx=gs(SPACE_XS),pady=gs(SPACE_XS),sticky="ew")
+            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=2,column=2,columnspan=3,padx=gs(SPACE_XS),pady=gs(SPACE_XS),sticky="ew")
+            ttk.Button(add,text=t("pantry_barcode_button"),style="Secondary.TButton",command=self.open_barcode_dialog).grid(row=3,column=0,columnspan=5,padx=gs(SPACE_XS),pady=(0, gs(SPACE_XS)),sticky="ew")
             add.columnconfigure(1,weight=1)
         else:
-            ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=5,pady=6,sticky="e"); self.name_entry.grid(row=0,column=1,padx=5)
-            ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=5); self.qty_entry.grid(row=0,column=3,padx=5); self.unit_combo.grid(row=0,column=4,padx=5)
-            ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=5,pady=6,sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=5,sticky="w")
-            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=5,pady=6,sticky="e"); expiration_box.grid(row=1,column=3,padx=5,sticky="w")
-            ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=1,column=4,padx=5)
-            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=0,column=5,padx=8,pady=(6,2),sticky="ew")
-            ttk.Button(add,text=t("pantry_barcode_button"),style="Secondary.TButton",command=self.open_barcode_dialog).grid(row=1,column=5,padx=8,pady=(2,6),sticky="ew")
+            ttk.Label(add,text=t("common_ingredient_label")).grid(row=0,column=0,padx=gs(5),pady=gs(6),sticky="e"); self.name_entry.grid(row=0,column=1,padx=gs(5))
+            ttk.Label(add,text=t("common_quantity_label")).grid(row=0,column=2,padx=gs(5)); self.qty_entry.grid(row=0,column=3,padx=gs(5)); self.unit_combo.grid(row=0,column=4,padx=gs(5))
+            ttk.Label(add,text=t("pantry_threshold_label")).grid(row=1,column=0,padx=gs(5),pady=gs(6),sticky="e"); self.threshold_entry.grid(row=1,column=1,padx=gs(5),sticky="w")
+            ttk.Label(add,text=t("pantry_expiration_label")).grid(row=1,column=2,padx=gs(5),pady=gs(6),sticky="e"); expiration_box.grid(row=1,column=3,padx=gs(5),sticky="w")
+            ttk.Button(add,text=t("common_save_button"),style="Primary.TButton",command=self.save_item).grid(row=1,column=4,padx=gs(5))
+            ttk.Button(add,text=t("common_new_ingredient_button"),command=self.create_new_ingredient).grid(row=0,column=5,padx=gs(SPACE_SM),pady=(gs(6), gs(2)),sticky="ew")
+            ttk.Button(add,text=t("pantry_barcode_button"),style="Secondary.TButton",command=self.open_barcode_dialog).grid(row=1,column=5,padx=gs(SPACE_SM),pady=(gs(2), gs(6)),sticky="ew")
         self.name_entry.bind("<KeyRelease>",lambda e:self._on_name_entry_keyrelease(e)); self.name_entry.bind("<FocusIn>",lambda e:self._on_name_entry_focus_in(e)); self.name_entry.bind("<FocusOut>",lambda e:self._on_name_entry_focus_out(e))
-        tools=ttk.Frame(self); tools.pack(fill="x",padx=15,pady=(0,6))
+        tools=ttk.Frame(self); tools.pack(fill="x",padx=gs(15),pady=(0, gs(6)))
         self.search_var=tk.StringVar(); ent=ttk.Entry(tools,textvariable=self.search_var,width=22); ent.bind("<KeyRelease>",lambda e:self._populate())
         self.filter_combo=ttk.Combobox(tools,state="readonly",width=17,values=[t("pantry_filter_all"),t("pantry_filter_low"),t("pantry_filter_expiring"),t("pantry_filter_expired")]); self.filter_combo.set(t("pantry_filter_all")); self.filter_combo.bind("<<ComboboxSelected>>",lambda e:self._populate())
         self.sort_combo=ttk.Combobox(tools,state="readonly",width=15,values=[t("pantry_sort_name"),t("pantry_sort_expiry"),t("pantry_sort_status"),t("pantry_sort_manual")]); self.sort_combo.set(t("pantry_sort_name")); self.sort_combo.bind("<<ComboboxSelected>>",lambda e:self._populate())
@@ -18433,17 +18443,17 @@ class PantryWindow(tk.Toplevel):
         self.move_down_button=ttk.Button(move_box,text="↓",width=3,style="Secondary.TButton",command=lambda:self._move_selected(1))
         self.move_up_button.pack(side="left"); self.move_down_button.pack(side="left",padx=(gs(SPACE_XS),0))
         if compact:
-            ttk.Label(tools,text=t("pantry_search_label")).grid(row=0,column=0,sticky="w"); ent.grid(row=0,column=1,padx=(4,10),sticky="ew")
-            ttk.Label(tools,text=t("pantry_filter_label")).grid(row=0,column=2,sticky="w"); self.filter_combo.grid(row=0,column=3,padx=4,sticky="ew")
-            ttk.Label(tools,text=t("pantry_sort_label")).grid(row=1,column=0,sticky="w",pady=(4,0)); self.sort_combo.grid(row=1,column=1,padx=(4,10),pady=(4,0),sticky="ew")
-            move_box.grid(row=1,column=2,columnspan=2,sticky="w",pady=(4,0))
+            ttk.Label(tools,text=t("pantry_search_label")).grid(row=0,column=0,sticky="w"); ent.grid(row=0,column=1,padx=(gs(SPACE_XS), gs(10)),sticky="ew")
+            ttk.Label(tools,text=t("pantry_filter_label")).grid(row=0,column=2,sticky="w"); self.filter_combo.grid(row=0,column=3,padx=gs(SPACE_XS),sticky="ew")
+            ttk.Label(tools,text=t("pantry_sort_label")).grid(row=1,column=0,sticky="w",pady=(gs(SPACE_XS), 0)); self.sort_combo.grid(row=1,column=1,padx=(gs(SPACE_XS), gs(10)),pady=(gs(SPACE_XS), 0),sticky="ew")
+            move_box.grid(row=1,column=2,columnspan=2,sticky="w",pady=(gs(SPACE_XS), 0))
             tools.columnconfigure(1,weight=1); tools.columnconfigure(3,weight=1)
         else:
-            ttk.Label(tools,text=t("pantry_search_label")).pack(side="left"); ent.pack(side="left",padx=(4,12))
-            ttk.Label(tools,text=t("pantry_filter_label")).pack(side="left"); self.filter_combo.pack(side="left",padx=4)
-            ttk.Label(tools,text=t("pantry_sort_label")).pack(side="left",padx=(12,0)); self.sort_combo.pack(side="left",padx=4)
-            move_box.pack(side="left",padx=(4,0))
-        frame=ttk.Frame(self); frame.pack(fill="both",expand=True,padx=15,pady=(0,8))
+            ttk.Label(tools,text=t("pantry_search_label")).pack(side="left"); ent.pack(side="left",padx=(gs(SPACE_XS), gs(12)))
+            ttk.Label(tools,text=t("pantry_filter_label")).pack(side="left"); self.filter_combo.pack(side="left",padx=gs(SPACE_XS))
+            ttk.Label(tools,text=t("pantry_sort_label")).pack(side="left",padx=(gs(12), 0)); self.sort_combo.pack(side="left",padx=gs(SPACE_XS))
+            move_box.pack(side="left",padx=(gs(SPACE_XS), 0))
+        frame=ttk.Frame(self); frame.pack(fill="both",expand=True,padx=gs(15),pady=(0, gs(SPACE_SM)))
         cols=("name","qty","threshold","expiry","status","section"); self.tree=ttk.Treeview(frame,columns=cols,show="headings",selectmode="browse")
         specs=(("name",t("pantry_col_name"),260,"w"),("qty",t("pantry_col_qty"),110,"center"),("threshold",t("pantry_col_threshold"),100,"center"),("expiry",t("pantry_col_expiry"),120,"center"),("status",t("pantry_col_status"),160,"center"),("section",t("pantry_col_section"),150,"w"))
         for c,txt,w,a in specs:self.tree.heading(c,text=txt);self.tree.column(c,width=gs(w),anchor=a)
@@ -18451,7 +18461,7 @@ class PantryWindow(tk.Toplevel):
         self.tree.bind("<<TreeviewSelect>>",lambda e:self._load_selected_for_edit())
         self._drag_iid=None
         self.tree.bind("<ButtonPress-1>",self._on_tree_press,add="+"); self.tree.bind("<B1-Motion>",self._on_tree_drag); self.tree.bind("<ButtonRelease-1>",self._on_tree_release,add="+")
-        btn=ttk.Frame(self); btn.pack(pady=(0,10),fill="x",padx=15)
+        btn=ttk.Frame(self); btn.pack(pady=(0, gs(10)),fill="x",padx=gs(15))
         for c in range(2 if compact else 4): btn.columnconfigure(c,weight=1)
         actions=[
             (t("pantry_use_soon_button"),self.show_use_soon,"Primary.TButton"),
@@ -18462,7 +18472,7 @@ class PantryWindow(tk.Toplevel):
         for i,(label,command,style) in enumerate(actions):
             kwargs={"text":label,"command":command}
             if style: kwargs["style"]=style
-            ttk.Button(btn,**kwargs).grid(row=(i//2 if compact else 0),column=(i%2 if compact else i),padx=3,pady=2,sticky="ew")
+            ttk.Button(btn,**kwargs).grid(row=(i//2 if compact else 0),column=(i%2 if compact else i),padx=gs(3),pady=gs(2),sticky="ew")
         self.pantry_entries_ordered=[]; self._entry_by_iid={}; self._populate()
     def _status_for(self,entry):
         qty=float(entry.get("quantity",0) or 0); threshold=entry.get("threshold"); expiry=parse_pantry_expiration(entry.get("expiration_date")); days=(expiry-datetime.now().date()).days if expiry else None
@@ -18844,13 +18854,13 @@ class UseSoonRecipesWindow(tk.Toplevel):
         safe_minsize(self, gs(620), gs(480))
         self.grab_set()
 
-        ttk.Label(self, text=t("use_soon_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("use_soon_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(5)))
         names = ", ".join(translate_ingredient_name(e.get("name", "")).capitalize() for e in self.items)
         ttk.Label(self, text=t("use_soon_intro", names=names), foreground=COLOR_TEXT_MUTED,
-                  justify="center", wraplength=680).pack(padx=20, pady=(0, 12))
+                  justify="center", wraplength=680).pack(padx=gs(20), pady=(0, gs(12)))
 
         frame = ttk.Frame(self)
-        frame.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+        frame.pack(fill="both", expand=True, padx=gs(15), pady=(0, gs(10)))
         self.tree = ttk.Treeview(frame, columns=("uses", "missing", "time"), show="headings", selectmode="browse")
         self.tree.heading("uses", text=t("use_soon_col_recipe"))
         self.tree.heading("missing", text=t("use_soon_col_products"))
@@ -18865,7 +18875,7 @@ class UseSoonRecipesWindow(tk.Toplevel):
         self.tree.bind("<Double-1>", lambda e: self.open_selected())
         self.recipe_by_iid = {}
         self._populate()
-        ttk.Button(self, text=t("use_soon_open"), style="Primary.TButton", command=self.open_selected).pack(pady=(0, 15))
+        ttk.Button(self, text=t("use_soon_open"), style="Primary.TButton", command=self.open_selected).pack(pady=(0, gs(15)))
 
     def _populate(self):
         exp_keys = {ingredient_sort_key(e.get("name", "")): e for e in self.items}
@@ -18920,48 +18930,48 @@ class WhatCanICookWindow(tk.Toplevel):
         ]
 
         ttk.Label(self, text=t("cook_instructions_label"),
-                  font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 2))
+                  font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(10), gs(2)))
         ttk.Label(
             self,
             text=t("cook_staples_hint"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 5))
+        ).pack(pady=(0, gs(5)))
 
         columns = ttk.Frame(self)
-        columns.pack(fill="both", expand=False, padx=15, pady=5)
+        columns.pack(fill="both", expand=False, padx=gs(15), pady=gs(5))
 
         left = ttk.Frame(columns)
-        left.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        left.pack(side="left", fill="both", expand=True, padx=(0, gs(10)))
         ttk.Label(left, text=t("cook_all_ingredients_label")).pack()
         search_frame = ttk.Frame(left)
-        search_frame.pack(fill="x", pady=3)
+        search_frame.pack(fill="x", pady=gs(3))
         ttk.Label(search_frame, text="🔍").pack(side="left")
         self.search_entry = ttk.Entry(search_frame)
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=3)
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=gs(3))
         self.search_entry.bind("<KeyRelease>", lambda e: self._populate_all())
         self.all_listbox = tk.Listbox(left, height=14, font=("Segoe UI", sf(9)))
         self.all_listbox.pack(fill="both", expand=True)
         self.all_listbox.bind("<Double-Button-1>", lambda e: self._add_selected())
-        ttk.Button(left, text=t("cook_add_button"), command=self._add_selected).pack(pady=5)
+        ttk.Button(left, text=t("cook_add_button"), command=self._add_selected).pack(pady=gs(5))
 
         right = ttk.Frame(columns)
         right.pack(side="left", fill="both", expand=True)
         ttk.Label(right, text=t("cook_have_label")).pack()
         self.have_listbox = tk.Listbox(right, height=16, font=("Segoe UI", sf(9)))
-        self.have_listbox.pack(fill="both", expand=True, pady=(3, 0))
+        self.have_listbox.pack(fill="both", expand=True, pady=(gs(3), 0))
         self.have_listbox.bind("<Double-Button-1>", lambda e: self._remove_selected())
-        ttk.Button(right, text=t("cook_remove_button"), command=self._remove_selected).pack(pady=5)
+        ttk.Button(right, text=t("cook_remove_button"), command=self._remove_selected).pack(pady=gs(5))
         ttk.Button(right, text=t("cook_load_from_pantry_button"),
-                   command=self._load_from_pantry).pack(pady=(0, 5))
+                   command=self._load_from_pantry).pack(pady=(0, gs(5)))
 
         self._populate_all()
         self._populate_have()
 
         ttk.Button(self, text=t("cook_compute_button"),
-                   command=self.compute_feasible).pack(pady=8)
+                   command=self.compute_feasible).pack(pady=gs(SPACE_SM))
 
         result_frame = ttk.Frame(self)
-        result_frame.pack(pady=5, padx=15, fill="both", expand=True)
+        result_frame.pack(pady=gs(5), padx=gs(15), fill="both", expand=True)
 
         # Text plutôt que Listbox : les recettes partielles peuvent contenir
         # plusieurs ingrédients manquants et doivent revenir automatiquement
@@ -18969,7 +18979,7 @@ class WhatCanICookWindow(tk.Toplevel):
         self.result_text = tk.Text(
             result_frame, height=14, wrap="word",
             font=("Segoe UI", sf(9)), cursor="arrow",
-            padx=8, pady=6
+            padx=gs(SPACE_SM), pady=gs(6)
         )
         result_scrollbar = ttk.Scrollbar(
             result_frame, orient="vertical", command=self.result_text.yview
@@ -18987,7 +18997,7 @@ class WhatCanICookWindow(tk.Toplevel):
         self.result_text.bind("<ButtonRelease-1>", self._select_result_at_event)
 
         ttk.Button(self, text=t("cook_open_selected_button"),
-                   command=self.open_selected_recipe).pack(pady=(5, 10))
+                   command=self.open_selected_recipe).pack(pady=(gs(5), gs(10)))
 
     def _populate_all(self):
         search = self.search_entry.get().strip()
@@ -19257,14 +19267,14 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("weekhistory_heading"),
-                  font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self, text=t("weekhistory_intro"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(padx=15, pady=5, fill="both", expand=True)
+        list_frame.pack(padx=gs(15), pady=gs(5), fill="both", expand=True)
         self.week_listbox = tk.Listbox(list_frame, width=22, font=("Segoe UI", sf(9)))
         week_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.week_listbox.yview)
         self.week_listbox.configure(yscrollcommand=week_scrollbar.set)
@@ -19273,17 +19283,17 @@ class WeeklyPlanHistoryWindow(tk.Toplevel):
         self.week_listbox.bind("<<ListboxSelect>>", lambda e: self._show_week_detail())
 
         self.detail_text = tk.Text(list_frame, wrap="word", width=40, height=18, font=("Segoe UI", sf(9)))
-        self.detail_text.pack(side="left", fill="both", expand=True, padx=(10, 0))
+        self.detail_text.pack(side="left", fill="both", expand=True, padx=(gs(10), 0))
 
         self.history = []
         self._populate()
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=gs(10))
         ttk.Button(btn_frame, text=t("weekhistory_reload_button"),
-                   command=self.reload_selected).grid(row=0, column=0, padx=5)
+                   command=self.reload_selected).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("weekhistory_delete_button"),
-                   command=self.delete_selected).grid(row=0, column=1, padx=5)
+                   command=self.delete_selected).grid(row=0, column=1, padx=gs(5))
 
         tk.Frame(self, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -19373,22 +19383,22 @@ class WeeklyPlanTemplatesWindow(tk.Toplevel):
         self.resizable(True, True)
         self.grab_set()
 
-        ttk.Label(self, text=t("weektemplates_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("weektemplates_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self, text=t("weektemplates_intro"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         save_frame = ttk.Frame(self)
-        save_frame.pack(pady=(0, 10), padx=15, fill="x")
+        save_frame.pack(pady=(0, gs(10)), padx=gs(15), fill="x")
         ttk.Label(save_frame, text=t("weektemplates_name_label")).pack(side="left")
         self.new_name_entry = ttk.Entry(save_frame)
-        self.new_name_entry.pack(side="left", padx=5, fill="x", expand=True)
+        self.new_name_entry.pack(side="left", padx=gs(5), fill="x", expand=True)
         ttk.Button(save_frame, text=t("weektemplates_save_button"),
-                   command=self.save_as_template).pack(side="left", padx=(5, 0))
+                   command=self.save_as_template).pack(side="left", padx=(gs(5), 0))
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(padx=15, pady=5, fill="both", expand=True)
+        list_frame.pack(padx=gs(15), pady=gs(5), fill="both", expand=True)
         self.listbox = tk.Listbox(list_frame, font=("Segoe UI", sf(9)))
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=scrollbar.set)
@@ -19400,11 +19410,11 @@ class WeeklyPlanTemplatesWindow(tk.Toplevel):
         self._populate()
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=gs(10))
         ttk.Button(btn_frame, text=t("weektemplates_apply_button"),
-                   command=self.apply_selected).grid(row=0, column=0, padx=5)
+                   command=self.apply_selected).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("weektemplates_delete_button"),
-                   command=self.delete_selected).grid(row=0, column=1, padx=5)
+                   command=self.delete_selected).grid(row=0, column=1, padx=gs(5))
 
         tk.Frame(self, height=SCROLL_BOTTOM_PADDING, background=COLOR_BG).pack(fill="x")
 
@@ -19493,7 +19503,7 @@ class WeeklyPlanWindow(ShoppingCartRenderMixin, tk.Toplevel):
         self.plan = load_weekly_plan()  # {jour: {créneau: {'recipe_name':.., 'persons':..}}}
         recipe_names = [r["name"] for r in self.app.recipes]
 
-        ttk.Label(self, text=t("weekplan_title"), font=("Segoe UI", sf(14), "bold")).pack(pady=10)
+        ttk.Label(self, text=t("weekplan_title"), font=("Segoe UI", sf(14), "bold")).pack(pady=gs(10))
         ttk.Label(self, text=t("weekplan_subtitle"),
                   font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED).pack()
 
@@ -19511,14 +19521,14 @@ class WeeklyPlanWindow(ShoppingCartRenderMixin, tk.Toplevel):
         # ---- En-tête des jours de la semaine, fixe : reste toujours visible
         # à l'écran, même en faisant défiler la grille vers le bas. ----
         header_canvas = tk.Canvas(self, height=gs(38), highlightthickness=0)
-        header_canvas.pack(fill="x", padx=(10, 10 + SCROLLBAR_WIDTH_ESTIMATE))
+        header_canvas.pack(fill="x", padx=(gs(10), gs(10) + SCROLLBAR_WIDTH_ESTIMATE))
         # Les jours sont dessinés après calcul des dimensions réelles des
         # colonnes du calendrier : plus de décalage entre en-tête et cellules.
         self._planning_header_canvas = header_canvas
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=10)
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=gs(10))
 
         grid_container = ttk.Frame(self)
-        grid_container.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        grid_container.pack(fill="both", expand=True, padx=gs(10), pady=(0, gs(10)))
         h_scrollbar = ttk.Scrollbar(grid_container, orient="horizontal")
         v_scrollbar = ttk.Scrollbar(grid_container, orient="vertical")
         def _on_plan_xscroll(first, last):
@@ -19587,19 +19597,19 @@ class WeeklyPlanWindow(ShoppingCartRenderMixin, tk.Toplevel):
         for row_index, slot in enumerate(self.MEAL_SLOTS):
             ttk.Label(calendar_frame, text=translate_mealslot_name(slot), font=("Segoe UI", sf(9)), anchor="w",
                       width=17, wraplength=120, justify="left").grid(
-                row=row_index, column=0, padx=(2, 6), pady=4, sticky="w")
+                row=row_index, column=0, padx=(gs(2), gs(6)), pady=gs(SPACE_XS), sticky="w")
             for col, day in enumerate(WEEKDAYS, start=1):
                 cell = tk.Frame(calendar_frame, background=COLOR_CARD, highlightbackground=COLOR_BORDER,
                                  highlightthickness=1)
-                cell.grid(row=row_index, column=col, padx=2, pady=2, sticky="nsew")
+                cell.grid(row=row_index, column=col, padx=gs(2), pady=gs(2), sticky="nsew")
                 day_data = self.plan.get(day) or {}
                 slot_data = day_data.get(slot) or {}
                 combo = ttk.Combobox(cell, values=[t("common_none_option")] + recipe_names,
                                       state="readonly", width=13)
                 combo.set(slot_data.get("recipe_name") or t("common_none_option"))
-                combo.pack(padx=3, pady=(3, 1))
+                combo.pack(padx=gs(3), pady=(gs(3), gs(1)))
                 pers_frame = ttk.Frame(cell, style="Card.TFrame")
-                pers_frame.pack(padx=3, pady=(0, 3))
+                pers_frame.pack(padx=gs(3), pady=(0, gs(3)))
                 ttk.Label(pers_frame, text="👤", style="Card.TLabel").pack(side="left")
                 pers_entry = ttk.Entry(pers_frame, width=4)
                 selected_name = slot_data.get("recipe_name")
@@ -19619,17 +19629,17 @@ class WeeklyPlanWindow(ShoppingCartRenderMixin, tk.Toplevel):
             row=len(self.MEAL_SLOTS), column=0, columnspan=len(WEEKDAYS) + 1, sticky="ew")
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=5)
+        btn_frame.pack(pady=gs(5))
         for col in range(5):
             btn_frame.columnconfigure(col, weight=1)
         compact_actions = screen_height < 760 or self.winfo_screenheight() < 760
-        ttk.Button(btn_frame, text=t("weekplan_save_button"), command=self.save_plan).grid(row=0,column=0,padx=3,pady=2,sticky="ew")
-        ttk.Button(btn_frame, text=t("weekplan_clear_button"), command=self.clear_plan).grid(row=0,column=1,padx=3,pady=2,sticky="ew")
-        ttk.Button(btn_frame, text=t("weekplan_compute_button"), command=self.compute).grid(row=0,column=2,padx=3,pady=2,sticky="ew")
-        ttk.Button(btn_frame, text=t("weekplan_checklist_button"), command=self.open_checklist).grid(row=0,column=3,padx=3,pady=2,sticky="ew")
+        ttk.Button(btn_frame, text=t("weekplan_save_button"), command=self.save_plan).grid(row=0,column=0,padx=gs(3),pady=gs(2),sticky="ew")
+        ttk.Button(btn_frame, text=t("weekplan_clear_button"), command=self.clear_plan).grid(row=0,column=1,padx=gs(3),pady=gs(2),sticky="ew")
+        ttk.Button(btn_frame, text=t("weekplan_compute_button"), command=self.compute).grid(row=0,column=2,padx=gs(3),pady=gs(2),sticky="ew")
+        ttk.Button(btn_frame, text=t("weekplan_checklist_button"), command=self.open_checklist).grid(row=0,column=3,padx=gs(3),pady=gs(2),sticky="ew")
         if compact_actions:
             more = ttk.Button(btn_frame, text=t("weekplan_more_actions"), style="Secondary.TButton")
-            more.grid(row=0,column=4,padx=3,pady=2,sticky="ew")
+            more.grid(row=0,column=4,padx=gs(3),pady=gs(2),sticky="ew")
             _ui_attach_more_menu(more, [
                 (t("weekplan_export_ics_button"), self.export_ics),
                 (t("allrecipes_export_button"), self.open_export_dialog),
@@ -19641,11 +19651,11 @@ class WeeklyPlanWindow(ShoppingCartRenderMixin, tk.Toplevel):
                 (t("weektemplates_heading"), self.open_templates),
             ])
         else:
-            ttk.Button(btn_frame, text=t("weekplan_export_ics_button"), command=self.export_ics).grid(row=0,column=4,padx=3,pady=2,sticky="ew")
-            ttk.Button(btn_frame, text=t("allrecipes_export_button"), command=self.open_export_dialog).grid(row=1,column=0,columnspan=2,padx=3,pady=2,sticky="ew")
-            ttk.Button(btn_frame, text=t("allrecipes_print_button"), command=self.print_list).grid(row=1,column=2,columnspan=2,padx=3,pady=2,sticky="ew")
+            ttk.Button(btn_frame, text=t("weekplan_export_ics_button"), command=self.export_ics).grid(row=0,column=4,padx=gs(3),pady=gs(2),sticky="ew")
+            ttk.Button(btn_frame, text=t("allrecipes_export_button"), command=self.open_export_dialog).grid(row=1,column=0,columnspan=2,padx=gs(3),pady=gs(2),sticky="ew")
+            ttk.Button(btn_frame, text=t("allrecipes_print_button"), command=self.print_list).grid(row=1,column=2,columnspan=2,padx=gs(3),pady=gs(2),sticky="ew")
             more = ttk.Button(btn_frame, text=t("weekplan_more_actions"), style="Secondary.TButton")
-            more.grid(row=1,column=4,padx=3,pady=2,sticky="ew")
+            more.grid(row=1,column=4,padx=gs(3),pady=gs(2),sticky="ew")
             _ui_attach_more_menu(more, [
                 (t("allrecipes_add_manual_ingredient_button"), self.open_add_manual_ingredient),
                 (t("allrecipes_save_list_button"), self.save_list_for_later),
@@ -19661,7 +19671,7 @@ class WeeklyPlanWindow(ShoppingCartRenderMixin, tk.Toplevel):
         self.last_chosen_recipes = []  # recettes utilisées lors du dernier calcul (pour les exports)
 
         result_container = ttk.Frame(self)
-        result_container.pack(pady=10, padx=15, fill="both", expand=True)
+        result_container.pack(pady=gs(10), padx=gs(15), fill="both", expand=True)
         result_canvas = tk.Canvas(result_container, highlightthickness=0)
         result_scrollbar = ttk.Scrollbar(result_container, orient="vertical", command=result_canvas.yview)
         self.result_frame = ttk.Frame(result_canvas)
@@ -19965,18 +19975,18 @@ class MenuManagerWindow(tk.Toplevel):
         fit_window_to_workarea(self, gs(420), gs(480), margin=14)
         self.grab_set()
 
-        ttk.Label(self, text=t("menumanager_list_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
+        ttk.Label(self, text=t("menumanager_list_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(10), gs(5)))
 
         self.listbox = tk.Listbox(self, width=40, height=14, font=("Segoe UI", sf(9)))
-        self.listbox.pack(pady=5, padx=15, fill="both", expand=True)
+        self.listbox.pack(pady=gs(5), padx=gs(15), fill="both", expand=True)
         self.menus = []
         self._populate()
 
         btn_frame = ttk.Frame(self)
-        btn_frame.pack(pady=10)
-        ttk.Button(btn_frame, text=t("menumanager_new_button"), command=self.new_menu).grid(row=0, column=0, padx=5)
-        ttk.Button(btn_frame, text=t("home_open_button"), command=self.open_menu).grid(row=0, column=1, padx=5)
-        ttk.Button(btn_frame, text=t("managerecipes_delete_button"), command=self.delete_menu).grid(row=0, column=2, padx=5)
+        btn_frame.pack(pady=gs(10))
+        ttk.Button(btn_frame, text=t("menumanager_new_button"), command=self.new_menu).grid(row=0, column=0, padx=gs(5))
+        ttk.Button(btn_frame, text=t("home_open_button"), command=self.open_menu).grid(row=0, column=1, padx=gs(5))
+        ttk.Button(btn_frame, text=t("managerecipes_delete_button"), command=self.delete_menu).grid(row=0, column=2, padx=gs(5))
 
     def _populate(self):
         self.listbox.delete(0, tk.END)
@@ -20041,7 +20051,7 @@ class MenuFormWindow(ShoppingCartRenderMixin, tk.Toplevel):
 
         self.manual_items = []  # ingrédients ajoutés manuellement (hors menu) : [{"name","quantity","unit"}]
 
-        ttk.Label(self, text=t("menuform_name_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(10, 5))
+        ttk.Label(self, text=t("menuform_name_label"), font=("Segoe UI", sf(11), "bold")).pack(pady=(gs(10), gs(5)))
         self.name_entry = ttk.Entry(self, width=40)
         self.name_entry.pack()
         if self.editing:
@@ -20049,12 +20059,12 @@ class MenuFormWindow(ShoppingCartRenderMixin, tk.Toplevel):
 
         self.items = [dict(it) for it in self.existing_menu.get("items", [])] if self.editing else []
 
-        ttk.Label(self, text=t("menuform_add_recipe_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("menuform_add_recipe_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(gs(15), gs(5)))
         add_frame = ttk.Frame(self)
-        add_frame.pack(padx=15, fill="x")
+        add_frame.pack(padx=gs(15), fill="x")
         recipe_names = [r["name"] for r in self.app.recipes]
         self.recipe_combo = ttk.Combobox(add_frame, values=recipe_names, state="readonly", width=26)
-        self.recipe_combo.pack(side="left", padx=(0, 5))
+        self.recipe_combo.pack(side="left", padx=(0, gs(5)))
         if recipe_names:
             self.recipe_combo.current(0)
         ttk.Label(add_frame, text=t("menuform_persons_short_label")).pack(side="left")
@@ -20064,34 +20074,34 @@ class MenuFormWindow(ShoppingCartRenderMixin, tk.Toplevel):
             first_recipe = find_recipe_by_name(self.app.recipes, recipe_names[0])
             initial_persons = (first_recipe or {}).get("default_persons", 4) or 4
         self.add_persons_entry.insert(0, str(initial_persons))
-        self.add_persons_entry.pack(side="left", padx=5)
+        self.add_persons_entry.pack(side="left", padx=gs(5))
         self.recipe_combo.bind("<<ComboboxSelected>>", lambda e: self._sync_menu_default_persons())
-        ttk.Button(add_frame, text=t("menuform_add_button"), command=self.add_item).pack(side="left", padx=5)
+        ttk.Button(add_frame, text=t("menuform_add_button"), command=self.add_item).pack(side="left", padx=gs(5))
 
-        ttk.Label(self, text=t("menuform_recipes_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(15, 5))
+        ttk.Label(self, text=t("menuform_recipes_label"), font=("Segoe UI", sf(10), "bold")).pack(pady=(gs(15), gs(5)))
         self.items_listbox = tk.Listbox(self, width=55, height=7, font=("Segoe UI", sf(9)))
-        self.items_listbox.pack(padx=15, fill="x")
+        self.items_listbox.pack(padx=gs(15), fill="x")
         self._refresh_items_listbox()
-        ttk.Button(self, text=t("menuform_remove_button"), command=self.remove_item).pack(pady=5)
+        ttk.Button(self, text=t("menuform_remove_button"), command=self.remove_item).pack(pady=gs(5))
 
         export_frame = ttk.Frame(self)
-        export_frame.pack(pady=6, padx=15, fill="x")
+        export_frame.pack(pady=gs(6), padx=gs(15), fill="x")
         for col in range(4):
             export_frame.columnconfigure(col, weight=1)
         ttk.Button(export_frame, text=t("menuform_save_button"), style="Primary.TButton",
-                   command=self.save_menu).grid(row=0, column=0, padx=4, sticky="ew")
+                   command=self.save_menu).grid(row=0, column=0, padx=gs(SPACE_XS), sticky="ew")
         ttk.Button(export_frame, text=t("menuform_compute_button"),
-                   command=self.compute).grid(row=0, column=1, padx=4, sticky="ew")
+                   command=self.compute).grid(row=0, column=1, padx=gs(SPACE_XS), sticky="ew")
         ttk.Button(export_frame, text=t("weekplan_checklist_button"),
-                   command=self.open_checklist).grid(row=0, column=2, padx=4, sticky="ew")
+                   command=self.open_checklist).grid(row=0, column=2, padx=gs(SPACE_XS), sticky="ew")
         more_button = ttk.Button(export_frame, text=t("menuform_more_actions"))
-        more_button.grid(row=0, column=3, padx=4, sticky="ew")
+        more_button.grid(row=0, column=3, padx=gs(SPACE_XS), sticky="ew")
         ttk.Button(
             export_frame,
             text=t("menuform_send_to_normal_shopping"),
             style="Secondary.TButton",
             command=self.send_to_normal_shopping_list
-        ).grid(row=1, column=0, columnspan=4, padx=4, pady=(6, 0), sticky="ew")
+        ).grid(row=1, column=0, columnspan=4, padx=gs(SPACE_XS), pady=(gs(6), 0), sticky="ew")
         more_menu = tk.Menu(more_button, tearoff=0)
         more_menu.add_command(label=t("allrecipes_export_button"), command=self.open_export_dialog)
         more_menu.add_command(label=t("allrecipes_print_button"), command=self.print_list)
@@ -20109,7 +20119,7 @@ class MenuFormWindow(ShoppingCartRenderMixin, tk.Toplevel):
         self.last_chosen_recipes = []  # recettes utilisées lors du dernier calcul (pour les exports)
 
         result_container = ttk.Frame(self)
-        result_container.pack(pady=10, padx=15, fill="both", expand=True)
+        result_container.pack(pady=gs(10), padx=gs(15), fill="both", expand=True)
         result_canvas = tk.Canvas(result_container, highlightthickness=0)
         result_scrollbar = ttk.Scrollbar(result_container, orient="vertical", command=result_canvas.yview)
         self.result_frame = ttk.Frame(result_canvas)
@@ -20449,8 +20459,8 @@ class ImportFromUrlWindow(tk.Toplevel):
         self._handoff = False
         self.protocol("WM_DELETE_WINDOW", self._close_import_window)
 
-        ttk.Label(self, text=t("importurl_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
-        ttk.Label(self, text=t("importurl_intro"), justify="center", font=("Segoe UI", sf(9)), wraplength=640).pack(pady=(0, 10))
+        ttk.Label(self, text=t("importurl_heading"), font=("Segoe UI", sf(13), "bold")).pack(pady=(gs(15), gs(5)))
+        ttk.Label(self, text=t("importurl_intro"), justify="center", font=("Segoe UI", sf(9)), wraplength=640).pack(pady=(0, gs(10)))
 
         # Étape 1/2 (comparaison avec l'app mobile) : coller/détecter le
         # lien depuis le presse-papiers plutôt que devoir taper/coller à la
@@ -20459,7 +20469,7 @@ class ImportFromUrlWindow(tk.Toplevel):
         # l'utilisateur clique lui-même — un copier accidentel d'une autre
         # URL ne doit jamais déclencher un import à son insu.
         shortcuts = ttk.Frame(self)
-        shortcuts.pack(fill="x", padx=20, pady=(0, 8))
+        shortcuts.pack(fill="x", padx=gs(20), pady=(0, gs(SPACE_SM)))
         ttk.Button(shortcuts, text=t("importurl_paste_button"),
                    command=self._paste_clipboard_url).pack(side="left")
         self.search_entry = ttk.Entry(shortcuts, width=32)
@@ -20475,7 +20485,7 @@ class ImportFromUrlWindow(tk.Toplevel):
             self.clipboard_banner, text="", foreground=COLOR_ACCENT_DARK,
             font=("Segoe UI", sf(9), "bold"), wraplength=520, justify="left"
         )
-        self.clipboard_banner_label.pack(side="left", padx=(20, 8))
+        self.clipboard_banner_label.pack(side="left", padx=(gs(20), gs(SPACE_SM)))
         ttk.Button(self.clipboard_banner, text=t("importurl_use_detected_button"),
                    style="Secondary.TButton", command=self._use_detected_clipboard_url).pack(side="left")
         # Empaqueté seulement quand un lien est détecté (voir
@@ -20483,22 +20493,22 @@ class ImportFromUrlWindow(tk.Toplevel):
         # proposer, pas un espace vide en permanence.
 
         self.url_entry = ttk.Entry(self, width=70)
-        self.url_entry.pack(pady=5, padx=20, fill="x")
+        self.url_entry.pack(pady=gs(5), padx=gs(20), fill="x")
         self.url_entry.bind("<Return>", lambda e: self.fetch())
         self.bind("<FocusIn>", self._on_window_focus_in)
 
         action = ttk.Frame(self)
-        action.pack(fill="x", padx=20, pady=5)
+        action.pack(fill="x", padx=gs(20), pady=gs(5))
         self.fetch_button = ttk.Button(action, text=t("importurl_fetch_button"), command=self.fetch)
         self.fetch_button.pack(side="left")
         self.status_label = ttk.Label(action, text="", foreground=COLOR_TEXT_MUTED)
-        self.status_label.pack(side="left", padx=12)
+        self.status_label.pack(side="left", padx=gs(12))
         self.progress = ttk.Progressbar(action, mode="indeterminate", length=180)
         # Masquée au repos : elle n'apparaît que pendant la récupération.
         self._progress_visible = False
 
-        preview = ttk.LabelFrame(self, text=t("importurl_preview_heading"), padding=10)
-        preview.pack(fill="both", expand=True, padx=20, pady=10)
+        preview = ttk.LabelFrame(self, text=t("importurl_preview_heading"), padding=gs(10))
+        preview.pack(fill="both", expand=True, padx=gs(20), pady=gs(10))
 
         self.preview_photo_label = ttk.Label(preview, anchor="n")
         self._preview_photo_ref = None
@@ -20513,8 +20523,8 @@ class ImportFromUrlWindow(tk.Toplevel):
         sb.pack(side="right", fill="y")
 
         bottom = ttk.Frame(self)
-        bottom.pack(fill="x", padx=20, pady=(0, 15))
-        ttk.Button(bottom, text=t("recipeform_cancel_button"), command=self._close_import_window).pack(side="right", padx=(8, 0))
+        bottom.pack(fill="x", padx=gs(20), pady=(0, gs(15)))
+        ttk.Button(bottom, text=t("recipeform_cancel_button"), command=self._close_import_window).pack(side="right", padx=(gs(SPACE_SM), 0))
         self.import_button = ttk.Button(bottom, text=t("importurl_confirm_button"), style="Primary.TButton",
                                         command=self.confirm_import, state="disabled")
         self.import_button.pack(side="right")
@@ -20564,7 +20574,7 @@ class ImportFromUrlWindow(tk.Toplevel):
         self.clipboard_banner_label.config(
             text=t("importurl_clipboard_detected", url=display)
         )
-        self.clipboard_banner.pack(fill="x", padx=0, pady=(0, 8), before=self.url_entry)
+        self.clipboard_banner.pack(fill="x", padx=0, pady=(0, gs(SPACE_SM)), before=self.url_entry)
 
     def _use_detected_clipboard_url(self):
         if not self._last_seen_clipboard_url:
@@ -20667,8 +20677,8 @@ class ImportFromUrlWindow(tk.Toplevel):
                 if thumb is not None:
                     self._preview_photo_ref = thumb
                     self.preview_photo_label.configure(image=thumb)
-                    self.preview_photo_label.pack(side="left", padx=(0, 14),
-                                                  pady=(2, 0), anchor="n")
+                    self.preview_photo_label.pack(side="left", padx=(0, gs(14)),
+                                                  pady=(gs(2), 0), anchor="n")
             except Exception as exc:
                 log_internal_error("suppressed_exception", exc)
 
@@ -20749,24 +20759,24 @@ class ImportFromPhotoWindow(tk.Toplevel):
         ttk.Label(
             self, text=t("importphoto_heading"),
             font=("Segoe UI", sf(13), "bold")
-        ).pack(pady=(14, 3))
+        ).pack(pady=(gs(14), gs(3)))
         ttk.Label(
             self, text=t("importphoto_intro_multi_v31"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED,
             justify="center", wraplength=900
-        ).pack(pady=(0, 7))
+        ).pack(pady=(0, gs(7)))
 
         self.ocr_status_label = ttk.Label(
             self, text=t("importphoto_ocr_checking"),
             foreground=COLOR_TEXT_MUTED, justify="center", wraplength=900
         )
-        self.ocr_status_label.pack(pady=(0, 8))
+        self.ocr_status_label.pack(pady=(0, gs(SPACE_SM)))
 
         # -------- Photos sélectionnées --------
         photos_box = ttk.LabelFrame(
-            self, text=t("importphoto_selected_photos_heading"), padding=8
+            self, text=t("importphoto_selected_photos_heading"), padding=gs(SPACE_SM)
         )
-        photos_box.pack(fill="x", padx=15, pady=(2, 8))
+        photos_box.pack(fill="x", padx=gs(15), pady=(gs(2), gs(SPACE_SM)))
         photos_box.columnconfigure(0, weight=1)
 
         list_area = ttk.Frame(photos_box)
@@ -20786,47 +20796,47 @@ class ImportFromPhotoWindow(tk.Toplevel):
         self.photo_listbox.bind("<<ListboxSelect>>", self._on_photo_selected)
 
         buttons = ttk.Frame(photos_box)
-        buttons.grid(row=0, column=1, sticky="n", padx=(10, 0))
+        buttons.grid(row=0, column=1, sticky="n", padx=(gs(10), 0))
         ttk.Button(
             buttons, text=t("importphoto_add_photos_button"),
             command=self.choose_photo
-        ).pack(fill="x", pady=2)
+        ).pack(fill="x", pady=gs(2))
         ttk.Button(
             buttons, text=t("importphoto_move_up_button"),
             command=lambda: self._move_photo(-1)
-        ).pack(fill="x", pady=2)
+        ).pack(fill="x", pady=gs(2))
         ttk.Button(
             buttons, text=t("importphoto_move_down_button"),
             command=lambda: self._move_photo(1)
-        ).pack(fill="x", pady=2)
+        ).pack(fill="x", pady=gs(2))
         ttk.Button(
             buttons, text=t("importphoto_rotate_left_button"),
             command=lambda: self._rotate_selected_photo(-90)
-        ).pack(fill="x", pady=2)
+        ).pack(fill="x", pady=gs(2))
         ttk.Button(
             buttons, text=t("importphoto_rotate_right_button"),
             command=lambda: self._rotate_selected_photo(90)
-        ).pack(fill="x", pady=2)
+        ).pack(fill="x", pady=gs(2))
         ttk.Button(
             buttons, text=t("importphoto_remove_photo_button"),
             command=self._remove_selected_photo
-        ).pack(fill="x", pady=2)
+        ).pack(fill="x", pady=gs(2))
         ttk.Button(
             buttons, text=t("importphoto_clear_photos_button"),
             command=self._clear_photos
-        ).pack(fill="x", pady=2)
+        ).pack(fill="x", pady=gs(2))
 
         self.preview_label = ttk.Label(
             photos_box, text=t("importphoto_no_photo_chosen"),
             foreground=COLOR_TEXT_MUTED, anchor="center"
         )
         self.preview_label.grid(
-            row=1, column=1, sticky="ew", padx=(10, 0), pady=(6, 0)
+            row=1, column=1, sticky="ew", padx=(gs(10), 0), pady=(gs(6), 0)
         )
 
         # -------- OCR --------
         control = ttk.Frame(self)
-        control.pack(fill="x", padx=15, pady=5)
+        control.pack(fill="x", padx=gs(15), pady=gs(5))
         self.extract_button = ttk.Button(
             control, text=t("importphoto_extract_all_button"),
             command=self.extract_text, state="disabled"
@@ -20836,11 +20846,11 @@ class ImportFromPhotoWindow(tk.Toplevel):
             control, text=t("importphoto_refresh_ocr_button"),
             command=self._refresh_ocr_status
         )
-        self.refresh_ocr_button.pack(side="left", padx=(8, 0))
+        self.refresh_ocr_button.pack(side="left", padx=(gs(SPACE_SM), 0))
         self.status_label = ttk.Label(
             control, text="", foreground=COLOR_TEXT_MUTED
         )
-        self.status_label.pack(side="left", padx=10)
+        self.status_label.pack(side="left", padx=gs(10))
         self.progress = ttk.Progressbar(
             control, mode="determinate", maximum=100, length=220
         )
@@ -20849,10 +20859,17 @@ class ImportFromPhotoWindow(tk.Toplevel):
         ttk.Label(
             self, text=t("importphoto_extracted_text_label"),
             font=("Segoe UI", sf(9), "bold")
-        ).pack(pady=(8, 3))
+        ).pack(pady=(gs(SPACE_SM), gs(3)))
+
+        # Bouton principal empaqueté avant la zone de texte extensible : en
+        # « Texte agrandi » sur un écran 1080p, il sortait de la fenêtre.
+        ttk.Button(
+            self, text=t("importphoto_create_button"),
+            style="Primary.TButton", command=self.create_recipe
+        ).pack(side="bottom", pady=(0, gs(14)))
 
         text_frame = ttk.Frame(self)
-        text_frame.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+        text_frame.pack(fill="both", expand=True, padx=gs(15), pady=(0, gs(10)))
         self.text_box = tk.Text(
             text_frame, height=18, wrap="word",
             font=("Segoe UI", sf(10))
@@ -20864,10 +20881,6 @@ class ImportFromPhotoWindow(tk.Toplevel):
         self.text_box.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
 
-        ttk.Button(
-            self, text=t("importphoto_create_button"),
-            style="Primary.TButton", command=self.create_recipe
-        ).pack(pady=(0, 14))
 
         # La fenêtre et tous ses boutons existent avant de lancer la détection,
         # qui peut prendre plusieurs secondes sur certains postes Windows.
@@ -21283,28 +21296,28 @@ class CookbookExportWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("cookbookexport_heading"),
-                  font=("Segoe UI", sf(13), "bold")).pack(pady=(15, 5))
+                  font=("Segoe UI", sf(13), "bold")).pack(pady=(gs(15), gs(5)))
         ttk.Label(
             self,
             text=t("cookbookexport_intro"),
             justify="center", font=("Segoe UI", sf(9))
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, gs(10)))
 
         filter_frame = ttk.Frame(self)
-        filter_frame.pack(pady=(0, 5), fill="x", padx=15)
+        filter_frame.pack(pady=(0, gs(5)), fill="x", padx=gs(15))
         ttk.Label(filter_frame, text=t("cookbookexport_filter_label")).pack(side="left")
         self.category_filter = ttk.Combobox(
             filter_frame, values=[t("common_all_categories")] + [translate_category_name(c) for c in RecipeFormWindow.CATEGORY_OPTIONS],
             state="readonly", width=15
         )
         self.category_filter.set(t("common_all_categories"))
-        self.category_filter.pack(side="left", padx=5)
+        self.category_filter.pack(side="left", padx=gs(5))
         self.category_filter.bind("<<ComboboxSelected>>", lambda e: self._populate())
-        ttk.Button(filter_frame, text=t("cookbookexport_check_all_button"), command=self.check_all).pack(side="left", padx=5)
+        ttk.Button(filter_frame, text=t("cookbookexport_check_all_button"), command=self.check_all).pack(side="left", padx=gs(5))
         ttk.Button(filter_frame, text=t("cookbookexport_uncheck_all_button"), command=self.uncheck_all).pack(side="left")
 
         list_frame = ttk.Frame(self)
-        list_frame.pack(padx=15, pady=5, fill="both", expand=True)
+        list_frame.pack(padx=gs(15), pady=gs(5), fill="both", expand=True)
         canvas = tk.Canvas(list_frame, highlightthickness=0)
         scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
         self.rows_frame = ttk.Frame(canvas)
@@ -21318,7 +21331,7 @@ class CookbookExportWindow(tk.Toplevel):
         self._populate()
 
         ttk.Button(self, text=t("cookbookexport_generate_button"),
-                   command=self.export_pdf).pack(pady=15)
+                   command=self.export_pdf).pack(pady=gs(15))
 
     def _populate(self):
         for child in self.rows_frame.winfo_children():
@@ -21330,7 +21343,7 @@ class CookbookExportWindow(tk.Toplevel):
                 continue
             var = tk.BooleanVar(value=True)
             ttk.Checkbutton(self.rows_frame, text=format_recipe_list_label(recipe),
-                             variable=var).pack(anchor="w", pady=2)
+                             variable=var).pack(anchor="w", pady=gs(2))
             self.checks.append((var, recipe))
 
     def check_all(self):
@@ -21382,17 +21395,17 @@ class CompareRecipesWindow(tk.Toplevel):
         self.grab_set()
         recipe_names = [r["name"] for r in self.app.recipes]
         picker = ttk.Frame(self)
-        picker.pack(pady=12, padx=15, fill="x")
+        picker.pack(pady=gs(12), padx=gs(15), fill="x")
         self.combos=[]
         labels=[t("compare_recipe_a_label"), t("compare_recipe_b_label"), t("compare_recipe_c_label")]
         for i,label in enumerate(labels):
-            ttk.Label(picker,text=label,font=("Segoe UI",sf(9),"bold")).grid(row=i,column=0,sticky="w",pady=3)
+            ttk.Label(picker,text=label,font=("Segoe UI",sf(9),"bold")).grid(row=i,column=0,sticky="w",pady=gs(3))
             cb=ttk.Combobox(picker,values=[""]+recipe_names,state="readonly",width=38)
-            cb.grid(row=i,column=1,padx=6,pady=3,sticky="w")
+            cb.grid(row=i,column=1,padx=gs(6),pady=gs(3),sticky="w")
             if i < len(recipe_names): cb.current(i+1)
             self.combos.append(cb)
-        ttk.Button(picker,text=t("compare_three_button"),style="Hero.TButton",command=self.compare).grid(row=0,column=2,rowspan=3,padx=18)
-        container=ttk.Frame(self); container.pack(fill="both",expand=True,padx=15,pady=(0,15))
+        ttk.Button(picker,text=t("compare_three_button"),style="Hero.TButton",command=self.compare).grid(row=0,column=2,rowspan=3,padx=gs(18))
+        container=ttk.Frame(self); container.pack(fill="both",expand=True,padx=gs(15),pady=(0, gs(15)))
         canvas=tk.Canvas(container,highlightthickness=0); sb=ttk.Scrollbar(container,orient="vertical",command=canvas.yview)
         self.result_frame=ttk.Frame(canvas); self.result_frame.bind("<Configure>",lambda e:canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.create_window((0,0),window=self.result_frame,anchor="nw"); canvas.configure(yscrollcommand=sb.set)
@@ -21406,16 +21419,16 @@ class CompareRecipesWindow(tk.Toplevel):
         recipes=[find_recipe_by_name(self.app.recipes,n) for n in names]
         recipes=[r for r in recipes if r is not None]
         for child in self.result_frame.winfo_children(): child.destroy()
-        table=ttk.Frame(self.result_frame); table.pack(fill="x",pady=(0,15))
+        table=ttk.Frame(self.result_frame); table.pack(fill="x",pady=(0, gs(15)))
         table.columnconfigure(0,weight=0)
         for i in range(len(recipes)): table.columnconfigure(i+1,weight=1)
         ttk.Label(table,text="",width=18).grid(row=0,column=0)
         for i,r in enumerate(recipes):
-            ttk.Label(table,text=r['name'],font=("Segoe UI",sf(10),"bold"),foreground=COLOR_ACCENT_DARK,wraplength=250).grid(row=0,column=i+1,padx=8,pady=(0,6),sticky="w")
-        ttk.Separator(table,orient="horizontal").grid(row=1,column=0,columnspan=len(recipes)+1,sticky="ew",pady=(0,6))
+            ttk.Label(table,text=r['name'],font=("Segoe UI",sf(10),"bold"),foreground=COLOR_ACCENT_DARK,wraplength=250).grid(row=0,column=i+1,padx=gs(SPACE_SM),pady=(0, gs(6)),sticky="w")
+        ttk.Separator(table,orient="horizontal").grid(row=1,column=0,columnspan=len(recipes)+1,sticky="ew",pady=(0, gs(6)))
         row=[2]
         def line(label,vals,best=None,lower=False):
-            rr=row[0]; ttk.Label(table,text=label,font=("Segoe UI",sf(9),"bold")).grid(row=rr,column=0,sticky="w",pady=3,padx=(0,8))
+            rr=row[0]; ttk.Label(table,text=label,font=("Segoe UI",sf(9),"bold")).grid(row=rr,column=0,sticky="w",pady=gs(3),padx=(0, gs(SPACE_SM)))
             comparable=[v for v in vals if isinstance(v,(int,float))]
             bestval=(min(comparable) if lower else max(comparable)) if comparable and best else None
             for i,v in enumerate(vals):
@@ -21423,7 +21436,7 @@ class CompareRecipesWindow(tk.Toplevel):
                 if best and isinstance(v,(int,float)):
                     suffix=("  "+t("compare_best_marker")) if v==bestval and len(set(comparable))>1 else ""
                     display=best(v)+suffix
-                ttk.Label(table,text=str(display),wraplength=250,justify="left").grid(row=rr,column=i+1,sticky="w",padx=8,pady=3)
+                ttk.Label(table,text=str(display),wraplength=250,justify="left").grid(row=rr,column=i+1,sticky="w",padx=gs(SPACE_SM),pady=gs(3))
             row[0]+=1
         line(t("compare_field_category"),[translate_category_name(r.get('category','Autre')) for r in recipes])
         line(t("compare_field_favorite"),[t("compare_yes") if r.get('favorite') else t("compare_no") for r in recipes])
@@ -21455,12 +21468,12 @@ class CompareRecipesWindow(tk.Toplevel):
         for r in recipes: maps.append({ing.get('name','').strip().lower():ing.get('name','') for ing in r.get('ingredients',[]) if ing.get('name')})
         common=set(maps[0])
         for m in maps[1:]: common &= set(m)
-        common_col=ttk.Frame(ing_frame); common_col.pack(side="left",fill="both",expand=True,padx=8,anchor="n")
+        common_col=ttk.Frame(ing_frame); common_col.pack(side="left",fill="both",expand=True,padx=gs(SPACE_SM),anchor="n")
         ttk.Label(common_col,text=t("compare_common_ingredients",count=len(common)),font=("Segoe UI",sf(9),"bold"),foreground=COLOR_ACCENT_DARK).pack(anchor="w")
         for k in sorted(common,key=ingredient_sort_key): ttk.Label(common_col,text="• "+translate_ingredient_name(maps[0][k]).capitalize()).pack(anchor="w")
         for idx,(r,m) in enumerate(zip(recipes,maps)):
             unique=set(m) - set().union(*(set(x) for j,x in enumerate(maps) if j!=idx))
-            col=ttk.Frame(ing_frame); col.pack(side="left",fill="both",expand=True,padx=8,anchor="n")
+            col=ttk.Frame(ing_frame); col.pack(side="left",fill="both",expand=True,padx=gs(SPACE_SM),anchor="n")
             ttk.Label(col,text=f"{r['name']} ({len(unique)})",font=("Segoe UI",sf(9),"bold"),foreground=COLOR_ACCENT_DARK,wraplength=220).pack(anchor="w")
             for k in sorted(unique,key=ingredient_sort_key): ttk.Label(col,text="• "+translate_ingredient_name(m[k]).capitalize(),wraplength=220).pack(anchor="w")
 
@@ -21476,6 +21489,8 @@ class StatisticsWindow(tk.Toplevel):
         safe_minsize(self, gs(720), gs(560))
         self.resizable(True, True)
         self.grab_set()
+        # Contenu défilant : la légende du calendrier était coupée.
+        self.scroll_canvas, body = _ui_scrollable_body(self)
 
         recipes = self.app.recipes
         total = len(recipes)
@@ -21489,9 +21504,9 @@ class StatisticsWindow(tk.Toplevel):
         avg_rating_card = (sum(rated) / len(rated)) if rated else 0
         never_cooked_count = sum(1 for r in recipes if not r.get("times_cooked", 0))
 
-        ttk.Label(self, text=t("stats_dashboard_heading"), font=("Segoe UI", sf(15), "bold")).pack(pady=(14, 8))
-        cards = ttk.Frame(self)
-        cards.pack(fill="x", padx=15, pady=(0, 10))
+        ttk.Label(body, text=t("stats_dashboard_heading"), font=("Segoe UI", sf(15), "bold")).pack(pady=(gs(14), gs(SPACE_SM)))
+        cards = ttk.Frame(body)
+        cards.pack(fill="x", padx=gs(15), pady=(0, gs(10)))
         card_data = [
             (t("stats_card_recipes"), str(total)),
             (t("stats_card_cooked_year"), str(cooked_this_year)),
@@ -21502,18 +21517,18 @@ class StatisticsWindow(tk.Toplevel):
         for i, (label, value) in enumerate(card_data):
             cards.columnconfigure(i, weight=1, uniform="stats")
             card = tk.Frame(cards, background=COLOR_CARD, highlightbackground=COLOR_BORDER, highlightthickness=1)
-            card.grid(row=0, column=i, sticky="nsew", padx=4)
+            card.grid(row=0, column=i, sticky="nsew", padx=gs(SPACE_XS))
             tk.Label(card, text=value, background=COLOR_CARD, foreground=COLOR_ACCENT_DARK,
-                     font=("Segoe UI", sf(17), "bold")).pack(pady=(10, 2))
+                     font=("Segoe UI", sf(17), "bold")).pack(pady=(gs(10), gs(2)))
             tk.Label(card, text=label, background=COLOR_CARD, foreground=COLOR_TEXT_MUTED,
-                     font=("Segoe UI", sf(8)), wraplength=130, justify="center").pack(padx=6, pady=(0, 10))
+                     font=("Segoe UI", sf(8)), wraplength=130, justify="center").pack(padx=gs(6), pady=(0, gs(10)))
 
-        actions = ttk.Frame(self)
-        actions.pack(fill="x", padx=15, pady=(0, 4))
+        actions = ttk.Frame(body)
+        actions.pack(fill="x", padx=gs(15), pady=(0, gs(SPACE_XS)))
         ttk.Button(actions, text=t("stats_export_csv"), style="Secondary.TButton", command=self.export_csv).pack(side="right")
 
-        text_frame = ttk.Frame(self)
-        text_frame.pack(fill="both", expand=True, padx=15, pady=(15, 5))
+        text_frame = ttk.Frame(body)
+        text_frame.pack(fill="both", expand=True, padx=gs(15), pady=(gs(15), gs(5)))
         text = tk.Text(text_frame, wrap="word", height=22, font=("Segoe UI", sf(9)))
         text_scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=text_scrollbar.set)
@@ -21669,26 +21684,26 @@ class StatisticsWindow(tk.Toplevel):
         text.config(state="disabled")
 
         # ---- Graphique d'évolution mensuelle des recettes cuisinées ----
-        ttk.Label(self, text=t("stats_monthly_chart_title"),
-                  font=("Segoe UI", sf(10), "bold")).pack(pady=(8, 2))
-        chart_canvas = tk.Canvas(self, height=180, background=COLOR_CARD, highlightthickness=1,
+        ttk.Label(body, text=t("stats_monthly_chart_title"),
+                  font=("Segoe UI", sf(10), "bold")).pack(pady=(gs(SPACE_SM), gs(2)))
+        chart_canvas = tk.Canvas(body, height=180, background=COLOR_CARD, highlightthickness=1,
                                   highlightbackground=COLOR_BORDER)
-        chart_canvas.pack(fill="x", padx=15, pady=(0, 15))
+        chart_canvas.pack(fill="x", padx=gs(15), pady=(0, gs(15)))
         self.after(50, lambda: self._draw_monthly_chart(chart_canvas, recipes))
 
         # ---- Calendrier visuel (façon contributions GitHub) ----
-        ttk.Label(self, text=t("stats_heatmap_title"),
-                  font=("Segoe UI", sf(10), "bold")).pack(pady=(0, 2))
-        heatmap_container = ttk.Frame(self)
-        heatmap_container.pack(fill="x", padx=15, pady=(0, 5))
+        ttk.Label(body, text=t("stats_heatmap_title"),
+                  font=("Segoe UI", sf(10), "bold")).pack(pady=(0, gs(2)))
+        heatmap_container = ttk.Frame(body)
+        heatmap_container.pack(fill="x", padx=gs(15), pady=(0, gs(5)))
         heatmap_canvas = tk.Canvas(heatmap_container, height=120, background=COLOR_CARD,
                                     highlightthickness=1, highlightbackground=COLOR_BORDER)
         heatmap_hscroll = ttk.Scrollbar(heatmap_container, orient="horizontal", command=heatmap_canvas.xview)
         heatmap_canvas.configure(xscrollcommand=heatmap_hscroll.set)
         heatmap_canvas.pack(fill="x")
         heatmap_hscroll.pack(fill="x")
-        ttk.Label(self, text=t("stats_heatmap_legend"), font=("Segoe UI", sf(8)),
-                  foreground=COLOR_TEXT_MUTED).pack(pady=(0, 15))
+        ttk.Label(body, text=t("stats_heatmap_legend"), font=("Segoe UI", sf(8)),
+                  foreground=COLOR_TEXT_MUTED).pack(pady=(0, gs(15)))
         self.after(50, lambda: self._draw_cooking_heatmap(heatmap_canvas, recipes))
 
     def export_csv(self):

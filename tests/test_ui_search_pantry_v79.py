@@ -901,5 +901,46 @@ class CookingModeThemeContrastTests(AppWindowTestBase):
         self.assertEqual(found, [])
 
 
+class LargeTextLayoutTests(AppWindowTestBase):
+    """C2 : avec des marges qui grandissent en « Texte agrandi », le bouton
+    principal d'Import photo sortait de la fenêtre ; la légende des
+    Statistiques était déjà coupée. Fenêtre volontairement petite."""
+
+    def setUp(self):
+        patcher = patch.object(main, "get_large_text_preference", lambda: True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        super().setUp()
+
+    def _walk(self, widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from self._walk(child)
+
+    def _visible(self, win, widget):
+        top = widget.winfo_rooty() - win.winfo_rooty()
+        return widget.winfo_ismapped() and top + widget.winfo_height() <= win.winfo_height()
+
+    def test_import_photo_main_button_stays_visible(self):
+        win = main.ImportFromPhotoWindow(self.app)
+        self.addCleanup(win.destroy)
+        win.geometry("900x600")
+        win.update()
+        button = [w for w in self._walk(win) if isinstance(w, ttk.Button)
+                  and w.cget("text") == main.t("importphoto_create_button")][0]
+        self.assertTrue(self._visible(win, button))
+
+    def test_statistics_bottom_is_reachable_by_scrolling(self):
+        win = main.StatisticsWindow(self.app)
+        self.addCleanup(win.destroy)
+        win.geometry("900x600")
+        win.update()
+        win.scroll_canvas.yview_moveto(1.0)
+        win.update()
+        legend = [w for w in self._walk(win) if isinstance(w, ttk.Label)
+                  and w.cget("text") == main.t("stats_heatmap_legend")][0]
+        self.assertTrue(self._visible(win, legend))
+
+
 if __name__ == "__main__":
     unittest.main()

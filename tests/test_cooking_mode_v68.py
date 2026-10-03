@@ -36,7 +36,7 @@ class CookingModeTests(unittest.TestCase):
         strings = json.loads((ROOT/'i18n'/'fr.json').read_text(encoding='utf-8'))
         self.env = dict(tk=tk, ttk=ttk, messagebox=messagebox, math=math, re=re, threading=threading, tkfont=tkfont,
             time=SimpleNamespace(monotonic=lambda: self.clock.value),
-            t=lambda key, **kw: strings.get(key, key).format(**kw), sf=lambda v:v, gs=lambda v:v,
+            t=lambda key, **kw: strings.get(key, key).format(**kw), sf=lambda v:v, gs=lambda v:v, SPACE_XS=4, SPACE_SM=8, SPACE_MD=16, SPACE_LG=24, SPACE_XL=32,
             COLOR_CARD='#ffffff', COLOR_TEXT='#222222', COLOR_TEXT_MUTED='#666666', COLOR_BG='#fbf6ef', COLOR_BORDER='#cccccc', COLOR_ACCENT_DARK='#a05020', COLOR_ERROR='#ff0000',
             fit_window_to_workarea=lambda win,*args,**kw: win.geometry('1200x800'),
             get_usable_screen_height=lambda win:800,

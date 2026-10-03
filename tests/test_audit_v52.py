@@ -28,6 +28,27 @@ class AuditV52Tests(unittest.TestCase):
             for key in french:
                 self.assertEqual(placeholders(french[key]), placeholders(translated[key]), f"{language}:{key}")
 
+    def test_translation_keys_are_all_used_and_all_defined(self):
+        # C5 : 59 clés orphelines traînaient dans les 9 langues. Une clé est
+        # « utilisée » si elle apparaît littéralement dans main.py ou si un
+        # préfixe dynamique (t(f"weekday_{...}"), "x_" + y) la couvre.
+        source = (ROOT / "main.py").read_text(encoding="utf-8")
+        french = json.loads((ROOT / "i18n" / "fr.json").read_text(encoding="utf-8"))
+        used = set(re.findall(r"""\bt\(\s*["']([a-zA-Z0-9_]+)["']""", source))
+        self.assertEqual(sorted(used - set(french)), [])
+        dynamic = set(re.findall(r"""f["']([a-z][a-z0-9_]*?)\{""", source)) | \
+            set(re.findall(r"""["']([a-z][a-z0-9_]+_)["']\s*\+""", source))
+        orphans = [k for k in french if f'"{k}"' not in source and f"'{k}'" not in source
+                   and not any(k.startswith(p) for p in dynamic if p)]
+        self.assertEqual(orphans, [])
+
+    def test_paddings_follow_the_large_text_scale(self):
+        # C2 : 900+ marges en nombre fixe ne grandissaient pas en mode
+        # « Texte agrandi ». Toute marge non nulle passe par gs(...).
+        source = (ROOT / "main.py").read_text(encoding="utf-8")
+        literal = re.findall(r"\b(?:padx|pady|ipadx|ipady|padding)\s*=\s*\(?\s*[1-9]\d*\b(?!\s*[*/+-])", source)
+        self.assertEqual(literal, [])
+
     def test_every_language_and_bundled_file_is_shipped(self):
         # Un fichier oublié au packaging ne casse que la version installée :
         # tout fichier référencé doit exister, et les scripts doivent copier
