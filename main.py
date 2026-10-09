@@ -7541,18 +7541,21 @@ def _ui_scrollable_body(window):
     scrollbar.pack(side="right", fill="y")
     _ui_bind_local_mousewheel(canvas, body, lambda ev: canvas.yview_scroll(int(-ev.delta / 120), "units"))
 
-    def fit_width():
+    def fit_width(_event=None):
         # Le canevas ne fait plus grandir la fenêtre comme un simple pack :
-        # élargir une fois le contenu construit, selon sa largeur réelle
-        # (polices plus larges selon le système, la langue ou le texte agrandi).
+        # largeur minimale suivie à chaque changement de taille du contenu
+        # (polices plus larges selon le système, la langue ou le texte
+        # agrandi). minsize plutôt que geometry() : le recadrage automatique
+        # des fenêtres (ensure_window_visible_and_fitted) la respecte.
         try:
             needed = body.winfo_reqwidth() + scrollbar.winfo_reqwidth() + gs(SPACE_XS)
             limit = window.winfo_screenwidth() - gs(SPACE_XL)
-            if window.winfo_width() < needed:
-                window.geometry(f"{min(needed, limit)}x{window.winfo_height()}")
+            current_w, current_h = window.minsize()
+            if min(needed, limit) > current_w:
+                window.minsize(min(needed, limit), current_h)
         except tk.TclError:
             pass
-    window.after_idle(fit_width)
+    body.bind("<Configure>", fit_width, add="+")
     return canvas, body
 
 
