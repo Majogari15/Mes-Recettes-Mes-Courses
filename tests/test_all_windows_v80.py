@@ -127,6 +127,9 @@ class AllWindowsOpenTests(TempDataMixin, unittest.TestCase):
     def test_every_window_opens_in_swedish_dark(self):
         self._open_all("sv", True)
 
+    def test_every_window_opens_in_chinese_light(self):
+        self._open_all("zh", False)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -59,7 +59,7 @@ icône à double-cliquer) :
 - `windows_printing.py` : contrôleur d’impression Windows utilisé en mode Python
   et intégré automatiquement dans le `.exe`
 - `i18n/` : tous les textes de l'interface, un fichier par langue
-  (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois)
+  (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié)
 - `ingredients_par_defaut.json`, `valeurs_nutritionnelles.json`,
   `ingredient_allergenes.json`, `ingredient_substitutions.json` : les bases
   de données fournies (ingrédients courants, valeurs nutritionnelles,

@@ -546,10 +546,11 @@ INGREDIENT_SUBSTITUTIONS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredient_subst
 # langue de référence des données ; chaque autre langue a ses fichiers
 # i18n/<code>.json, ingredient_translations_<code>.json et
 # ingredient_substitutions_<code>.json (repris de l'app mobile).
-UI_LANGUAGES = ("fr", "en", "es", "de", "it", "pt", "id", "no", "sv")
+UI_LANGUAGES = ("fr", "en", "es", "de", "it", "pt", "id", "no", "sv", "zh")
 LANGUAGE_NAMES = {
     "fr": "Français", "en": "English", "es": "Español", "de": "Deutsch",
     "it": "Italiano", "pt": "Português", "id": "Bahasa Indonesia", "no": "Norsk", "sv": "Svenska",
+    "zh": "简体中文",
 }
 INGREDIENT_SUBSTITUTIONS_TRANSLATION_FILES = {
     lang: os.path.join(BUNDLED_DATA_DIR, f"ingredient_substitutions_{lang}.json") for lang in UI_LANGUAGES[1:]
@@ -576,6 +577,7 @@ TESSERACT_LANG_CODES = {
     "id": "ind",
     "no": "nor",
     "sv": "swe",
+    "zh": "chi_sim",
 }
 
 
@@ -1368,6 +1370,16 @@ RAYON_TRANSLATIONS = {
         "boissons": "Drycker",
         "autre": "Övrigt",
     },
+    "zh": {
+        "fruits & légumes": "蔬菜水果",
+        "viandes & poissons": "肉类水产",
+        "crèmerie": "奶制品",
+        "boulangerie & pâtisserie": "面包糕点",
+        "épicerie": "粮油副食",
+        "herbes & épices": "香草香料",
+        "boissons": "饮料",
+        "autre": "其他",
+    },
 }
 
 
@@ -1473,6 +1485,16 @@ CATEGORY_TRANSLATIONS = {
         "sauce": "Sås",
         "autre": "Övrigt",
     },
+    "zh": {
+        "petit-déjeuner": "早餐",
+        "entrée": "前菜",
+        "plat": "主菜",
+        "dessert": "甜点",
+        "apéro": "开胃小食",
+        "boisson": "饮品",
+        "sauce": "酱汁",
+        "autre": "其他",
+    },
 }
 
 DIFFICULTY_TRANSLATIONS = {
@@ -1523,6 +1545,12 @@ DIFFICULTY_TRANSLATIONS = {
         "facile": "Lätt",
         "moyen": "Medel",
         "difficile": "Svår",
+    },
+    "zh": {
+        "très facile": "非常简单",
+        "facile": "简单",
+        "moyen": "中等",
+        "difficile": "困难",
     },
 }
 
@@ -1665,6 +1693,16 @@ SORT_OPTION_TRANSLATIONS = {
         "ajoutées récemment": "Nyligen tillagda",
         "plus cuisinées": "Mest lagade",
         "dernière cuisson": "Senast lagad",
+    },
+    "zh": {
+        "nom (a-z)": "名称（A-Z）",
+        "temps de préparation": "准备时间",
+        "temps total": "总时间",
+        "difficulté": "难度",
+        "note": "评分",
+        "ajoutées récemment": "最近添加",
+        "plus cuisinées": "做得最多",
+        "dernière cuisson": "最近做过",
     },
 }
 
@@ -1864,6 +1902,28 @@ UNIT_TRANSLATIONS = {
         "rouleau": "rulle",
         "bouteille": "flaska",
     },
+    "zh": {
+        "gr": "克",
+        "kilo": "千克",
+        "litre": "升",
+        "pièce": "个",
+        "cuillère à soupe": "汤匙",
+        "cuillère à café": "茶匙",
+        "pincée": "撮",
+        "cuillerée": "勺",
+        "filet": "少许",
+        "poignée": "把",
+        "pot de yaourt": "酸奶杯",
+        "sachet": "袋",
+        "disque": "片",
+        "tour de moulin": "研磨一圈",
+        "grosse poignée": "大把",
+        "autre": "其他",
+        "boîte": "罐",
+        "paquet": "包",
+        "rouleau": "卷",
+        "bouteille": "瓶",
+    },
 }
 
 
@@ -1990,6 +2050,15 @@ WEEKDAY_TRANSLATIONS = {
         "samedi": "Lördag",
         "dimanche": "Söndag",
     },
+    "zh": {
+        "lundi": "星期一",
+        "mardi": "星期二",
+        "mercredi": "星期三",
+        "jeudi": "星期四",
+        "vendredi": "星期五",
+        "samedi": "星期六",
+        "dimanche": "星期日",
+    },
 }
 
 MEALSLOT_TRANSLATIONS = {
@@ -2064,6 +2133,15 @@ MEALSLOT_TRANSLATIONS = {
         "dîner — entrée": "Middag — Förrätt",
         "dîner — plat": "Middag — Huvudrätt",
         "dîner — dessert": "Middag — Efterrätt",
+    },
+    "zh": {
+        "petit-déjeuner": "早餐",
+        "déjeuner — entrée": "午餐 — 前菜",
+        "déjeuner — plat": "午餐 — 主菜",
+        "déjeuner — dessert": "午餐 — 甜点",
+        "dîner — entrée": "晚餐 — 前菜",
+        "dîner — plat": "晚餐 — 主菜",
+        "dîner — dessert": "晚餐 — 甜点",
     },
 }
 
@@ -2583,7 +2661,10 @@ CURRENCIES_WITHOUT_CENTS = ("JPY",)
 
 def get_currency():
     code = load_settings().get("currency")
-    return code if code in CURRENCY_SYMBOLS else "EUR"
+    if code in CURRENCY_SYMBOLS:
+        return code
+    # Sans choix de l'utilisateur, la devise suit la langue (comme le mobile).
+    return "CNY" if CURRENT_LANGUAGE == "zh" else "EUR"
 
 
 def set_currency(code):
@@ -2606,7 +2687,7 @@ def format_price(value, code=None):
     # le format Python arrondirait 2,5 ¥ à « 2 » (arrondi au pair).
     step = Decimal("1") if code in CURRENCIES_WITHOUT_CENTS else Decimal("0.01")
     amount = str(Decimal(str(value)).quantize(step, rounding=ROUND_HALF_UP))
-    if CURRENT_LANGUAGE == "en":
+    if CURRENT_LANGUAGE in ("en", "zh"):
         return f"{symbol}{' ' if symbol.isalpha() else ''}{amount}"
     amount = amount.replace(".", ",")
     if CURRENT_LANGUAGE == "id":
@@ -2897,8 +2978,10 @@ def decode_barcode_from_image(image):
 def lookup_open_food_facts(code, timeout=10):
     """Nom du produit sur Open Food Facts (base collaborative ouverte), ou
     None si inconnu. Seul le code-barres est envoyé."""
+    # Nom du produit demandé dans toutes les langues de l'interface.
+    fields = ",".join(["product_name"] + [f"product_name_{lang}" for lang in UI_LANGUAGES] + ["quantity"])
     url = (f"https://world.openfoodfacts.org/api/v2/product/{urllib.parse.quote(code)}.json"
-           "?fields=product_name,product_name_fr,product_name_en,product_name_es,product_name_de,quantity")
+           f"?fields={fields}")
     request = urllib.request.Request(url, headers={"User-Agent": f"MesRecettesMesCourses/{APP_VERSION} (Windows)"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         data = json.loads(response.read().decode("utf-8"))
@@ -2943,12 +3026,66 @@ def remember_barcode_ingredient(code, name, unit):
     save_settings(settings)
 
 
+CHINESE_DIGITS = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
+                  "六": 6, "七": 7, "八": 8, "九": 9}
+CHINESE_NUMBER_PATTERN = r"[0-9]+(?:[.,][0-9]+)?|[零〇一二两三四五六七八九十百]+"
+
+
+def chinese_number(text):
+    """Nombre en chiffres arabes ou chinois (« 十五 » = 15, « 两 » = 2,
+    « 二百五十 » = 250), ou None."""
+    text = (text or "").strip()
+    if re.fullmatch(r"[0-9]+(?:[.,][0-9]+)?", text):
+        return float(text.replace(",", "."))
+    if not text or any(c not in CHINESE_DIGITS and c not in "十百" for c in text):
+        return None
+    total, current = 0, 0
+    for char in text:
+        if char in CHINESE_DIGITS:
+            current = CHINESE_DIGITS[char]
+        else:
+            total += (current or 1) * (100 if char == "百" else 10)
+            current = 0
+    return float(total + current)
+
+
+def pick_tts_voice_id(voices, language, text=""):
+    """Voix de synthèse adaptée : chinois dès que le texte en contient, sinon
+    la langue de l'interface ; None (voix par défaut) si aucune ne convient."""
+    wanted = "zh" if CJK_RE.search(text or "") else language
+    prefixes = {"no": ("nb", "no", "nn")}.get(wanted, (wanted,))
+    for voice in voices or ():
+        languages = [str(code).lower().replace("_", "-") for code in (getattr(voice, "languages", None) or [])]
+        if any(code.split("-")[0] in prefixes for code in languages):
+            return voice.id
+    return None
+
+
+def list_join(items):
+    """Liste affichée : « ， » en chinois, « , » ailleurs (comme l'app mobile)."""
+    return ("，" if CURRENT_LANGUAGE == "zh" else ", ").join(str(i) for i in items)
+
+
+def format_display_date(value, with_time=False):
+    """Date affichée selon la langue : année/mois/jour en chinois, jour/mois/
+    année ailleurs (comme l'app mobile). Sans « à » : propre au français."""
+    if CURRENT_LANGUAGE == "zh":
+        return value.strftime("%Y/%m/%d %H:%M" if with_time else "%Y/%m/%d")
+    return value.strftime("%d/%m/%Y %H:%M" if with_time else "%d/%m/%Y")
+
+
 def parse_pantry_expiration(value):
-    """Retourne une date pour les formats YYYY-MM-DD ou JJ/MM/AAAA."""
+    """Retourne une date pour YYYY-MM-DD, JJ/MM/AAAA, AAAA/MM/JJ ou « 2027年3月15日 »."""
     value = (value or "").strip()
     if not value:
         return None
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+    chinese = re.fullmatch(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?", value)
+    if chinese:
+        try:
+            return datetime(*(int(g) for g in chinese.groups())).date()
+        except ValueError:
+            return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
         try:
             return datetime.strptime(value, fmt).date()
         except ValueError:
@@ -2969,7 +3106,10 @@ EXPIRATION_DATE_KEYWORDS = (
     "baik digunakan sebelum", "kedaluwarsa", "exp. date",
     "best før", "minst holdbar", "siste forbruksdag",
     "bast fore", "sista forbrukningsdag",
+    "保质期至", "有效期至", "保质期", "有效期", "到期日", "截止日期", "最佳食用", "此日期前", "赏味期限",
 )
+# Date de fabrication (étiquettes chinoises) : jamais prise pour la péremption.
+EXPIRATION_DATE_PRODUCTION_KEYWORDS = ("生产日期", "生产", "制造日期", "包装日期")
 EXPIRATION_DATE_KEYWORD_WINDOW = 30
 
 
@@ -2989,6 +3129,7 @@ def extract_expiration_date_from_ocr_text(text_value, today=None):
     min_plausible = today - timedelta(days=60)
     max_plausible = today + timedelta(days=5 * 365)
     candidates = []
+    production_dates = []
 
     def add(match, year, month, day):
         try:
@@ -2997,21 +3138,42 @@ def extract_expiration_date_from_ocr_text(text_value, today=None):
             return
         preceding = _plain_lower(text_value[max(0, match.start() - EXPIRATION_DATE_KEYWORD_WINDOW):match.start()])
         score = 1
-        if any(keyword in preceding for keyword in EXPIRATION_DATE_KEYWORDS):
+        near = preceding[-12:]
+        if any(keyword in near for keyword in EXPIRATION_DATE_PRODUCTION_KEYWORDS):
+            score -= 50
+            production_dates.append(parsed)
+        elif any(keyword in preceding for keyword in EXPIRATION_DATE_KEYWORDS):
             score += 100
         if min_plausible <= parsed <= max_plausible:
             score += 10
         candidates.append((score, -match.start(), parsed))
 
-    for m in re.finditer(r"\b(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})\b", text_value):
+    # (?<!\d) plutôt que \b : un caractère chinois collé (« 至2027.03.15 »)
+    # ne forme pas de limite de mot.
+    for m in re.finditer(r"(?<!\d)(\d{4})\s*(?:[/.\-]|年)\s*(\d{1,2})\s*(?:[/.\-]|月)\s*(\d{1,2})(?!\d)", text_value):
         add(m, int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    for m in re.finditer(r"\b(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})\b", text_value):
+    for m in re.finditer(r"(?<!\d)(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})(?!\d)", text_value):
         year = int(m.group(3))
         if len(m.group(3)) == 2:
             year += 2000
         elif len(m.group(3)) == 3:
             continue
         add(m, year, int(m.group(2)), int(m.group(1)))
+    # Étiquette chinoise « 生产日期 2026.03.01 / 保质期 12个月 » : péremption
+    # = fabrication + durée de conservation, si aucune date explicite.
+    shelf = re.search(r"保质期\s*[:：]?\s*([0-9]+|[零〇一二两三四五六七八九十]+)\s*(个月|月|天|日|年)", text_value)
+    if shelf and production_dates and not any(score >= 100 for score, _, _ in candidates):
+        amount = int(chinese_number(shelf.group(1)) or 0)
+        produced = production_dates[0]
+        if shelf.group(2) in ("天", "日"):
+            computed = produced + timedelta(days=amount)
+        else:
+            months = amount * (12 if shelf.group(2) == "年" else 1)
+            year, month = divmod(produced.month - 1 + months, 12)
+            day = min(produced.day, [31, 29 if (produced.year + year) % 4 == 0 else 28, 31, 30, 31, 30,
+                                     31, 31, 30, 31, 30, 31][month])
+            computed = produced.replace(year=produced.year + year, month=month + 1, day=day)
+        return computed
     if not candidates:
         return None
     # À score égal, la première date de l'étiquette l'emporte (comme mobile).
@@ -4044,7 +4206,7 @@ def write_shopping_list_txt(path, title, chosen_recipes, grouped_totals):
     liste de (libellé_affiché, personnes)."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(f"=== {title} ===\n\n")
-        f.write(t("shoppingexport_generated_on", date=datetime.now().strftime("%d/%m/%Y %H:%M")) + "\n\n")
+        f.write(t("shoppingexport_generated_on", date=format_display_date(datetime.now(), with_time=True)) + "\n\n")
         f.write(t("shoppingexport_selected_recipes") + "\n")
         for label, persons in chosen_recipes:
             f.write(f"- {label} ({persons} pers.)\n")
@@ -4095,7 +4257,7 @@ def build_shopping_list_pdf(path, title, chosen_recipes, grouped_totals):
 
     line(title, bold=True, size=18)
     y -= 0.25*cm
-    line(t("shoppingexport_generated_on", date=datetime.now().strftime("%d/%m/%Y %H:%M")))
+    line(t("shoppingexport_generated_on", date=format_display_date(datetime.now(), with_time=True)))
     y -= 0.25*cm
     line(t("shoppingexport_selected_recipes"), bold=True, size=12)
     for label, persons in chosen_recipes:
@@ -4250,6 +4412,22 @@ ALLERGEN_TRANSLATIONS = {
         "lupin": "Lupin",
         "mollusques": "Blötdjur",
     },
+    "zh": {
+        "gluten": "麸质",
+        "lactose": "乳（含乳糖）",
+        "œufs": "蛋",
+        "arachides": "花生",
+        "fruits à coque": "坚果",
+        "soja": "大豆",
+        "poisson": "鱼",
+        "crustacés": "甲壳类",
+        "sésame": "芝麻",
+        "céleri": "芹菜",
+        "moutarde": "芥末",
+        "sulfites": "亚硫酸盐",
+        "lupin": "羽扇豆",
+        "mollusques": "软体动物",
+    },
 }
 
 
@@ -4274,7 +4452,38 @@ PANTRY_STAPLES = [
 ]
 
 
-def _pdf_font_name(name):
+# Police chinoise des PDF : Microsoft YaHei de Windows (complète), sinon la
+# police Noto Sans SC embarquée (8 000 caractères courants, licence OFL, la
+# même que l'app mobile). Vera n'a aucun caractère chinois.
+PDF_CJK_FONT_CANDIDATES = (
+    ("normal", os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "msyh.ttc")),
+    ("bold", os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "msyhbd.ttc")),
+    ("normal", os.path.join(BUNDLED_DATA_DIR, "fonts", "NotoSansSC-subset.ttf")),
+)
+_pdf_cjk_fonts = {}
+
+
+def _pdf_cjk_font(bold=False):
+    """Nom de la police chinoise enregistrée (grasse si possible), ou None."""
+    if not _pdf_cjk_fonts:
+        for weight, path in PDF_CJK_FONT_CANDIDATES:
+            if weight in _pdf_cjk_fonts or not os.path.isfile(path):
+                continue
+            name = f"RecipeCJK{'Bold' if weight == 'bold' else ''}"
+            try:
+                pdfmetrics.registerFont(TTFont(name, path, subfontIndex=0))
+                _pdf_cjk_fonts[weight] = name
+            except Exception as exc:
+                log_internal_error("pdf_cjk_font", exc)
+        _pdf_cjk_fonts.setdefault("none", None)
+    return _pdf_cjk_fonts.get("bold" if bold else "normal") or _pdf_cjk_fonts.get("normal")
+
+
+def _pdf_font_name(name, text=""):
+    if CURRENT_LANGUAGE == "zh" or CJK_RE.search(str(text or "")):
+        cjk = _pdf_cjk_font(bold=name.endswith("Bold"))
+        if cjk:
+            return cjk
     mapping = {'Helvetica': ('RecipeSans', 'Vera.ttf'),
                'Helvetica-Bold': ('RecipeSansBold', 'VeraBd.ttf'),
                'Helvetica-Oblique': ('RecipeSansItalic', 'VeraIt.ttf')}
@@ -4287,22 +4496,28 @@ def _pdf_font_name(name):
 
 
 def _pdf_wrap_lines(c, text, max_width, font_name="Helvetica", font_size=10):
-    """Retourne des lignes qui tiennent toutes dans ``max_width``."""
-    font_name = _pdf_font_name(font_name)
+    """Retourne des lignes qui tiennent toutes dans ``max_width``. Le chinois,
+    sans espaces, se coupe entre deux caractères."""
+    font_name = _pdf_font_name(font_name, text)
     text = _url_fraction_text(text or "")
-    words = text.split()
-    if not words:
+    # Mots latins entiers, caractère chinois isolé, espaces conservées.
+    tokens = re.findall(r"\s+|[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]|[^\s\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+", text.strip())
+    if not tokens:
         return [""]
     lines, line = [], ""
-    for word in words:
-        candidate = f"{line} {word}".strip()
-        if line and c.stringWidth(candidate, font_name, font_size) > max_width:
-            lines.append(line)
-            line = word
+    for token in tokens:
+        if token.isspace():
+            if line:
+                line += " "
+            continue
+        candidate = line + token
+        if line.strip() and c.stringWidth(candidate, font_name, font_size) > max_width:
+            lines.append(line.rstrip())
+            line = token
         else:
             line = candidate
-    if line:
-        lines.append(line)
+    if line.strip():
+        lines.append(line.rstrip())
     return lines or [""]
 
 
@@ -4315,7 +4530,7 @@ def _pdf_draw_wrapped(c, text, x, y, max_width, height, *, font_name="Helvetica"
                       font_size=10, line_height=0.48 * cm, bottom=2 * cm,
                       color=None, keep_together=False):
     text = str(text or "").replace("⚠", "").replace("\ufe0f", "").strip()
-    font_name = _pdf_font_name(font_name)
+    font_name = _pdf_font_name(font_name, text)
     lines = _pdf_wrap_lines(c, text, max_width, font_name, font_size)
     needed = len(lines) * line_height
     page_capacity = (height - 2 * cm) - bottom
@@ -4380,7 +4595,7 @@ def draw_recipe_content(c, recipe, persons, width, height):
     allergens = recipe.get("allergens") or []
     if allergens:
         y = _pdf_draw_wrapped(
-            c, t("recipepdf_allergens", list=", ".join(translate_allergen_name(a) for a in allergens)),
+            c, t("recipepdf_allergens", list=list_join(translate_allergen_name(a) for a in allergens)),
             left, y, usable, height, color=(0.7, 0.2, 0.2)
         )
     y -= 0.18 * cm
@@ -4506,7 +4721,7 @@ def build_cookbook_pdf(path, recipes_with_persons):
     real_show = c.showPage
     def numbered_show_page():
         c.setFillColorRGB(0,0,0)
-        c.setFont("Helvetica", 8)
+        c.setFont(_pdf_font_name("Helvetica", t("cookbookpdf_page_number", current=1, total=1)), 8)
         c.drawCentredString(width/2, 1*cm, t("cookbookpdf_page_number", current=current[0], total=total_pages))
         real_show()
         current[0] += 1
@@ -4516,7 +4731,7 @@ def build_cookbook_pdf(path, recipes_with_persons):
     y = _pdf_draw_wrapped(c, t("cookbookpdf_title"), left, y, usable, height,
                           font_name="Helvetica-Bold", font_size=24, line_height=0.9*cm)
     y -= 0.2*cm
-    y = _pdf_draw_wrapped(c, t("cookbookpdf_generated", date=datetime.now().strftime("%d/%m/%Y")),
+    y = _pdf_draw_wrapped(c, t("cookbookpdf_generated", date=format_display_date(datetime.now())),
                           left, y, usable, height, font_size=10)
     y -= 0.25*cm
     y = _pdf_draw_wrapped(c, t("cookbookpdf_toc_heading"), left, y, usable, height,
@@ -4529,7 +4744,7 @@ def build_cookbook_pdf(path, recipes_with_persons):
         need = len(lines)*0.48*cm + 0.08*cm
         if y - need < 2*cm:
             numbered_show_page(); y = height - 2*cm
-        c.setFont("Helvetica",10)
+        c.setFont(_pdf_font_name("Helvetica", label), 10)
         for i,line in enumerate(lines):
             c.drawString(left, y, line)
             if i == 0:
@@ -4546,7 +4761,7 @@ def build_cookbook_pdf(path, recipes_with_persons):
 
     # footer de la dernière page, sans créer une page blanche supplémentaire
     c.setFillColorRGB(0,0,0)
-    c.setFont("Helvetica",8)
+    c.setFont(_pdf_font_name("Helvetica", t("cookbookpdf_page_number", current=1, total=1)), 8)
     c.drawCentredString(width/2, 1*cm, t("cookbookpdf_page_number", current=current[0], total=total_pages))
     c.save()
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
@@ -4719,6 +4934,7 @@ _ICS_MEAL_PERIOD_TRANSLATIONS = {
     "id": {"petit-déjeuner": "Sarapan", "déjeuner": "Makan siang", "dîner": "Makan malam"},
     "no": {"petit-déjeuner": "Frokost", "déjeuner": "Lunsj", "dîner": "Middag"},
     "sv": {"petit-déjeuner": "Frukost", "déjeuner": "Lunch", "dîner": "Middag"},
+    "zh": {"petit-déjeuner": "早餐", "déjeuner": "午餐", "dîner": "晚餐"},
 }
 _ICS_COURSE_LABEL_TRANSLATIONS = {
     "en": {"entrée": "Starter", "plat": "Main", "dessert": "Dessert"},
@@ -4729,6 +4945,7 @@ _ICS_COURSE_LABEL_TRANSLATIONS = {
     "id": {"entrée": "Pembuka", "plat": "Utama", "dessert": "Penutup"},
     "no": {"entrée": "Forrett", "plat": "Hovedrett", "dessert": "Dessert"},
     "sv": {"entrée": "Förrätt", "plat": "Huvudrätt", "dessert": "Efterrätt"},
+    "zh": {"entrée": "前菜", "plat": "主菜", "dessert": "甜点"},
 }
 
 
@@ -4799,7 +5016,7 @@ def build_weekly_plan_ics(plan):
 
             start_time, end_time = _ICS_MEAL_TIMES[meal_period]
             summary_names = [c.split(" : ", 1)[1] if " : " in c else c for c in components]
-            summary = f"{_translate_ics_meal_period(meal_period)} : " + ", ".join(summary_names)
+            summary = f"{_translate_ics_meal_period(meal_period)} : " + list_join(summary_names)
             description = "\\n".join(components)
 
             event_count += 1
@@ -5579,8 +5796,223 @@ def clean_ocr_preparation(text):
     return "\n\n".join(paragraphs)
 
 
+CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+# Unités chinoises -> (unité de l'app, facteur sur la quantité). 斤 = 500 g.
+CHINESE_UNITS = (
+    ("千克", "Kilo", 1), ("公斤", "Kilo", 1), ("kg", "Kilo", 1), ("毫升", "ml", 1), ("ml", "ml", 1),
+    ("克", "Gr", 1), ("g", "Gr", 1), ("斤", "Gr", 500), ("升", "Litre", 1), ("L", "Litre", 1),
+    ("汤匙", "cuillère à soupe", 1), ("大勺", "cuillère à soupe", 1), ("大匙", "cuillère à soupe", 1),
+    ("汤勺", "cuillère à soupe", 1), ("茶匙", "cuillère à café", 1), ("小勺", "cuillère à café", 1),
+    ("小匙", "cuillère à café", 1), ("勺", "cuillerée", 1), ("撮", "pincée", 1), ("把", "poignée", 1),
+    ("袋", "sachet", 1), ("包", "sachet", 1), ("罐", "boîte", 1), ("听", "boîte", 1), ("盒", "boîte", 1),
+    ("瓶", "bouteille", 1), ("个", "pièce", 1), ("只", "pièce", 1), ("颗", "pièce", 1), ("枚", "pièce", 1),
+    ("根", "pièce", 1), ("条", "pièce", 1), ("片", "pièce", 1), ("块", "pièce", 1), ("瓣", "pièce", 1),
+    ("棵", "pièce", 1), ("朵", "pièce", 1), ("粒", "pièce", 1), ("张", "pièce", 1), ("头", "pièce", 1),
+    ("段", "pièce", 1), ("杯", "cup", 1),
+)
+CHINESE_VAGUE_QUANTITIES = ("适量", "少许", "少量", "若干", "一些", "一点", "随意", "依口味")
+_CHINESE_QTY = r"[0-9]+(?:[.,][0-9]+)?(?:/[0-9]+)?|[零〇一二两三四五六七八九十百]+|半"
+_CHINESE_UNIT_ALT = "|".join(re.escape(u) for u, _, _ in CHINESE_UNITS)
+CHINESE_INGREDIENT_HEADINGS = ("食材明细", "食材清单", "食材", "用料", "材料", "配料", "原料", "主料", "辅料", "调料", "所需食材")
+CHINESE_STEP_HEADINGS = ("做法步骤", "制作步骤", "烹饪步骤", "制作方法", "制作过程", "做法", "步骤")
+CHINESE_META_LABELS = ("口味", "工艺", "耗时", "难度", "分类")
+# Sous-titres d'une liste d'ingrédients (« 馅料 » farce, « 其他 » autres…).
+CHINESE_INGREDIENT_SUBHEADINGS = ("馅料", "馅", "其他", "装饰", "表面装饰", "酱汁", "腌料", "面团", "饼皮",
+                                  "油酥", "水油皮", "汤汁", "调味", "无")
+CHINESE_STEP_END_MARKERS = ("*本菜谱", "本菜谱", "来自", "所属分类", "相关", "推荐", "评论", "上一篇", "下一篇",
+                            "URL Source", "Published")
+CHINESE_CATEGORIES = (
+    (("早餐",), "Petit-déjeuner"), (("糕点", "烘焙", "甜品", "甜点", "面包", "蛋糕"), "Dessert"),
+    (("凉菜", "沙拉"), "Entrée"), (("小吃", "零食"), "Apéro"), (("饮品", "饮料", "茶饮"), "Boisson"),
+    (("酱料", "调味酱", "蘸料"), "Sauce"), (("热菜", "家常菜", "主食", "荤菜", "素菜", "汤羹", "炖菜"), "Plat"),
+)
+
+
+def _chinese_quantity(text):
+    if text == "半":
+        return 0.5
+    if "/" in text:
+        top, bottom = text.split("/", 1)
+        try:
+            return float(top) / float(bottom) if float(bottom) else None
+        except ValueError:
+            return None
+    return chinese_number(text)
+
+
+def _chinese_clean_amount(text):
+    """Retire les notes entre parenthèses et garde la valeur basse d'une fourchette."""
+    text = re.sub(r"[（(][^)）]*[)）]", "", text or "")
+    return re.sub(r"([0-9]+(?:[.,][0-9]+)?)\s*[～~\-–到至]\s*[0-9]+(?:[.,][0-9]+)?", r"\1", text).strip()
+
+
+def parse_chinese_ingredient_line(line):
+    """« 面粉 200克 », « 200克面粉 », « 鸡蛋两个 », « 盐 适量 », « 发面宝 5 » ->
+    {name, quantity, unit} (nom ramené au catalogue si possible), ou None."""
+    text = _chinese_clean_amount(re.sub(r"\s+", " ", (line or "").replace("：", " ").replace(":", " ")))
+    text = text.strip(" -•*·、，,;；")
+    if not text or not CJK_RE.search(text):
+        return None
+    for vague in CHINESE_VAGUE_QUANTITIES:
+        if text.endswith(vague) or text.startswith(vague):
+            name = text.replace(vague, "").strip()
+            return {"name": _url_food_name(name), "quantity": None, "unit": ""} if name else None
+    unit_group = rf"(?P<unit>{_CHINESE_UNIT_ALT})?"
+    match = (re.fullmatch(rf"(?P<name>.+?)\s*(?P<qty>{_CHINESE_QTY})\s*{unit_group}", text)
+             or re.fullmatch(rf"(?P<qty>{_CHINESE_QTY})\s*(?P<unit>{_CHINESE_UNIT_ALT})\s*(?P<name>.+)", text))
+    if not match or not match.group("name").strip(" 的"):
+        return {"name": _url_food_name(text), "quantity": None, "unit": ""}
+    quantity = _chinese_quantity(match.group("qty"))
+    unit, factor = "pièce", 1
+    if match.group("unit"):
+        unit, factor = next((u, f) for code, u, f in CHINESE_UNITS if code == match.group("unit"))
+    return {"name": _url_food_name(match.group("name").strip(" 的")),
+            "quantity": None if quantity is None else quantity * factor, "unit": unit}
+
+
+def html_to_text(page_html):
+    """Texte lisible d'une page HTML (une ligne par bloc), sans scripts ni styles."""
+    text_value = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", page_html or "")
+    text_value = re.sub(r"(?i)<br\s*/?>|</(?:p|li|div|h\d|tr|td|dt|dd|legend|fieldset|ul|ol|table|span)>", "\n", text_value)
+    text_value = html.unescape(re.sub(r"<[^>]+>", " ", text_value))
+    lines = (re.sub(r"[ \t\u3000\xa0]+", " ", line).strip() for line in text_value.splitlines())
+    return "\n".join(line for line in lines if line)
+
+
+def parse_chinese_recipe_text(raw_text):
+    """Recette chinoise depuis un texte (photo OCR, page web ou r.jina.ai) :
+    titre « …的做法 », personnes « 2人份 », rubriques 食材/用料/配料 et
+    做法/步骤, nom et quantité sur une même ligne ou sur deux lignes."""
+    lines = []
+    for line in (raw_text or "").replace("\r", "").splitlines():
+        line = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", line)            # images markdown
+        line = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line)        # liens markdown
+        line = re.sub(r"^[#*>\-\s]+", "", line).replace("：", ":")
+        # Tesseract (chi_sim) sépare souvent chaque caractère chinois.
+        line = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", line).strip()
+        if line:
+            lines.append(line)
+
+    name = ""
+    for line in lines[:12]:
+        candidate = re.sub(r"^Title:\s*", "", line)
+        if "的做法" in candidate:
+            name = candidate.split("的做法")[0].strip(" _【】")
+            break
+    if not name:
+        name = next((ln for ln in lines if CJK_RE.search(ln) and len(ln) <= 40
+                     and not any(ln.startswith(h) for h in CHINESE_INGREDIENT_HEADINGS + CHINESE_STEP_HEADINGS)), "")
+
+    full = "\n".join(lines)
+    persons = None
+    persons_match = re.search(rf"({_CHINESE_QTY})\s*人份", full) or re.search(r"(?<![0-9])([0-9]+)\s*人(?:食用|吃)?", full)
+    if persons_match:
+        value = chinese_number(persons_match.group(1))
+        persons = int(value) if value and 0 < value <= 50 else None
+
+    def heading(line, words):
+        bare = line.strip("【】[]():： ")
+        if "的做法" in bare and not bare.endswith(("的做法步骤", "的做法:")):
+            return None  # titre « 红烧肉的做法 », pas la rubrique des étapes
+        return next((w for w in words if bare == w or bare.endswith(w) and len(bare) <= len(w) + 12), None)
+
+    amount_re = re.compile(rf"(?:{_CHINESE_QTY})\s*(?:{_CHINESE_UNIT_ALT})|" + "|".join(CHINESE_VAGUE_QUANTITIES))
+
+    def ingredient_heading(index):
+        bare = re.sub(r"[（(][^)）]*[)）]$", "", lines[index].strip("【】[] ")).strip()
+        head = next((h for h in CHINESE_INGREDIENT_HEADINGS if bare.startswith(h)), None)
+        if not head or not (len(bare) <= len(head) + 1 or bare[len(head):len(head) + 1] == ":"):
+            return None
+        # Une quantité tout de suite après (nom puis quantité sur la ligne
+        # suivante), ou une sous-rubrique (« 食材明细 » puis « 主料 ») : un
+        # simple lien « 食材 » du menu du site ne suffit pas.
+        following = lines[index + 1:index + 3]
+        sub_heading = bool(following) and any(following[0].startswith(h) for h in CHINESE_INGREDIENT_HEADINGS)
+        window = [bare[len(head):]] + following
+        return head if sub_heading or any(amount_re.search(w) for w in window) else None
+
+    ingredients, steps, meta = [], [], {}
+    section, pending_name = None, None
+    category = ""
+    for index, line in enumerate(lines):
+        if line.startswith(("所属分类", "分类:")):
+            following = line.split(":", 1)[1].strip() if ":" in line else ""
+            following = following or (lines[index + 1] if index + 1 < len(lines) else "")
+            category = next((cat for words, cat in CHINESE_CATEGORIES if any(w in following for w in words)), category)
+        if heading(line, CHINESE_STEP_HEADINGS):
+            section, pending_name = "steps", None
+            continue
+        bare = re.sub(r"[（(][^)）]*[)）]$", "", line.strip("【】[] ")).strip()
+        head = ingredient_heading(index)
+        if head:
+            section, pending_name = "ingredients", None
+            rest = bare[len(head):].lstrip(":").strip()
+            if not rest:
+                continue
+            line = rest
+        if line in CHINESE_META_LABELS and index > 0:
+            meta[line] = lines[index - 1]
+            continue
+        if section == "ingredients":
+            if line in CHINESE_META_LABELS or (index + 1 < len(lines) and lines[index + 1] in CHINESE_META_LABELS):
+                continue
+            if any(bare == h or bare.startswith(h) and len(bare) <= len(h) + 1 for h in CHINESE_INGREDIENT_HEADINGS):
+                continue  # sous-rubrique (« 辅料(油酥) ») dans la liste
+            for part in re.split(r"[、，,；;]|\s{2,}", line):
+                part = part.strip()
+                if not part:
+                    continue
+                parsed = parse_chinese_ingredient_line(part)
+                is_amount = bool(re.fullmatch(rf"(?:{_CHINESE_QTY})\s*(?:{_CHINESE_UNIT_ALT})?|" + "|".join(CHINESE_VAGUE_QUANTITIES),
+                                              _chinese_clean_amount(part)))
+                if is_amount and pending_name:
+                    parsed = parse_chinese_ingredient_line(pending_name + " " + part)
+                    pending_name = None
+                    if parsed:
+                        ingredients[-1] = parsed
+                    continue
+                if parsed and re.sub(r"[（(][^)）]*[)）]", "", part).strip(" :") not in CHINESE_INGREDIENT_SUBHEADINGS:
+                    ingredients.append(parsed)
+                    pending_name = part if parsed["quantity"] is None and not any(v in part for v in CHINESE_VAGUE_QUANTITIES) else None
+        elif section == "steps":
+            if re.fullmatch(r"[0-9]+[.、)]?", line) or re.fullmatch(rf"(?:{_CHINESE_QTY})\s*人份", line):
+                continue
+            if line.startswith(CHINESE_STEP_END_MARKERS):
+                section = "end"  # fin des étapes ; la catégorie peut suivre
+                continue
+            steps.append(re.sub(r"^[0-9]+\s*[.、)]\s*", "", line))
+
+    divisor = persons or 4
+    for ingredient in ingredients:
+        if ingredient["quantity"] is not None:
+            ingredient["quantity"] = ingredient["quantity"] / divisor
+    duration = meta.get("耗时", "")
+    prep_time = ""
+    minutes = re.search(rf"({_CHINESE_QTY})\s*(分钟|小时)", duration)
+    if "半小时" in duration:
+        prep_time = "30"
+    elif minutes and chinese_number(minutes.group(1)):
+        prep_time = str(int(chinese_number(minutes.group(1)) * (60 if minutes.group(2) == "小时" else 1)))
+    difficulty = {"初级": "Facile", "简单": "Facile", "入门": "Très facile", "中级": "Moyen",
+                  "高级": "Difficile", "困难": "Difficile"}.get(meta.get("难度", ""), "")
+    return {
+        "name": name[:100],
+        "description": "\n".join(f"{i}. {step}" for i, step in enumerate(steps, start=1))[:12000],
+        "ingredients": ingredients,
+        "ocr_warnings": [],
+        "prep_time": prep_time,
+        "cook_time": "",
+        "difficulty": difficulty,
+        "category": category,
+        "default_persons": persons or 4,
+        "quantity_basis": "per_person",
+    }
+
+
 def parse_photo_ocr_recipe(raw_text):
     """Transforme le texte multi-photo en préremplissage de recette fiable."""
+    if len(CJK_RE.findall(raw_text or "")) >= 20:
+        return parse_chinese_recipe_text(raw_text)
     text_value = (raw_text or "").replace("\r", "")
     lines = [re.sub(r"\s+", " ", line).strip() for line in text_value.splitlines()]
     nonempty = [line for line in lines if line and not re.match(r"^-{2,}.*-{2,}$", line)]
@@ -5877,6 +6309,14 @@ _URL_FOOD_ALIASES = {
  'flour': 'Farine', 'large eggs': 'Œufs', 'large egg': 'Œuf',
  'egg yolks': "Jaune d'œuf", 'egg whites': "Blanc d'œuf",
  'semi skimmed milk': 'Lait', 'queso rallado cuatro quesos': 'Fromage', 'tepung': 'Farine',
+ # Noms chinois courants sans équivalent exact dans les traductions du catalogue.
+ '中筋面粉': 'Farine', '高筋面粉': 'Farine', '低筋面粉': 'Farine', '普通面粉': 'Farine',
+ '蛋液': 'Oeufs', '全蛋液': 'Oeufs', '五花肉': 'Poitrine de porc', '料酒': 'Vin de cuisine',
+ '淀粉': 'Fécule de maïs', '清水': 'Eau', '生姜': 'Gingembre', '蒜': 'Ail', '蒜末': 'Ail',
+ '葱': 'Ciboule ou ciboulette, fraîche', '小葱': 'Ciboule ou ciboulette, fraîche',
+ '葱花': 'Ciboule ou ciboulette, fraîche', '大葱': 'Ciboule ou ciboulette, fraîche',
+ '胡椒粉': 'Poivre', '香油': 'Huile de sésame', '芝麻油': 'Huile de sésame', '香菜': 'Coriandre fraîche',
+ '鸡精': 'Bouillon de poulet', '食用油': 'Huile', '油': 'Huile',
 }
 
 @functools.lru_cache(maxsize=1)
@@ -6343,6 +6783,10 @@ def fetch_recipe_from_url(url):
         # rien (l'utilisateur revoit et corrige avant d'enregistrer, comme
         # pour l'import OCR). L'adresse collée est alors transmise à ce
         # service tiers, mentionné dans importurl_intro.
+        if len(CJK_RE.findall(page_html[:200000])) >= 50:
+            direct = parse_chinese_recipe_text(html_to_text(page_html))
+            if direct.get("ingredients"):
+                return direct
         try:
             reader_text = _fetch_recipe_reader_text(url)
         except Exception as exc:
@@ -6388,14 +6832,15 @@ def fetch_recipe_from_url(url):
     if yield_value:
         yields = yield_value if isinstance(yield_value, list) else [yield_value]
         # Prefer explicit people when a publisher supplies both servings and pieces.
-        people = next((v for v in yields if re.search(r'\b(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\.?)(?:\b|$)', str(v), re.I)), None)
+        people = next((v for v in yields if re.search(r'\b(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\.?)(?:\b|$)', str(v), re.I)
+                       or re.search(r'\d\s*(?:人份|人|份)', str(v))), None)
         pieces = next((v for v in yields if re.search(r'\b(?:cookies?|biscuits?|pièces?|pieces?|crêpes?|muffins?|pancakes?|stuck|stück|galletas?)\b', str(v), re.I)), None)
         if pieces is None:
             pieces = next((v for v in yields if re.match(r'^(?:makes|yields|ergibt|rinde)\b', str(v), re.I)), None)
         yield_value = people if people is not None else (None if pieces is not None else yields[0])
         if pieces is not None:
             yield_note = t('importurl_yield_note', value=clean_text(pieces))
-        match = (re.search(r"(\d+(?:[.,]\d+)?)\s*(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\b)", str(people), re.I)
+        match = (re.search(r"(\d+(?:[.,]\d+)?)\s*(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\b|人份|人|份)", str(people), re.I)
                  if people is not None else re.search(r"\d+(?:[.,]\d+)?", str(yield_value or "")))
         people_range = _url_quantity_range(str(people or ''))
         if people_range:
@@ -7157,6 +7602,8 @@ def detect_system_language():
                 "it": ("it", "italian"), "pt": ("pt", "portuguese"),
                 "id": ("id", "indonesian"), "no": ("no", "nb", "nn", "norwegian"),
                 "sv": ("sv", "swedish"),
+                # Chinois simplifié : seule variante proposée, aussi pour zh-TW/HK.
+                "zh": ("zh", "chinese"),
             }
             for code, prefixes in aliases.items():
                 if any(lang_code_lower.startswith(p + "_") or lang_code_lower.startswith(p + "-")
@@ -8946,7 +9393,7 @@ class App(APP_TK_BASE):
         any_alert = False
         if low_stock:
             any_alert = True
-            names = ", ".join(sorted(translate_ingredient_name(e["name"]) for e in low_stock))
+            names = list_join(sorted(translate_ingredient_name(e["name"]) for e in low_stock))
             row = tk.Label(alerts, text=t("home_low_stock_reminder", count=len(low_stock), names=names),
                            background=COLOR_CARD, foreground=COLOR_TEXT, anchor="w", justify="left", cursor="hand2",
                            font=("Segoe UI", sf(9)), wraplength=850)
@@ -10011,7 +10458,7 @@ class RecipeFormWindow(tk.Toplevel):
 
         if self.prefill and self.prefill.get("ocr_warnings"):
             ttk.Label(row2_left, text=t("importphoto_uncertain_quantities",
-                      names=", ".join(self.prefill["ocr_warnings"])),
+                      names=list_join(self.prefill["ocr_warnings"])),
                       wraplength=850, justify="left", foreground=COLOR_ERROR).pack(
                           fill="x", padx=gs(10), pady=gs(6))
         self.rows_frame = ttk.Frame(row2_left)
@@ -10286,9 +10733,9 @@ class RecipeFormWindow(tk.Toplevel):
         if added or removed:
             parts = []
             if added:
-                parts.append(t("recipeform_allergens_updated_added", list=", ".join(translate_allergen_name(a) for a in added)))
+                parts.append(t("recipeform_allergens_updated_added", list=list_join(translate_allergen_name(a) for a in added)))
             if removed:
-                parts.append(t("recipeform_allergens_updated_removed", list=", ".join(translate_allergen_name(a) for a in removed)))
+                parts.append(t("recipeform_allergens_updated_removed", list=list_join(translate_allergen_name(a) for a in removed)))
             messagebox.showinfo(
                 t("recipeform_allergens_updated_title"),
                 t("recipeform_allergens_updated_message", parts=" ; ".join(parts))
@@ -10625,7 +11072,7 @@ class RecipeFormWindow(tk.Toplevel):
             card.pack(fill="x", pady=gs(6), padx=gs(2))
             date_value = entry.get("date", "?")
             try:
-                date_value = datetime.fromisoformat(date_value).strftime("%d/%m/%Y à %H:%M")
+                date_value = format_display_date(datetime.fromisoformat(date_value), with_time=True)
             except (TypeError, ValueError):
                 date_value = str(date_value or "?")
             ttk.Label(card, text=date_value, style="Card.TLabel",
@@ -11178,7 +11625,7 @@ class RecipeFormWindow(tk.Toplevel):
             else:
                 seen_keys.add(key)
         if duplicate_names:
-            duplicate_display = ", ".join(translate_ingredient_name(n) for n in duplicate_names)
+            duplicate_display = list_join(translate_ingredient_name(n) for n in duplicate_names)
             choice = ask_merge_duplicate_ingredients(self, duplicate_display)
             if choice is None:
                 return
@@ -12049,7 +12496,7 @@ class TrashWindow(tk.Toplevel):
             recipe = entry.get("recipe", {})
             try:
                 deleted_at = datetime.fromisoformat(entry.get("deleted_at", ""))
-                date_display = deleted_at.strftime("%d/%m/%Y à %H:%M")
+                date_display = format_display_date(deleted_at, with_time=True)
             except ValueError:
                 date_display = t("trash_unknown_date")
             self.listbox.insert(
@@ -12512,7 +12959,7 @@ class ManageSubstitutionsWindow(tk.Toplevel):
             return
         for name in self.displayed_names:
             count = len(get_ingredient_substitutions(name))
-            plural = "s" if count > 1 else ""
+            plural = "s" if count > 1 and CURRENT_LANGUAGE != "zh" else ""
             self.listbox.insert(
                 tk.END, t("managesub_substitute_count", name=translate_ingredient_name(name), count=count, plural=plural)
             )
@@ -14383,7 +14830,7 @@ class ImportExportWindow(tk.Toplevel):
             mtime = datetime.fromtimestamp(os.path.getmtime(path))
             size_kb = os.path.getsize(path) / 1024
             self.backup_listbox.insert(
-                tk.END, t("importexport_backup_date_line", date=mtime.strftime('%d/%m/%Y à %H:%M'), size=f"{size_kb:.0f}")
+                tk.END, t("importexport_backup_date_line", date=format_display_date(mtime, with_time=True), size=f"{size_kb:.0f}")
             )
         if not self.backups:
             self.backup_listbox.insert(tk.END, t("importexport_no_backups"))
@@ -14652,7 +15099,7 @@ class DiagnosticWindow(tk.Toplevel):
             size_text = f"{total_size / 1024:.0f} Ko"
         backups = list_auto_backups()
         if backups:
-            last_backup = datetime.fromtimestamp(os.path.getmtime(backups[0])).strftime("%d/%m/%Y %H:%M")
+            last_backup = format_display_date(datetime.fromtimestamp(os.path.getmtime(backups[0])), with_time=True)
         else:
             last_backup = t("diagnostic_never")
         tess_status = current_tesseract_status()
@@ -16506,7 +16953,7 @@ class OneRecipeWindow(tk.Toplevel):
 
         allergens = recipe.get("allergens") or []
         if allergens:
-            self.result_text.insert(tk.END, t("onerecipe_allergens_label", list=", ".join(translate_allergen_name(a) for a in allergens)) + "\n\n")
+            self.result_text.insert(tk.END, t("onerecipe_allergens_label", list=list_join(translate_allergen_name(a) for a in allergens)) + "\n\n")
 
         for ing in recipe["ingredients"]:
             qty = ingredient_quantity_for_persons(ing, persons)
@@ -16571,7 +17018,7 @@ class OneRecipeWindow(tk.Toplevel):
             )
             date_value = latest.get("date", "")
             try:
-                date_value = datetime.fromisoformat(date_value).strftime("%d/%m/%Y à %H:%M")
+                date_value = format_display_date(datetime.fromisoformat(date_value), with_time=True)
             except (TypeError, ValueError):
                 date_value = str(date_value or "?")
             self.description_result_text.insert(
@@ -16976,6 +17423,23 @@ class CookingModeWindow(tk.Toplevel):
             seconds = int(match.group(2) or match.group(1)) * factor
             if seconds > 0:
                 result.append((match.group(0), seconds))
+        # Chinois : pas de limite de mot entre un chiffre et un caractère
+        # chinois, chiffres arabes ou chinois, plage « 10到15分钟 », « 半小时 ».
+        if re.search(r"[\u4e00-\u9fff]", text):
+            number = r"[0-9]+|[零〇一二两三四五六七八九十]+"
+            zh_pattern = (rf"(?<![0-9])({number})(?:\s*(?:[-–~～到至])\s*({number}))?\s*"
+                          r"(个半小时|个小时|小时|分钟|分|秒钟|秒)")
+            for match in re.finditer(zh_pattern, text):
+                unit = match.group(3)
+                value = chinese_number(match.group(2) or match.group(1))
+                if value is None:
+                    continue
+                factor = 3600 if "小时" in unit else 1 if unit.startswith("秒") else 60
+                seconds = int((value + (0.5 if unit == "个半小时" else 0)) * factor)
+                if seconds > 0:
+                    result.append((match.group(0), seconds))
+            for match in re.finditer(r"(?<![0-9零〇一二两三四五六七八九十个])半(?:个)?小时", text):
+                result.append((match.group(0), 1800))
         return result
 
     def remove_timer(self, row):
@@ -17099,6 +17563,9 @@ class CookingModeWindow(tk.Toplevel):
             try:
                 engine = pyttsx3.init()
                 engine.setProperty("volume", self.speech_volume)
+                voice_id = pick_tts_voice_id(engine.getProperty("voices"), CURRENT_LANGUAGE, text)
+                if voice_id:
+                    engine.setProperty("voice", voice_id)
                 self.tts_engine = engine
                 if not stop_event.is_set():
                     engine.say(text)
@@ -17857,7 +18324,7 @@ class CookLogWindow(tk.Toplevel):
                                    highlightthickness=1)
             entry_card.pack(fill="x", pady=gs(6), padx=gs(2))
             try:
-                date_display = datetime.fromisoformat(entry["date"]).strftime("%d/%m/%Y")
+                date_display = format_display_date(datetime.fromisoformat(entry["date"]))
             except (KeyError, ValueError, TypeError):
                 date_display = entry.get("date", "?")
             ttk.Label(entry_card, text=date_display, font=("Segoe UI", sf(10), "bold"),
@@ -18908,7 +19375,7 @@ class PantryWindow(tk.Toplevel):
         for b in (self.move_up_button,self.move_down_button): b.state(["!disabled"] if manual else ["disabled"])
         self.pantry_entries_ordered=entries; self._entry_by_iid={}; self._key_by_iid={}
         for i,e in enumerate(entries):
-            iid=str(i); self._entry_by_iid[iid]=e; self._key_by_iid[iid]=key_of[id(e)]; qty=e.get("quantity",0); qtytxt=str(int(qty)) if isinstance(qty,(int,float)) and float(qty).is_integer() else str(round(float(qty),2)); unit=translate_unit_name(e.get("unit","")); thr=e.get("threshold"); thrtxt="—" if thr is None else str(thr); expiry=parse_pantry_expiration(e.get("expiration_date")); exptxt=expiry.strftime("%d/%m/%Y") if expiry else "—"; status=self._status_for(e)[1]; section=translate_rayon_name(get_ingredient_rayon(e.get("name","")))
+            iid=str(i); self._entry_by_iid[iid]=e; self._key_by_iid[iid]=key_of[id(e)]; qty=e.get("quantity",0); qtytxt=str(int(qty)) if isinstance(qty,(int,float)) and float(qty).is_integer() else str(round(float(qty),2)); unit=translate_unit_name(e.get("unit","")); thr=e.get("threshold"); thrtxt="—" if thr is None else str(thr); expiry=parse_pantry_expiration(e.get("expiration_date")); exptxt=format_display_date(expiry) if expiry else "—"; status=self._status_for(e)[1]; section=translate_rayon_name(get_ingredient_rayon(e.get("name","")))
             self.tree.insert("","end",iid=iid,values=(translate_ingredient_name(e.get("name","")).capitalize(),f"{qtytxt} {unit}".strip(),thrtxt,exptxt,status,section))
     def open_barcode_dialog(self):
         """Code saisi, tapé par une douchette USB (agit comme un clavier) ou lu
@@ -19009,8 +19476,8 @@ class PantryWindow(tk.Toplevel):
             messagebox.showerror(t("common_module_missing"),t("importphoto_ocr_tesseract_missing_detail"),parent=self); return
         if value is None:
             messagebox.showwarning(t("pantry_expiration_photo_title"),t("pantry_expiration_photo_none"),parent=self); return
-        self.expiration_entry.delete(0,tk.END); self.expiration_entry.insert(0,value.strftime("%d/%m/%Y"))
-        messagebox.showinfo(t("pantry_expiration_photo_title"),t("pantry_expiration_photo_found",date=value.strftime("%d/%m/%Y")),parent=self)
+        self.expiration_entry.delete(0,tk.END); self.expiration_entry.insert(0,format_display_date(value))
+        messagebox.showinfo(t("pantry_expiration_photo_title"),t("pantry_expiration_photo_found",date=format_display_date(value)),parent=self)
     def _is_manual_sort(self):
         return self.sort_combo.get()==t("pantry_sort_manual")
     def _save_manual_order(self):
@@ -19073,7 +19540,7 @@ class PantryWindow(tk.Toplevel):
             self.expiration_entry.delete(0, tk.END)
             expiry = parse_pantry_expiration(entry.get("expiration_date"))
             if expiry:
-                self.expiration_entry.insert(0, expiry.strftime("%d/%m/%Y"))
+                self.expiration_entry.insert(0, format_display_date(expiry))
 
     def _load_selected_for_edit(self):
         sel = self.tree.selection()
@@ -19093,7 +19560,7 @@ class PantryWindow(tk.Toplevel):
         self.expiration_entry.delete(0, tk.END)
         expiry = parse_pantry_expiration(entry.get("expiration_date"))
         if expiry:
-            self.expiration_entry.insert(0, expiry.strftime("%d/%m/%Y"))
+            self.expiration_entry.insert(0, format_display_date(expiry))
 
     # ---- Autocomplétion du champ ingrédient (même principe que les autres
     # listes déroulantes d'ingrédients de l'application) ----
@@ -19264,7 +19731,7 @@ class UseSoonRecipesWindow(tk.Toplevel):
         self.grab_set()
 
         ttk.Label(self, text=t("use_soon_heading"), font=("Segoe UI", sf(14), "bold")).pack(pady=(gs(15), gs(5)))
-        names = ", ".join(translate_ingredient_name(e.get("name", "")).capitalize() for e in self.items)
+        names = list_join(translate_ingredient_name(e.get("name", "")).capitalize() for e in self.items)
         ttk.Label(self, text=t("use_soon_intro", names=names), foreground=COLOR_TEXT_MUTED,
                   justify="center", wraplength=680).pack(padx=gs(20), pady=(0, gs(12)))
 
@@ -19301,7 +19768,7 @@ class UseSoonRecipesWindow(tk.Toplevel):
         for _, _, recipe, used, missing in scored:
             iid = self.tree.insert("", "end", values=(
                 recipe.get("name", ""),
-                ", ".join(translate_ingredient_name(e.get("name", "")).capitalize() for e in used),
+                list_join(translate_ingredient_name(e.get("name", "")).capitalize() for e in used),
                 len(missing),
             ))
             self.recipe_by_iid[iid] = recipe.get("name")
@@ -19570,7 +20037,7 @@ class WhatCanICookWindow(tk.Toplevel):
                         ) == "insuffisant"
                     ]
                     if insufficient:
-                        warning = t("cook_insufficient_quantity", list=", ".join(insufficient))
+                        warning = t("cook_insufficient_quantity", list=list_join(insufficient))
                 add_result(
                     f"   {star}{recipe['name']}{warning}",
                     recipe_name=recipe["name"]
@@ -19583,7 +20050,7 @@ class WhatCanICookWindow(tk.Toplevel):
             add_header(t("cook_substitutable_header"))
             for recipe, missing, subs_used, coverage in sorted(
                     substitutable, key=lambda pair: ingredient_sort_key(pair[0]["name"])):
-                details = ", ".join(
+                details = list_join(
                     f"{translate_ingredient_name(m).capitalize()} → {translate_ingredient_name(subs_used[m])}"
                     for m in missing
                 )
@@ -19597,7 +20064,7 @@ class WhatCanICookWindow(tk.Toplevel):
             add_header(t("cook_almost_header"))
             for recipe, missing, coverage in sorted(
                     almost, key=lambda pair: (len(pair[1]), -pair[2], ingredient_sort_key(pair[0]["name"]))):
-                missing_display = ", ".join(
+                missing_display = list_join(
                     translate_ingredient_name(m).capitalize() for m in missing
                 )
                 pct = int(round(coverage * 100))
@@ -20813,16 +21280,20 @@ RECIPE_SEARCH_SITES = {
     "en": ("allrecipes.com", "bbcgoodfood.com", "seriouseats.com", "simplyrecipes.com", "foodnetwork.com", "epicurious.com"),
     "es": ("recetasderechupete.com", "directoalpaladar.com", "javirecetas.com", "hogarmania.com", "cocina-casera.com", "divinacocina.es"),
     "de": ("chefkoch.de", "lecker.de", "einfachbacken.de", "gutekueche.at", "essen-und-trinken.de", "kochbar.de"),
+    # 下厨房 (xiachufang) bloque les requêtes de l'app (vérification anti-robot) :
+    # seul 美食天下, dont l'import a été vérifié, sert de filtre de recherche.
+    "zh": ("meishichina.com",),
 }
 RECIPE_SEARCH_WORD = {"fr": "recette", "en": "recipe", "es": "receta", "de": "Rezept", "it": "ricetta",
-                      "pt": "receita", "id": "resep", "no": "oppskrift", "sv": "recept"}
+                      "pt": "receita", "id": "resep", "no": "oppskrift", "sv": "recept", "zh": "做法"}
 # Sites testés à l'import (2 recettes chacun) + racines du mot « recette »
 # dans les 9 langues : un lien copié n'est proposé à l'import que s'il
 # ressemble à une recette, pas pour chaque adresse copiée.
 KNOWN_RECIPE_DOMAINS = frozenset(d for sites in RECIPE_SEARCH_SITES.values() for d in sites) | {
     "pinchofyum.com", "tasty.co", "bonappetit.com", "deliciousmartha.com", "bettybossi.ch", "clemfoodie.com",
     "hervecuisine.com", "lacuisinedebernard.com", "mesrecettesfaciles.fr", "emmikochteinfach.de",
-    "einfachkochen.de", "familienkost.de", "elespanol.com", "elpais.com", "gastronomiaycia.republica.com"}
+    "einfachkochen.de", "familienkost.de", "elespanol.com", "elpais.com", "gastronomiaycia.republica.com",
+    "xiachufang.com"}
 RECIPE_URL_HINTS = ("recette", "recipe", "recet", "rezept", "ricett", "receit", "resep", "oppskrift", "recept")
 
 
@@ -21656,7 +22127,7 @@ class ImportFromPhotoWindow(tk.Toplevel):
             self.text_box.insert("1.0", "\n\n".join(chunks))
             warnings = parse_photo_ocr_recipe("\n\n".join(chunks)).get("ocr_warnings", [])
             if warnings:
-                self.status_label.config(text=t("importphoto_uncertain_quantities", names=", ".join(warnings)))
+                self.status_label.config(text=t("importphoto_uncertain_quantities", names=list_join(warnings)))
         else:
             messagebox.showinfo(
                 t("common_info"), t("importphoto_no_text_extracted"),

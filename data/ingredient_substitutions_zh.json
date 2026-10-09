@@ -1,0 +1,9116 @@
+{
+"beurre": [
+{
+"nom": "人造黄油",
+"note": "用量相同，效果非常接近。"
+},
+{
+"nom": "植物油",
+"note": "用量减少约25%。"
+},
+{
+"nom": "苹果泥",
+"note": "用于蛋糕，做出更清淡的版本。"
+},
+{
+"nom": "低脂黄油",
+"note": "低脂版，适合不那么油腻的烹调或涂抹。"
+}
+],
+"oeufs": [
+{
+"nom": "苹果泥",
+"note": "蛋糕中每个鸡蛋约用60克苹果泥代替。"
+},
+{
+"nom": "亚麻籽",
+"note": "每个鸡蛋用1汤匙磨碎的籽加3汤匙水，静置5分钟待其膨胀。"
+}
+],
+"lait": [
+{
+"nom": "杏仁奶",
+"note": "味道更中性，稍稀一些。"
+},
+{
+"nom": "豆浆",
+"note": "烹饪和饮用都是不错的替代品。"
+},
+{
+"nom": "燕麦奶",
+"note": "天然带一点甜味。"
+}
+],
+"crème fraîche épaisse": [
+{
+"nom": "希腊酸奶",
+"note": "更清淡，脂肪更少。"
+},
+{
+"nom": "椰浆",
+"note": "适合无乳糖版本，带一点椰子味。"
+}
+],
+"farine": [
+{
+"nom": "米粉",
+"note": "适合无麸质版本。"
+},
+{
+"nom": "玉米淀粉（Maïzena）",
+"note": "用于勾芡酱汁；不能代替面粉让蛋糕膨发。"
+},
+{
+"nom": "杏仁粉",
+"note": "口感和味道会改变，更紧实、更浓郁。"
+}
+],
+"sucre": [
+{
+"nom": "蜂蜜",
+"note": "稍减少配方中的液体（蜂蜜含水分）。"
+},
+{
+"nom": "枫糖浆",
+"note": "味道更浓，稍减少配方中的液体。"
+},
+{
+"nom": "红糖",
+"note": "焦糖味更重，用量相同。"
+}
+],
+"levure chimique": [
+{
+"nom": "小苏打",
+"note": "需搭配酸性食材（醋、柠檬汁）才能起作用。"
+}
+],
+"vin blanc": [
+{
+"nom": "蔬菜高汤",
+"note": "加少许柠檬汁以补回葡萄酒的酸味。"
+}
+],
+"vin rouge": [
+{
+"nom": "牛肉高汤",
+"note": "加少许香醋补充酸味和颜色。"
+}
+],
+"huile d'olive": [
+{
+"nom": "葵花籽油",
+"note": "味道更中性。"
+},
+{
+"nom": "菜籽油",
+"note": "富含Omega-3，味道中性。"
+},
+{
+"nom": "初榨橄榄油，未过滤",
+"note": "未过滤初榨版，味道更粗犷，略带浑浊，最适合生食。"
+}
+],
+"yaourt nature": [
+{
+"nom": "白奶酪",
+"note": "稍紧实，酸味略淡。"
+},
+{
+"nom": "低脂法式浓稠酸奶油",
+"note": "更浓郁，用量略减。"
+}
+],
+"parmesan": [
+{
+"nom": "佩科里诺奶酪",
+"note": "味道更咸、更浓。"
+},
+{
+"nom": "麦芽酵母",
+"note": "适合纯素版本，带来相似的鲜味。"
+}
+],
+"chapelure": [
+{
+"nom": "燕麦片",
+"note": "使用前粗略打碎。"
+},
+{
+"nom": "面包干",
+"note": "捏成细碎。"
+}
+],
+"moutarde": [
+{
+"nom": "辣根",
+"note": "更辣，请谨慎控制用量。"
+},
+{
+"nom": "姜黄",
+"note": "搭配少许醋以补回酸味。"
+}
+],
+"ail": [
+{
+"nom": "大蒜粉",
+"note": "每瓣新鲜大蒜约用1/8茶匙。"
+},
+{
+"nom": "红葱头",
+"note": "味道更柔和、更甜。"
+}
+],
+"oignon": [
+{
+"nom": "红葱头",
+"note": "味道更柔和，熟得更快。"
+},
+{
+"nom": "韭葱",
+"note": "使用葱白部分，味道更细腻。"
+}
+],
+"citron": [
+{
+"nom": "白醋",
+"note": "仅提供酸味，没有柑橘香。"
+},
+{
+"nom": "青柠",
+"note": "味道稍更鲜明。"
+}
+],
+"vinaigre balsamique": [
+{
+"nom": "红葡萄酒醋",
+"note": "加一小撮糖以补回微甜口感。"
+}
+],
+"cube de bouillon": [
+{
+"nom": "脱水蔬菜高汤",
+"note": "用法相同，通常不那么咸。"
+},
+{
+"nom": "酱油",
+"note": "用水稀释，带来咸味和鲜味。"
+}
+],
+"crème liquide entière": [
+{
+"nom": "无糖炼乳",
+"note": "稍欠浓郁，但口感接近。"
+},
+{
+"nom": "椰浆",
+"note": "适合无乳糖版本。"
+}
+],
+"mascarpone": [
+{
+"nom": "鲜奶酪",
+"note": "与少许法式浓稠酸奶油混合，增加浓郁度。"
+}
+],
+"chocolat noir": [
+{
+"nom": "可可粉",
+"note": "与黄油和糖混合，得到相近的口感。"
+}
+],
+"amandes": [
+{
+"nom": "榛子",
+"note": "味道更浓。"
+},
+{
+"nom": "腰果",
+"note": "味道更柔和、更绵滑。"
+}
+],
+"riz": [
+{
+"nom": "藜麦",
+"note": "蛋白质更丰富，口感略有不同。"
+},
+{
+"nom": "布格麦",
+"note": "烹调时间更短。"
+}
+],
+"pâtes": [
+{
+"nom": "大米",
+"note": "适合无麸质版本。"
+},
+{
+"nom": "米粉（米线）",
+"note": "适合无麸质版本，熟得更快。"
+}
+],
+"sucre vanillé": [
+{
+"nom": "香草精",
+"note": "几滴即可，加入普通糖中使用。"
+}
+],
+"miel": [
+{
+"nom": "枫糖浆",
+"note": "味道不同，但口感接近。"
+},
+{
+"nom": "糖",
+"note": "多加少许液体弥补（蜂蜜含水分）。"
+}
+],
+"fromage blanc": [
+{
+"nom": "原味酸奶",
+"note": "稍稀一些。"
+}
+],
+"sauce soja": [
+{
+"nom": "溜酱油（tamari）",
+"note": "适合无麸质版本，味道非常接近。"
+},
+{
+"nom": "盐",
+"note": "用少量水稀释；鲜味会减弱。"
+}
+],
+"navets, crus": [
+{
+"nom": "芜菁甘蓝，去皮，生",
+"note": "芜菁和瑞典芜菁在炖菜和菜泥中可等量互换。"
+}
+],
+"chou-fleur, cru": [
+{
+"nom": "西兰花，生",
+"note": "花椰菜和西兰花在大多数菜谱中可等量互换（焗菜、炒菜、菜花/西兰花米）。"
+}
+],
+"chou rouge, cru": [
+{
+"nom": "绿甘蓝，生",
+"note": "紫甘蓝和绿卷心菜可等量互换，菜品颜色会改变。"
+}
+],
+"oignons rouges, crus": [
+{
+"nom": "黄洋葱，生",
+"note": "红洋葱可用黄洋葱等量代替，味道稍不那么甜。"
+}
+],
+"oignons blancs, crus": [
+{
+"nom": "黄洋葱，生",
+"note": "白洋葱和黄洋葱可等量互换。"
+}
+],
+"laitue iceberg, crue": [
+{
+"nom": "罗马生菜，生",
+"note": "球生菜和罗马生菜在沙拉中可互换，罗马生菜更脆、更有营养。"
+}
+],
+"laitue, feuille rouge, crue": [
+{
+"nom": "绿叶生菜，生",
+"note": "红叶生菜和绿叶生菜在沙拉中可等量互换。"
+}
+],
+"poivrons rouges, crus": [
+{
+"nom": "青甜椒，生",
+"note": "红甜椒可用青甜椒等量代替，味道更苦、不那么甜。"
+}
+],
+"poivrons jaunes, crus": [
+{
+"nom": "橙甜椒，生",
+"note": "黄甜椒和橙甜椒可等量互换（甜度相同）。"
+}
+],
+"champignons de paris, blancs": [
+{
+"nom": "褐色蘑菇（克里米尼）",
+"note": "白蘑菇可用褐蘑菇（克里米尼）等量代替，味道更浓。"
+}
+],
+"champignon de paris brun (crimini)": [
+{
+"nom": "波多贝罗大蘑菇",
+"note": "褐蘑菇（克里米尼）和波托贝洛是同一品种的不同成熟度，可互换（波托贝洛更厚实）。"
+}
+],
+"champignons, shiitake": [
+{
+"nom": "波多贝罗大蘑菇",
+"note": "炒菜中香菇可用波托贝洛等量代替，口感同样厚实。"
+}
+],
+"champignon, enoki": [
+{
+"nom": "白蘑菇（双孢菇）",
+"note": "没有金针菇时可用白蘑菇代替，口感不那么脆。"
+}
+],
+"champignon, shimeji": [
+{
+"nom": "白蘑菇（双孢菇）",
+"note": "蟹味菇可用白蘑菇等量代替。"
+}
+],
+"champignon, pleurote": [
+{
+"nom": "香菇（Shiitake）",
+"note": "炒菜和汤中平菇可用香菇等量代替。"
+}
+],
+"chou frisé (kale), cru": [
+{
+"nom": "宽叶羽衣甘蓝，生",
+"note": "炖菜中羽衣甘蓝和羽衣甘蓝（collard）可等量互换。"
+}
+],
+"melon cantaloup, cru": [
+{
+"nom": "蜜瓜，生",
+"note": "水果沙拉中哈密瓜和蜜瓜可等量互换。"
+}
+],
+"pommes de terre rouges, sans peau, crues": [
+{
+"nom": "赤褐土豆（Russet），去皮，生",
+"note": "红皮土豆可用褐皮土豆（Russet）代替，更粉（更适合做土豆泥/薯条）。"
+}
+],
+"pommes de terre à chair dorée, sans peau, crues": [
+{
+"nom": "红皮土豆，去皮，生",
+"note": "黄心土豆可用红皮土豆代替，口感接近且紧实。"
+}
+],
+"pommes fuji avec peau, crues": [
+{
+"nom": "带皮嘎啦苹果，生",
+"note": "富士苹果和嘎啦苹果可等量互换，都香甜脆实。"
+}
+],
+"pommes granny smith avec peau, crues": [
+{
+"nom": "带皮蛇果（Red Delicious），生",
+"note": "青苹果（Granny Smith）可用红元帅苹果代替，但酸味较淡（烘焙时调整糖量）。"
+}
+],
+"pommes honeycrisp avec peau, crues": [
+{
+"nom": "带皮嘎啦苹果，生",
+"note": "蜜脆苹果（Honeycrisp）可用嘎啦苹果等量代替，汁水稍少。"
+}
+],
+"mangue ataulfo, pelée, crue": [
+{
+"nom": "汤米芒果，去皮，生",
+"note": "阿陶尔福芒果可用汤米阿特金斯芒果等量代替，纤维稍多。"
+}
+],
+"piments jalapeño, épépinés, crus": [
+{
+"nom": "塞拉诺辣椒，去籽，生",
+"note": "墨西哥辣椒（jalapeño）和塞拉诺辣椒可互换；塞拉诺更辣，用量稍减。"
+}
+],
+"piments poblano, épépinés, crus": [
+{
+"nom": "墨西哥青辣椒，去籽，生",
+"note": "波布拉诺辣椒可用墨西哥辣椒代替，用量减半（波布拉诺温和得多）。"
+}
+],
+"piments banane (ou cire hongrois), épépinés, crus": [
+{
+"nom": "墨西哥青辣椒，去籽，生",
+"note": "香蕉椒（匈牙利蜡椒）可用墨西哥辣椒代替，辣椒味较温和，可多用一些。"
+}
+],
+"haricots cannellini, secs": [
+{
+"nom": "海军豆，干（含水量 0%）",
+"note": "汤和沙拉中白腰豆（cannellini）和海军豆可等量互换。"
+}
+],
+"haricots noirs, secs (0 % d'humidité)": [
+{
+"nom": "斑豆，干（含水量 0%）",
+"note": "墨西哥菜/辣豆汤中黑豆和斑豆可等量互换。"
+}
+],
+"beurre de cacahuète, onctueux": [
+{
+"nom": "杏仁酱，顺滑型",
+"note": "花生酱可用杏仁酱等量代替（无花生选择），味道更柔和。"
+}
+],
+"beurre de sésame (tahini), onctueux": [
+{
+"nom": "杏仁酱，顺滑型",
+"note": "芝麻酱（tahini）可用杏仁酱等量代替，苦味更淡（鹰嘴豆泥除外）。"
+}
+],
+"figues séchées, non cuites": [
+{
+"nom": "西梅干，未烹调",
+"note": "烘焙/果泥中无花果干和西梅干可等量互换。"
+}
+],
+"raisins secs foncés, sans pépins": [
+{
+"nom": "金色无籽葡萄干（苏丹娜）",
+"note": "深色葡萄干和金色葡萄干（苏丹娜）可等量互换，金色的味道稍柔和。"
+}
+],
+"graines de courge (pepitas), crues": [
+{
+"nom": "松子，生",
+"note": "南瓜籽（pepitas）作配料（青酱、沙拉）时可用松子等量代替。"
+}
+],
+"huile de maïs": [
+{
+"nom": "菜籽油（芥花油）",
+"note": "玉米油可用菜籽油等量代替，同样味道中性。"
+},
+{
+"nom": "玉米胚芽油",
+"note": "玉米胚芽油，味道非常接近，可代替普通玉米油。"
+}
+],
+"huile de carthame": [
+{
+"nom": "葵花籽油",
+"note": "红花油可用葵花籽油等量代替，同样味道中性。"
+}
+],
+"huile d'arachide": [
+{
+"nom": "菜籽油（芥花油）",
+"note": "过敏时油炸用的花生油可用菜籽油代替，烟点相近。"
+}
+],
+"échalote, bulbe, pelée, sans racine, crue": [
+{
+"nom": "黄洋葱",
+"note": "黄洋葱等量代替，味道更柔和、更甜"
+}
+],
+"courge d'été, jaune, avec peau, crue": [
+{
+"nom": "带皮西葫芦，生",
+"note": "西葫芦和黄色夏南瓜可等量互换"
+}
+],
+"fonio, grain, sec, cru": [
+{
+"nom": "藜麦，生",
+"note": "古老谷物可用生藜麦代替，烹调时间相近"
+}
+],
+"engrain (petit épeautre), grain, sec, cru": [
+{
+"nom": "法罗麦，去壳，干，生",
+"note": "古老小麦可用珍珠法罗麦代替，口感同样紧实"
+}
+],
+"blé khorasan (kamut), grain, sec, cru": [
+{
+"nom": "法罗麦，去壳，干，生",
+"note": "卡姆小麦可用法罗麦代替，同属古老小麦"
+}
+],
+"riz noir, non enrichi, cru": [
+{
+"nom": "长粒糙米，未强化，生",
+"note": "黑米可用糙米等量代替，颜色不同"
+}
+],
+"riz rouge, non enrichi, sec, cru": [
+{
+"nom": "长粒糙米，未强化，生",
+"note": "红米可用糙米等量代替"
+}
+],
+"riz brun, grain long, non enrichi, cru": [
+{
+"nom": "长粒白米，未强化，生",
+"note": "糙米可用白米代替，缩短烹调时间"
+}
+],
+"sorgho blanc, grain entier, sec, cru": [
+{
+"nom": "长粒糙米，未强化，生",
+"note": "谷物碗中高粱粒可用糙米代替"
+}
+],
+"pâtes, spaghetti, sèches, enrichies": [
+{
+"nom": "全麦意大利细面，干",
+"note": "普通意大利面和全麦意大利面可等量互换"
+}
+],
+"farine à pâtisserie, non enrichie, non blanchie": [
+{
+"nom": "通用小麦粉，强化，漂白",
+"note": "可用通用面粉代替低筋糕点粉；想更松软时，每杯面粉中用2汤匙玉米淀粉替换"
+}
+],
+"haricots cuits au four, en conserve, végétariens": [
+{
+"nom": "焗豆，原味，罐装，含猪肉",
+"note": "用含猪肉版本代替素食版本，烟熏味更浓"
+}
+],
+"haricots à oeil noir (cornille), en conserve, sel ajouté, égouttés et rincés": [
+{
+"nom": "斑豆，罐装，加盐，沥干冲洗",
+"note": "黑眼豆可用斑豆代替，口感接近"
+}
+],
+"haricots noirs, en conserve, sel ajouté, égouttés et rincés": [
+{
+"nom": "斑豆，罐装，加盐，沥干冲洗",
+"note": "墨西哥菜中黑豆和斑豆可互换"
+}
+],
+"haricots blancs (navy), en conserve, sel ajouté, égouttés et rincés": [
+{
+"nom": "白腰豆，罐装，加盐，沥干冲洗",
+"note": "海军豆可用白腰豆（cannellini）等量代替"
+}
+],
+"haricots great northern (blancs), en conserve, sel ajouté, égouttés et rincés": [
+{
+"nom": "白腰豆，罐装，加盐，沥干冲洗",
+"note": "大北豆和白腰豆是两种可互换的白豆"
+}
+],
+"huile d'olive, extra légère": [
+{
+"nom": "特级初榨橄榄油",
+"note": "特级初榨味道更浓；特淡型更适合高温烹调"
+}
+],
+"vinaigre de cidre": [
+{
+"nom": "白葡萄酒醋",
+"note": "油醋汁中用白葡萄酒醋等量代替以提供酸味"
+}
+],
+"safran": [
+{
+"nom": "姜黄粉",
+"note": "姜黄粉可作经济的上色替代品；用量减半，味道不同"
+}
+],
+"beurre, en plaquette, salé": [
+{
+"nom": "黄油块，无盐",
+"note": "无盐黄油，每115克约加1/4茶匙盐"
+}
+],
+"beurre, en plaquette, non salé": [
+{
+"nom": "黄油块，含盐",
+"note": "含盐黄油，去掉配方中额外加的盐"
+}
+],
+"crème aigre, entière": [
+{
+"nom": "原味希腊酸奶，脱脂",
+"note": "原味希腊酸奶等量代替酸奶油，脂肪更少"
+}
+],
+"babeurre, faible en matières grasses": [
+{
+"nom": "牛奶＋柠檬汁或醋",
+"note": "每杯牛奶加1汤匙柠檬汁或醋，静置5-10分钟"
+}
+],
+"oeuf entier, séché": [
+{
+"nom": "鸡蛋，A 级，大号，全蛋",
+"note": "新鲜全蛋代替复水干蛋粉（按复水比例换算）"
+}
+],
+"jaune d'oeuf, séché": [
+{
+"nom": "鸡蛋，A 级，大号，蛋黄",
+"note": "新鲜蛋黄代替复水干蛋黄"
+}
+],
+"blanc d'oeuf, séché": [
+{
+"nom": "鸡蛋，A 级，大号，蛋白",
+"note": "新鲜蛋白代替复水干蛋白"
+}
+],
+"lieu de l'alaska, cru": [
+{
+"nom": "黑线鳕，生",
+"note": "低脂白鱼可互换（阿拉斯加狭鳕和黑线鳕）"
+}
+],
+"poisson, lieu noir, cru": [
+{
+"nom": "大西洋鳕鱼，野生捕捞，生",
+"note": "绿青鳕可用鳕鱼代替，同为相近的白鱼"
+}
+],
+"flétan, surgelé, pêche sauvage": [
+{
+"nom": "笛鲷，冷冻，野生捕捞",
+"note": "肉质紧实的白鱼柳在烤或煎时可互换"
+}
+],
+"espadon, surgelé, pêche sauvage": [
+{
+"nom": "鲯鳅鱼，冷冻，野生捕捞",
+"note": "剑鱼和鬼头刀都是适合做鱼排的紧实鱼类，可互换"
+}
+],
+"bar chilien (légine), surgelé, pêche sauvage": [
+{
+"nom": "比目鱼，冷冻，野生捕捞",
+"note": "智利海鲈（犬牙鱼）可用大比目鱼代替，口感同样紧实、细腻"
+}
+],
+"saumon rouge (sockeye), pêche sauvage, cru": [
+{
+"nom": "大西洋鲑鱼，养殖，生",
+"note": "红鲑和大西洋鲑可互换，后者更肥"
+}
+],
+"tilapia, élevage, cru": [
+{
+"nom": "鲶鱼，养殖，生",
+"note": "罗非鱼和鲶鱼都是味道温和的养殖鱼，可互换"
+}
+],
+"crabe des neiges, pattes uniquement, surgelé": [
+{
+"nom": "蓝蟹，块状蟹肉，巴氏杀菌，冷藏",
+"note": "大多数菜谱中雪蟹和蓝蟹可互换"
+}
+],
+"fromage suisse (type emmental)": [
+{
+"nom": "格吕耶尔奶酪",
+"note": "用格吕耶尔代替埃门塔尔，坚果风味接近"
+}
+],
+"fromage cheddar": [
+{
+"nom": "瑞士奶酪（埃曼塔尔型）",
+"note": "用瑞士奶酪（埃门塔尔）代替切达，融化后更温和"
+}
+],
+"fromage oaxaca, en bloc": [
+{
+"nom": "马苏里拉奶酪，低水分，部分脱脂",
+"note": "用低水分马苏里拉代替瓦哈卡奶酪，融化效果接近"
+}
+],
+"fromage cotija, en bloc": [
+{
+"nom": "帕玛森奶酪，擦碎",
+"note": "用帕玛森奶酪碎代替科蒂哈奶酪作咸味配料"
+}
+],
+"fromage queso fresco, en bloc": [
+{
+"nom": "菲达奶酪，全脂奶，碎块",
+"note": "用菲达奶酪碎代替墨西哥鲜奶酪，同样易碎带咸味"
+}
+],
+"fromage sec blanc (queso seco)": [
+{
+"nom": "科蒂哈奶酪，块装",
+"note": "干奶酪（queso seco）可用科蒂哈代替，同为干咸奶酪"
+}
+],
+"fromage monterey jack, en bloc": [
+{
+"nom": "马苏里拉奶酪，低水分，部分脱脂",
+"note": "用马苏里拉代替蒙特雷杰克，融化后同样温和"
+}
+],
+"provolone, en tranches": [
+{
+"nom": "瑞士奶酪（埃曼塔尔型）",
+"note": "用瑞士奶酪（埃门塔尔）代替波萝伏洛，半硬质融化效果接近"
+}
+],
+"ricotta, au lait entier": [
+{
+"nom": "茅屋奶酪，全脂，大颗粒或小颗粒",
+"note": "用打碎的茅屋奶酪代替里科塔，口感接近"
+}
+],
+"fromage américain, restauration": [
+{
+"nom": "切达干酪",
+"note": "汉堡和三明治中用切达代替美式奶酪"
+}
+],
+"porc haché, cru": [
+{
+"nom": "牛肉末，90% 瘦肉 / 10% 脂肪，生",
+"note": "牛肉末等量代替猪肉末"
+}
+],
+"agneau haché, cru": [
+{
+"nom": "牛肉末，90% 瘦肉 / 10% 脂肪，生",
+"note": "牛肉末代替羊肉末，味道较淡"
+}
+],
+"bison haché, cru": [
+{
+"nom": "牛肉末，90% 瘦肉 / 10% 脂肪，生",
+"note": "牛肉末代替野牛肉末，更肥，缩短烹调时间"
+}
+],
+"poulet haché, avec additifs, cru": [
+{
+"nom": "火鸡肉末，93% 瘦肉 / 7% 脂肪，生",
+"note": "火鸡肉末代替鸡肉末，白肉可互换"
+}
+],
+"poulet, blanc (poitrine), chair et peau, cru": [
+{
+"nom": "鸡大腿，肉和皮，生",
+"note": "鸡腿肉代替鸡胸肉，更多汁，调整烹调时间"
+}
+],
+"poulet, blanc, désossé, sans peau, cru": [
+{
+"nom": "鸡大腿，去骨去皮，生",
+"note": "去骨去皮鸡腿肉代替去骨鸡胸肉，更嫩"
+}
+],
+"charcuterie de poulet (blanc), tranchée": [
+{
+"nom": "烤火鸡，切片",
+"note": "烤火鸡切片代替鸡肉冷切"
+}
+],
+"rosbif, tranché, préemballé": [
+{
+"nom": "烤火鸡，切片",
+"note": "烤火鸡切片代替烤牛肉冷切"
+}
+],
+"salami sec, tranché": [
+{
+"nom": "意式辣香肠（牛肉和猪肉），切片",
+"note": "披萨或三明治中用意式辣香肠切片代替干萨拉米"
+}
+],
+"saucisse italienne de porc, douce, cuite à la poêle": [
+{
+"nom": "猪肉西班牙辣香肠，肠衣或碎肉，煎制",
+"note": "用猪肉西班牙辣香肠代替甜味意大利香肠，更辣、更有烟熏味"
+}
+],
+"saucisses de dinde pour petit-déjeuner, douces, crues": [
+{
+"nom": "早餐牛肉香肠，预煮，未加热",
+"note": "早餐用牛肉香肠代替火鸡香肠"
+}
+],
+"lait entier, 3,25% de matières grasses, vitamine d ajoutée": [
+{
+"nom": "脱脂牛奶，添加维生素 A 和 D",
+"note": "脱脂牛奶代替全脂牛奶，口感不那么醇厚"
+}
+],
+"boisson d'avoine, non sucrée, nature, réfrigérée": [
+{
+"nom": "杏仁饮，无糖，原味，常温保存",
+"note": "杏仁饮料代替燕麦饮料，植物奶可互换"
+}
+],
+"lait de soja, non sucré, nature, longue conservation": [
+{
+"nom": "杏仁饮，无糖，原味，常温保存",
+"note": "无糖杏仁饮料代替豆奶，不含乳制品和大豆"
+}
+],
+"tortilla de maïs, longue conservation": [
+{
+"nom": "小麦薄饼，常温保存",
+"note": "小麦薄饼代替玉米薄饼，更软但含麸质"
+}
+],
+"romarin, frais": [
+{
+"nom": "干迷迭香",
+"note": "用干迷迭香代替：用量为1/3（干香草味道更浓缩）"
+}
+],
+"romarin séché": [
+{
+"nom": "迷迭香，新鲜",
+"note": "用新鲜迷迭香代替：用量为3倍"
+}
+],
+"aneth, frais": [
+{
+"nom": "干莳萝",
+"note": "干莳萝用量约为1/3"
+}
+],
+"aneth séché": [
+{
+"nom": "莳萝，新鲜",
+"note": "新鲜莳萝用量为3倍"
+}
+],
+"menthe verte, séchée": [
+{
+"nom": "留兰香，新鲜",
+"note": "新鲜薄荷用量为3倍"
+}
+],
+"menthe verte, fraîche": [
+{
+"nom": "留兰香，干",
+"note": "干薄荷用量约为1/3"
+}
+],
+"menthe poivrée, fraîche": [
+{
+"nom": "留兰香，新鲜",
+"note": "等量的近似替代品，味道稍柔和"
+}
+],
+"persil séché": [
+{
+"nom": "欧芹，新鲜",
+"note": "新鲜欧芹碎用量为3倍"
+}
+],
+"persil, frais": [
+{
+"nom": "干欧芹",
+"note": "干欧芹用量约为1/3"
+}
+],
+"ciboulette, crue": [
+{
+"nom": "冻干细香葱",
+"note": "冻干细香葱用量约为1/3"
+}
+],
+"échalotes, crues": [
+{
+"nom": "冻干红葱头",
+"note": "复水几分钟；用量约为1/3"
+}
+],
+"macis moulu": [
+{
+"nom": "肉豆蔻粉",
+"note": "等量替代，味道非常接近（同一种香料树）"
+}
+],
+"muscade moulue": [
+{
+"nom": "肉豆蔻衣粉",
+"note": "等量替代，味道稍细腻"
+}
+],
+"poivre noir": [
+{
+"nom": "白胡椒",
+"note": "等量替代，味道更柔和，在浅色菜中不那么显眼"
+}
+],
+"gingembre moulu": [
+{
+"nom": "生姜根，生",
+"note": "新鲜姜末用量约为6倍"
+}
+],
+"racine de gingembre, crue": [
+{
+"nom": "姜粉（研磨）",
+"note": "姜粉用量约为1/6"
+}
+],
+"clous de girofle moulus": [
+{
+"nom": "多香果粉",
+"note": "等量替代，多香果带有丁香、肉桂和肉豆蔻的香味"
+}
+],
+"origan séché": [
+{
+"nom": "干马郁兰",
+"note": "等量替代，味道更柔和、略甜"
+}
+],
+"marjolaine séchée": [
+{
+"nom": "干牛至",
+"note": "等量替代，味道更浓"
+}
+],
+"sarriette moulue": [
+{
+"nom": "干百里香",
+"note": "等量替代，香味类型相近"
+}
+],
+"cerfeuil séché": [
+{
+"nom": "干欧芹",
+"note": "等量替代，味道温和，接近欧芹"
+}
+],
+"extrait de vanille, imitation, avec alcool": [
+{
+"nom": "仿香草精，不含酒精",
+"note": "直接等量替代（无酒精版）"
+}
+],
+"extrait de vanille, imitation, sans alcool": [
+{
+"nom": "仿香草精，含酒精",
+"note": "直接等量替代（含酒精版）"
+}
+],
+"vinaigre de vin rouge": [
+{
+"nom": "蒸馏白醋",
+"note": "咸味菜中等量替代提供酸味，味道不那么圆润"
+}
+],
+"piment en poudre": [
+{
+"nom": "卡宴辣椒（红辣椒）",
+"note": "用量约为1/4，卡宴辣椒辣得多，且不含混合香料中的其他香料"
+}
+],
+"épices pour tarte à la citrouille": [
+{
+"nom": "自制肉桂、姜粉和肉豆蔻粉混合，加少许多香果",
+"note": "肉桂、姜粉和肉豆蔻粉等量混合，加一小撮多香果粉"
+}
+],
+"ketchup": [
+{
+"nom": "番茄沙司，低钠",
+"note": "直接等量替代，咸味较淡的版本"
+}
+],
+"litchis, crus": [
+{
+"nom": "荔枝干",
+"note": "减少用量并稍加复水；味道更浓缩、更甜"
+}
+],
+"longanes, crus": [
+{
+"nom": "龙眼干（桂圆）",
+"note": "减少用量并稍加复水；味道更浓缩"
+}
+],
+"carottes, crues": [
+{
+"nom": "脱水胡萝卜",
+"note": "使用前用水泡发；用量约为1/3"
+}
+],
+"coeurs de palmier, crus": [
+{
+"nom": "罐装棕榈芯",
+"note": "直接等量替代，使用前沥干并冲洗"
+}
+],
+"feuilles de vigne, crues": [
+{
+"nom": "罐装葡萄叶",
+"note": "直接替代，冲洗去除多余盐水"
+}
+],
+"dattes medjool": [
+{
+"nom": "德格雷特努尔椰枣（Deglet Nour）",
+"note": "等量替代，口感更紧实、不那么甜"
+}
+],
+"dattes deglet nour": [
+{
+"nom": "梅德约尔椰枣（Medjool）",
+"note": "等量替代，口感更软、更甜"
+}
+],
+"jus de citron, cru": [
+{
+"nom": "青柠汁，鲜榨",
+"note": "等量替代提供酸味，味道略有不同"
+}
+],
+"jus de citron vert, cru": [
+{
+"nom": "柠檬汁，鲜榨",
+"note": "等量替代提供酸味，味道略有不同"
+}
+],
+"relish sucré": [
+{
+"nom": "热狗用腌菜酱",
+"note": "直接等量替代"
+}
+],
+"loganberries (mûres-framboises), surgelées": [
+{
+"nom": "桑葚，生",
+"note": "等量替代（黑莓与树莓的杂交果），稍酸"
+}
+],
+"endive, crue": [
+{
+"nom": "菊苣叶，生",
+"note": "沙拉中等量替代，苦味相近"
+}
+],
+"roquette, crue": [
+{
+"nom": "西洋菜，生",
+"note": "沙拉中等量替代，胡椒味接近"
+}
+],
+"pourpier, cru": [
+{
+"nom": "菠菜，生",
+"note": "沙拉或炒菜中等量替代"
+}
+],
+"mâche, crue": [
+{
+"nom": "菠菜，生",
+"note": "沙拉中等量替代，味道更柔和"
+}
+],
+"chénopode blanc, cru": [
+{
+"nom": "菠菜，生",
+"note": "等量替代，味道和口感都非常接近"
+}
+],
+"feuilles d'amarante, crues": [
+{
+"nom": "菠菜，生",
+"note": "等量替代，烹调方式相近"
+}
+],
+"liseron d'eau, cru": [
+{
+"nom": "菠菜，生",
+"note": "等量替代，快炒"
+}
+],
+"taro, cru": [
+{
+"nom": "黄体芋（Malanga），生",
+"note": "等量替代（块茎非常相近），食用前务必彻底煮熟"
+}
+],
+"yautia (malanga), cru": [
+{
+"nom": "芋头，生",
+"note": "等量替代，食用前务必彻底煮熟"
+}
+],
+"épinard de malabar, cuit": [
+{
+"nom": "菠菜，水煮，沥干，加盐",
+"note": "熟木耳菜可用熟普通菠菜等量代替，黏滑感稍弱"
+}
+],
+"épinard de nouvelle-zélande (tétragone), cru": [
+{
+"nom": "菠菜，生",
+"note": "普通生菠菜的近似替代品，等量"
+}
+],
+"miso": [
+{
+"nom": "溜酱油（Tamari）",
+"note": "应急提供鲜咸味（不是同样的发酵风味）：溜酱油用量约减半，盐要少放"
+}
+],
+"topinambours, crus": [
+{
+"nom": "土豆，带皮，生",
+"note": "土豆等量代替，煮熟后口感相近，味道更中性"
+}
+],
+"oignon, flocons déshydratés": [
+{
+"nom": "洋葱",
+"note": "1汤匙脱水洋葱片＝约1/4个新鲜黄洋葱切碎"
+}
+],
+"jus de grenade, en bouteille": [
+{
+"nom": "蔓越莓汁，无糖",
+"note": "无糖蔓越莓汁等量代替，酸度接近，调整糖量"
+}
+],
+"citronnelle, crue": [
+{
+"nom": "柠檬皮，生",
+"note": "没有香茅时用柠檬皮屑提供柠檬香：每根香茅约用1茶匙柠檬皮屑"
+}
+],
+"yaourt de tofu": [
+{
+"nom": "原味酸奶",
+"note": "若不需要植物基选项，用原味乳制酸奶等量代替"
+}
+],
+"farine de caroube": [
+{
+"nom": "可可粉",
+"note": "烘焙中的经典替换：可可粉等量代替，再多加一点糖，因为角豆粉天然带甜味"
+}
+],
+"feuilles de coriandre, crues": [
+{
+"nom": "平叶欧芹",
+"note": "不喜欢香菜的人可用平叶欧芹等量代替，味道不同但同样起提香作用"
+}
+],
+"farine d'arrow-root": [
+{
+"nom": "玉米淀粉",
+"note": "用玉米淀粉等量或稍少量勾芡（2茶匙玉米淀粉＝1汤匙葛粉）"
+}
+],
+"sauce soja à base de soja (tamari)": [
+{
+"nom": "大豆小麦酱油（日式酱油）",
+"note": "若不介意麸质，可用日式酱油（含小麦）等量代替"
+}
+],
+"sauce soja à base de soja et de blé (shoyu)": [
+{
+"nom": "溜酱油（Tamari）",
+"note": "无麸质版本请使用经认证的无麸质溜酱油（查看标签，并非所有产品都是），等量。"
+}
+],
+"poire asiatique (nashi), crue": [
+{
+"nom": "梨，生",
+"note": "普通梨等量代替，口感比清脆的砂梨（nashi）更软"
+}
+],
+"wasabi, racine, cru": [
+{
+"nom": "辣根",
+"note": "辣根减量使用（芥末更辣）：用量约减半"
+}
+],
+"bette à carde (blette), crue": [
+{
+"nom": "菠菜，生",
+"note": "生菠菜等量代替，烹调时间比甜菜叶短"
+}
+],
+"cresson de jardin (alénois), cru": [
+{
+"nom": "芝麻菜，生",
+"note": "芝麻菜等量代替，比豆瓣菜更有胡椒味"
+}
+],
+"algue agar, crue": [
+{
+"nom": "明胶",
+"note": "非素食选项可用等效量的明胶（琼脂凝固力更强，需减量调整）"
+}
+],
+"oignon gallois (ciboule), cru": [
+{
+"nom": "葱，葱白和葱叶，去根，生",
+"note": "普通小葱等量代替"
+}
+],
+"melon casaba, cru": [
+{
+"nom": "蜜瓜，生",
+"note": "蜜瓜（Honeydew）等量代替，口感和甜度接近"
+}
+],
+"chou de milan (savoie), cru": [
+{
+"nom": "绿甘蓝，生",
+"note": "普通绿卷心菜等量代替，叶子不那么皱，但味道接近"
+}
+],
+"chayote, cru": [
+{
+"nom": "带皮西葫芦，生",
+"note": "西葫芦等量代替，熟得稍快"
+}
+],
+"champignon morille, cru": [
+{
+"nom": "香菇，干",
+"note": "干香菇（泡发）等量代替，木质香气接近"
+}
+],
+"piment serrano, cru": [
+{
+"nom": "墨西哥青辣椒，生",
+"note": "墨西哥辣椒等量代替，稍不那么辣"
+}
+],
+"piment ancho, séché": [
+{
+"nom": "波布拉诺辣椒，去籽，生",
+"note": "新鲜波布拉诺辣椒等量代替（安丘辣椒就是干的波布拉诺）；也可用甜红椒粉提香而不带辣味"
+}
+],
+"chicorée witloof (endive), crue": [
+{
+"nom": "阔叶苦苣",
+"note": "宽叶苣荬菜等量代替，苦味比菊苣稍淡"
+}
+],
+"laitue feuille de chêne rouge, crue": [
+{
+"nom": "绿叶生菜（Laitue feuille verte），生",
+"note": "绿叶生菜等量代替，口感相同，颜色不同"
+}
+],
+"pleurote, crue": [
+{
+"nom": "白蘑菇，生",
+"note": "白蘑菇等量代替，口感更紧实"
+}
+],
+"brocoli chinois (kai-lan), cru": [
+{
+"nom": "西兰花，生",
+"note": "普通西兰花等量代替，芥蓝的茎更细且略苦"
+}
+],
+"avocat de floride, cru": [
+{
+"nom": "加州牛油果，生",
+"note": "加州牛油果（Hass）等量代替，比佛罗里达牛油果更油润绵滑"
+}
+],
+"raisins de corinthe, séchés": [
+{
+"nom": "葡萄干",
+"note": "普通葡萄干等量代替，比科林斯葡萄干稍不那么甜酸"
+}
+],
+"radis oriental (daikon), cru": [
+{
+"nom": "芜菁叶，生",
+"note": "生芜菁等量代替，比白萝卜更辣、不那么甜"
+}
+],
+"algue mousse d'irlande (carraghénane), crue": [
+{
+"nom": "琼脂",
+"note": "琼脂粉，每1汤匙爱尔兰苔约用1/8茶匙，凝固力更强"
+}
+],
+"piment pasilla, séché": [
+{
+"nom": "安乔辣椒，干",
+"note": "干安丘辣椒等量代替，比帕西拉辣椒稍温和、更有果香"
+}
+],
+"chou-fleur vert (romanesco), cru": [
+{
+"nom": "花椰菜，生",
+"note": "普通白花椰菜等量代替，口感相同，观赏性较弱"
+}
+],
+"champignon maitake, cru": [
+{
+"nom": "香菇，生",
+"note": "香菇等量代替，口感比舞茸更紧实"
+}
+],
+"kaki indigène (plaquemine), cru": [
+{
+"nom": "日本柿子，生",
+"note": "日本柿子（富有柿）等量代替，即使未软熟也较紧实，不同于本地柿"
+}
+],
+"champignon portobello, cru": [
+{
+"nom": "白蘑菇，生",
+"note": "白蘑菇等量代替，味道比波托贝洛淡"
+}
+],
+"ramboutan en conserve, au sirop": [
+{
+"nom": "荔枝，生",
+"note": "生荔枝（或罐装）等量代替，口感和甜度接近红毛丹"
+}
+],
+"myrtilles séchées, sucrées": [
+{
+"nom": "蔓越莓干，加糖",
+"note": "烘焙中加糖蔓越莓干等量代替，比蓝莓干更酸"
+}
+],
+"jacquier en conserve, au sirop": [
+{
+"nom": "棕榈芯或撕碎的平菇",
+"note": "想要植物“手撕肉”口感又不要菠萝蜜的甜味：等量替代，多腌制一会儿"
+}
+],
+"kiwi zespri sungold, cru": [
+{
+"nom": "普通绿心猕猴桃",
+"note": "等量替代，果肉为绿色而非黄色，酸味稍明显"
+}
+],
+"sauce tomate, en conserve": [
+{
+"nom": "番茄膏",
+"note": "稀释番茄膏（1份番茄膏兑2-3份水）代替罐装番茄酱汁"
+}
+],
+"millet, cru": [
+{
+"nom": "藜麦，生",
+"note": "藜麦等量代替，烹调时间比小米稍短"
+}
+],
+"fèves, graines immatures, crues": [
+{
+"nom": "青豌豆，生",
+"note": "生青豌豆等量代替，比新鲜蚕豆更甜、更嫩"
+}
+],
+"boulgour, sec": [
+{
+"nom": "藜麦，生",
+"note": "生藜麦等量代替（熟得更快），是布格麦的无麸质替代品"
+}
+],
+"salsifis (huître végétale), cru": [
+{
+"nom": "菊芋，生",
+"note": "洋姜等量代替，口感和泥土甜味接近婆罗门参"
+}
+],
+"teff, cuit": [
+{
+"nom": "藜麦，熟",
+"note": "味道中性的相近无麸质谷物；等量替代（熟藜麦）。"
+}
+],
+"teff, cru": [
+{
+"nom": "藜麦，生",
+"note": "相近的无麸质谷物；等量替代（生藜麦）。"
+}
+],
+"noix de pécan": [
+{
+"nom": "榛子（多颗）",
+"note": "榛子：口感和烘焙用途相近，等量使用。"
+}
+],
+"patate douce, en conserve, sous vide": [
+{
+"nom": "红薯，生，未加工（含USDA食品分发计划食品）",
+"note": "用新鲜煮熟的红薯代替罐装红薯，煮熟后等量。"
+}
+],
+"asperges, en conserve, égouttées": [
+{
+"nom": "芦笋，生",
+"note": "新鲜芦笋煮几分钟即可代替罐装芦笋，口感更紧实。"
+}
+],
+"champignons, en conserve, égouttés": [
+{
+"nom": "白蘑菇（双孢菇）",
+"note": "新鲜白蘑菇，翻炒几分钟，等量使用。"
+}
+],
+"couscous, sec": [
+{
+"nom": "布格麦，干",
+"note": "生干布格麦可代替干古斯米（烹调时间稍长）。"
+}
+],
+"couscous, cuit": [
+{
+"nom": "布格麦，熟",
+"note": "大多数菜谱中熟布格麦和熟古斯米可等量互换。"
+}
+],
+"épeautre, cuit": [
+{
+"nom": "长粒糙米，熟",
+"note": "沙拉或配菜中熟糙米可替代熟斯佩尔特小麦。"
+}
+],
+"épeautre, cru": [
+{
+"nom": "全麦面粉",
+"note": "做面包时可用全麦粉代替生斯佩尔特小麦，比例1:1。"
+}
+],
+"fanes de navet, surgelées, non préparées": [
+{
+"nom": "菠菜，冷冻，碎或叶，未加工",
+"note": "用冷冻菠菜碎代替冷冻芜菁叶，味道更柔和。"
+}
+],
+"feuilles de moutarde, surgelées, non préparées": [
+{
+"nom": "菠菜，冷冻，碎或叶，未加工",
+"note": "用冷冻菠菜代替冷冻芥菜叶，辣味较淡。"
+}
+],
+"épinard-moutarde (tendergreen), cru": [
+{
+"nom": "菠菜，生",
+"note": "用生菠菜代替小松菜，味道更柔和。"
+}
+],
+"haricots ailés, graines immatures, crus": [
+{
+"nom": "四季豆，生",
+"note": "用生四季豆代替四棱豆（嫩荚），口感接近。"
+}
+],
+"cornilles, jeunes gousses avec graines, crues": [
+{
+"nom": "四季豆，生",
+"note": "用生四季豆代替豇豆嫩荚，烹调方式相近。"
+}
+],
+"haricots hyacinthe, graines immatures, crus": [
+{
+"nom": "四季豆，生",
+"note": "用生四季豆代替未成熟的扁豆（鹊豆）。"
+}
+],
+"haricots mange-tout jaunes, crus": [
+{
+"nom": "四季豆，生",
+"note": "用生四季豆代替黄荚菜豆，比例1:1。"
+}
+],
+"mûres, surgelées, non sucrées": [
+{
+"nom": "蓝莓，冷冻，无糖（含USDA食品分发计划食品）",
+"note": "甜点和果昔中可用冷冻蓝莓代替冷冻黑莓。"
+}
+],
+"courge éponge (luffa), crue": [
+{
+"nom": "带皮西葫芦，生",
+"note": "用生西葫芦代替丝瓜，口感和烹调方式接近。"
+}
+],
+"courge à fleurs blanches (calebasse), crue": [
+{
+"nom": "带皮西葫芦，生",
+"note": "用生西葫芦等量代替葫芦（瓠瓜）。"
+}
+],
+"courge cireuse (melon d'hiver chinois), crue": [
+{
+"nom": "带皮西葫芦，生",
+"note": "用生西葫芦代替冬瓜。"
+}
+],
+"millet, cuit": [
+{
+"nom": "藜麦，熟",
+"note": "熟藜麦可代替熟小米，口感和用途接近。"
+}
+],
+"riz sauvage, cru": [
+{
+"nom": "长粒糙米，生",
+"note": "用生长粒糙米代替生菰米（野米），烹调时间更短。"
+}
+],
+"oignons, en conserve, avec liquide": [
+{
+"nom": "洋葱，生",
+"note": "用新鲜生洋葱炒香代替罐装洋葱。"
+}
+],
+"tempeh, cuit": [
+{
+"nom": "老豆腐，石膏和卤水（氯化镁）点制",
+"note": "用老豆腐代替熟丹贝，味道更中性，同样作蛋白质来源。"
+}
+],
+"tofu séché-congelé (koyadofu)": [
+{
+"nom": "老豆腐，石膏和卤水（氯化镁）点制",
+"note": "泡发后用新鲜老豆腐代替冻豆腐（高野豆腐）。"
+}
+],
+"mandarines, crues": [
+{
+"nom": "橙子，生，所有商业品种",
+"note": "用橙子代替橘子，稍不那么甜、更酸。"
+}
+],
+"farine de seigle, foncée": [
+{
+"nom": "全麦面粉",
+"note": "用全麦粉代替黑麦粉（深色），面包心更轻盈。"
+}
+],
+"farine de seigle, claire": [
+{
+"nom": "全麦面粉",
+"note": "全麦粉可代替浅色黑麦粉。"
+}
+],
+"farine de seigle, moyenne": [
+{
+"nom": "全麦面粉",
+"note": "全麦粉可代替中色黑麦粉。"
+}
+],
+"farine de sorgho, complète": [
+{
+"nom": "全麦面粉",
+"note": "不需要无麸质时，可用全麦粉代替高粱粉。"
+}
+],
+"farine de triticale, complète": [
+{
+"nom": "全麦面粉",
+"note": "全麦粉可代替黑小麦粉，比例1:1。"
+}
+],
+"farine de sarrasin, complète": [
+{
+"nom": "全麦面粉",
+"note": "用全麦粉代替荞麦粉（无麸质饮食除外）。"
+}
+],
+"farine de riz complet": [
+{
+"nom": "白米粉，非强化",
+"note": "用白米粉代替糙米粉，质地更细。"
+}
+],
+"graines de lin": [
+{
+"nom": "奇亚籽",
+"note": "奇亚籽可代替亚麻籽，增稠效果和营养相近。"
+}
+],
+"cerises au marasquin, en conserve, égouttées": [
+{
+"nom": "甜樱桃，生",
+"note": "用新鲜或罐装甜樱桃代替酒渍樱桃，糖分和色素更少。"
+}
+],
+"crosses de fougère, surgelées, non préparées": [
+{
+"nom": "芦笋，生",
+"note": "新鲜芦笋可近似代替蕨菜嫩芽（同为春季绿色蔬菜）。"
+}
+],
+"poulet végétal": [
+{
+"nom": "鸡胸，仅肉，烤",
+"note": "非素食菜肴中用鸡肉（熟鸡胸）代替素鸡。"
+}
+],
+"saucisse végétale": [
+{
+"nom": "猪肉香肠",
+"note": "非素食版本用普通猪肉香肠代替素香肠。"
+}
+],
+"saucisse de francfort végétale": [
+{
+"nom": "猪肉法兰克福香肠",
+"note": "用（猪肉）法兰克福香肠代替素食版。"
+}
+],
+"miettes de bacon végétal": [
+{
+"nom": "培根，熟，餐饮装",
+"note": "用熟培根碎代替素培根碎。"
+}
+],
+"tranches de charcuterie végétale": [
+{
+"nom": "熟火腿",
+"note": "用熟火腿片代替素食冷切片。"
+}
+],
+"bananes déshydratées ou en poudre": [
+{
+"nom": "香蕉，生",
+"note": "用新鲜香蕉（打成泥）代替香蕉干粉，调整配方中的液体。"
+}
+],
+"pruneaux déshydratés (faible teneur en eau), mijotés": [
+{
+"nom": "梅德约尔椰枣（Medjool）",
+"note": "用椰枣（Medjool）代替炖西梅，甜味相近。"
+}
+],
+"pruneaux déshydratés (faible teneur en eau), crus": [
+{
+"nom": "梅德约尔椰枣（Medjool）",
+"note": "甜食或烘焙中用椰枣代替生西梅干。"
+}
+],
+"poireaux (bulbe et bas des feuilles), crus": [
+{
+"nom": "洋葱，生",
+"note": "没有韭葱时用生洋葱代替（用量减少，味道更冲）。"
+}
+],
+"vermicelles de soja": [
+{
+"nom": "米粉丝",
+"note": "亚洲汤和沙拉中可用米粉丝代替绿豆粉丝（春雨）。"
+}
+],
+"boulettes végétales": [
+{
+"nom": "牛肉末",
+"note": "非素食版本用熟牛肉末做成普通肉丸代替素丸子。"
+}
+],
+"pâte d'amande": [
+{
+"nom": "杏仁粉与糖粉混合",
+"note": "没有市售杏仁膏时，用杏仁粉和糖粉加少许蛋白混合。"
+}
+],
+"laitue iceberg (types pommés croquants inclus), crue": [
+{
+"nom": "罗马生菜，生",
+"note": "用罗马生菜代替球生菜，叶子更嫩、味道稍浓。"
+}
+],
+"lait de soja (tous parfums), enrichi": [
+{
+"nom": "全脂牛奶",
+"note": "没有纯素要求时，用全脂牛奶代替强化豆奶。"
+}
+],
+"matière grasse végétale (shortening), soja hydrogéné et palme": [
+{
+"nom": "黄油，无盐",
+"note": "用黄油等量代替植物起酥油，烘焙时口感略有不同。"
+}
+],
+"grain de maïs blanc": [
+{
+"nom": "黄甜玉米，生",
+"note": "生黄甜玉米和白甜玉米可互换，只有颜色不同。"
+}
+],
+"maïs doux blanc, cru": [
+{
+"nom": "黄甜玉米，生",
+"note": "白甜玉米和黄甜玉米可等量互换，甜味略有差别。"
+}
+],
+"poivrons verts, crus": [
+{
+"nom": "红甜椒，生",
+"note": "用生红甜椒代替青甜椒，味道更柔和、更甜。"
+}
+],
+"cerises acides rouges, crues": [
+{
+"nom": "甜樱桃，生",
+"note": "用甜樱桃代替酸樱桃，减少配方中添加的糖。"
+}
+],
+"courgettes miniatures, crues": [
+{
+"nom": "带皮西葫芦，生",
+"note": "用普通西葫芦代替迷你西葫芦，按大小调整烹调时间。"
+}
+],
+"fèves, en cosse, crues": [
+{
+"nom": "新鲜豌豆",
+"note": "没有带荚鲜蚕豆时可用新鲜豌豆代替，味道更柔和。"
+}
+],
+"poivrons doux jaunes, crus": [
+{
+"nom": "红甜椒，炒",
+"note": "黄甜椒可用红甜椒等量代替，味道稍甜"
+},
+{
+"nom": "青甜椒，炒",
+"note": "也可用青甜椒代替，味道更浓、略带苦味"
+}
+],
+"poivrons doux rouges, sautés": [
+{
+"nom": "青甜椒，炒",
+"note": "红甜椒和青甜椒可等量互换（青椒不那么甜）"
+}
+],
+"piments forts rouges, crus": [
+{
+"nom": "青辣椒，生",
+"note": "红辣椒（成熟）可用青辣椒等量代替，稍不那么甜，有时更辣"
+}
+],
+"piments forts verts, crus": [
+{
+"nom": "红辣椒，生",
+"note": "青辣椒可用成熟红辣椒代替，味道更甜"
+}
+],
+"courge d'hiver hubbard, crue": [
+{
+"nom": "胡桃南瓜，生",
+"note": "任何冬南瓜（哈伯德）都可用奶油南瓜等量代替"
+}
+],
+"courge d'hiver, toutes variétés, crue": [
+{
+"nom": "胡桃南瓜，生",
+"note": "各种冬南瓜（哈伯德、奶油南瓜、南瓜）可等量互换"
+}
+],
+"courge d'été pâtisson, crue": [
+{
+"nom": "带皮西葫芦，生",
+"note": "飞碟瓜（夏南瓜）可用西葫芦等量代替"
+}
+],
+"courge d'été, toutes variétés, crue": [
+{
+"nom": "带皮西葫芦，生",
+"note": "各种夏南瓜都可用西葫芦等量代替"
+}
+],
+"courge d'été à cou tors et à cou droit, crue": [
+{
+"nom": "带皮西葫芦，生",
+"note": "弯颈/直颈夏南瓜可用西葫芦等量代替"
+}
+],
+"chou-fleur vert, cuit, salé": [
+{
+"nom": "西兰花，生",
+"note": "大多数菜谱中花椰菜可用西兰花等量代替（味道更浓）"
+}
+],
+"chou-fleur vert, cuit, sans sel ajouté": [
+{
+"nom": "西兰花，生",
+"note": "花椰菜可用西兰花等量代替"
+}
+],
+"brocoli surgelé, haché, non préparé": [
+{
+"nom": "花椰菜，生",
+"note": "冷冻西兰花可用生鲜花椰菜代替，烹调时间相近"
+}
+],
+"oignons surgelés, entiers, non préparés": [
+{
+"nom": "土豆",
+"note": "冷冻洋葱可用新鲜洋葱碎等量代替（烹调出水更少）"
+}
+],
+"oignons surgelés, hachés, non préparés": [
+{
+"nom": "土豆",
+"note": "冷冻洋葱碎可用新鲜洋葱碎等量代替"
+}
+],
+"noix de grenoble": [
+{
+"nom": "碧根果仁（半瓣），生",
+"note": "烘焙和沙拉中核桃可用碧根果等量代替"
+}
+],
+"beurre de sésame (pâte de sésame)": [
+{
+"nom": "花生酱，顺滑（含USDA食品分发计划食品）",
+"note": "酱汁中芝麻酱（tahini）可用花生酱等量代替（味道不同）"
+}
+],
+"tapioca en perles, sec": [
+{
+"nom": "玉米淀粉",
+"note": "西米（木薯珍珠）勾芡时可用玉米淀粉代替（用量约一半）"
+}
+],
+"orge perlé, cru": [
+{
+"nom": "长粒糙米，生",
+"note": "汤和炖菜中生珍珠大麦可用长粒糙米等量代替（口感稍有不同）"
+}
+],
+"orge perlé, cuit": [
+{
+"nom": "长粒糙米，生",
+"note": "熟珍珠大麦可用熟糙米等量代替"
+}
+],
+"gruau de sarrasin torréfié, sec": [
+{
+"nom": "藜麦，生",
+"note": "作主食配菜时，荞麦粒（kasha）可用生藜麦等量代替"
+}
+],
+"blé kamut (khorasan), cru": [
+{
+"nom": "斯佩尔特小麦",
+"note": "生卡姆小麦可用斯佩尔特小麦等量代替（相近的古老谷物）"
+}
+],
+"blé kamut (khorasan), cuit": [
+{
+"nom": "斯佩尔特小麦，熟",
+"note": "熟卡姆小麦可用熟斯佩尔特小麦等量代替"
+}
+],
+"pâtes sèches, enrichies": [
+{
+"nom": "干意面，非强化",
+"note": "强化和非强化意面可等量互换（仅营养有差别）"
+}
+],
+"lentilles roses ou rouges, crues": [
+{
+"nom": "绿扁豆或褐扁豆",
+"note": "粉红/红扁豆（熟得快，易散）可用绿扁豆代替，烹调时间稍长，口感更紧实"
+}
+],
+"haricots mungo, graines mûres, crues": [
+{
+"nom": "绿豆芽，成熟豆粒，罐装，沥干",
+"note": "生绿豆（用来发芽）可用现成的罐装绿豆芽代替"
+}
+],
+"haricots mungo, graines mûres germées, crus": [
+{
+"nom": "大豆，成熟豆粒发芽，生",
+"note": "沙拉和炒菜中绿豆芽可用黄豆芽等量代替"
+}
+],
+"soja, graines mûres germées, crues": [
+{
+"nom": "绿豆，成熟豆粒发芽，生",
+"note": "黄豆芽可用超市更常见的绿豆芽代替"
+}
+],
+"patate douce, cuite, bouillie, sans peau": [
+{
+"nom": "土豆，带皮，生",
+"note": "水煮红薯可用土豆等量代替，口感接近但不那么甜"
+}
+],
+"patate douce confite, cuite, faite maison": [
+{
+"nom": "土豆，带皮，生",
+"note": "咸味菜谱中蜜汁红薯可用土豆代替（不那么甜）"
+}
+],
+"purée de tomate, en conserve, salée": [
+{
+"nom": "番茄酱汁，罐装，加盐",
+"note": "番茄泥（浓缩）加少许水稀释后可代替罐装番茄酱汁"
+}
+],
+"purée de tomate, en conserve, sans sel ajouté": [
+{
+"nom": "番茄酱汁，罐装，加盐",
+"note": "无盐番茄泥加水稀释后可代替罐装番茄酱汁"
+}
+],
+"sauce tomate, en conserve, aux oignons": [
+{
+"nom": "番茄泥，罐装",
+"note": "洋葱番茄酱可用番茄泥加炒洋葱代替"
+}
+],
+"sauce tomate, en conserve, aux champignons": [
+{
+"nom": "番茄泥，罐装",
+"note": "蘑菇番茄酱可用番茄泥加炒蘑菇代替"
+}
+],
+"champignons shiitake, cuits, salés": [
+{
+"nom": "白蘑菇（巴黎蘑菇）",
+"note": "香菇可用白蘑菇等量代替，味道较淡"
+}
+],
+"champignons shiitake, cuits, sans sel": [
+{
+"nom": "白蘑菇（巴黎蘑菇）",
+"note": "香菇可用白蘑菇等量代替，味道较淡"
+}
+],
+"champignons paille, en conserve, égouttés": [
+{
+"nom": "罐装白蘑菇",
+"note": "罐装草菇可用罐装白蘑菇等量代替"
+}
+],
+"carottes, en conserve, sans sel ajouté, avec liquide": [
+{
+"nom": "胡萝卜，罐装，普通，带汁",
+"note": "无盐罐装胡萝卜可用普通罐装胡萝卜代替（冲洗以减少盐分）"
+}
+],
+"légumes mélangés, en conserve, avec liquide": [
+{
+"nom": "什锦蔬菜，冷冻，未加工",
+"note": "罐装什锦蔬菜可用冷冻什锦蔬菜等量代替"
+}
+],
+"légumes mélangés, en conserve, égouttés": [
+{
+"nom": "什锦蔬菜，冷冻，未加工",
+"note": "罐装什锦蔬菜可用冷冻什锦蔬菜代替（烹调时间稍短）"
+}
+],
+"épinards, en conserve, standard, égouttés": [
+{
+"nom": "菠菜，生",
+"note": "罐装菠菜可用煮熟的新鲜菠菜代替（新鲜重量约为3倍）"
+}
+],
+"épinards, en conserve, standard, avec liquide": [
+{
+"nom": "菠菜，生",
+"note": "罐装菠菜可用煮熟的新鲜菠菜代替（新鲜重量约为3倍）"
+}
+],
+"épinards, en conserve, sans sel ajouté, avec liquide": [
+{
+"nom": "菠菜，生",
+"note": "无盐罐装菠菜可用煮熟的新鲜菠菜调整用量代替（新鲜重量约3倍）"
+}
+],
+"cornichons aigres, faibles en sodium": [
+{
+"nom": "莳萝腌黄瓜，减钠",
+"note": "酸腌黄瓜可用莳萝腌黄瓜等量代替，味道略有不同"
+}
+],
+"cornichons à l'aneth, réduits en sodium": [
+{
+"nom": "酸腌黄瓜，低钠",
+"note": "莳萝腌黄瓜可用酸腌黄瓜等量代替"
+}
+],
+"graines de chia, séchées": [
+{
+"nom": "亚麻籽粉",
+"note": "奇亚籽可用亚麻籽粉等量代替（黏合/增稠效果接近）"
+}
+],
+"pamplemousse blanc, cru, floride": [
+{
+"nom": "粉红和红色葡萄柚，生，佛罗里达",
+"note": "白葡萄柚可用粉红/红葡萄柚等量代替，更甜、不那么苦"
+}
+],
+"pamplemousse rose et rouge, cru, floride": [
+{
+"nom": "白葡萄柚，生，佛罗里达",
+"note": "粉红/红葡萄柚可用白葡萄柚等量代替，更苦"
+}
+],
+"framboises surgelées rouges, sucrées": [
+{
+"nom": "红树莓，冷冻，无糖",
+"note": "加糖冷冻树莓可用无糖冷冻树莓代替，按口味加糖"
+}
+],
+"pommes séchées, sulfitées, non cuites": [
+{
+"nom": "梨干，硫处理，未煮",
+"note": "果泥和烘焙中苹果干可用梨干等量代替"
+}
+],
+"noix de ginkgo, crues": [
+{
+"nom": "夏威夷果，生",
+"note": "烹饪中白果可用夏威夷果等量代替（口感/用途接近，味道不同）"
+}
+],
+"farine de sorgho, raffinée, non enrichie": [
+{
+"nom": "T55 小麦粉",
+"note": "无麸质面粉；若无此需求可用小麦粉代替，并调整黏合剂（高粱粉不会发酵膨胀）。"
+}
+],
+"farine de blé, complète (grain entier), blé tendre": [
+{
+"nom": "T55 小麦粉",
+"note": "全麦粉更紧实；用白面粉等量代替可使口感更轻盈（或各半混合）。"
+}
+],
+"farine de maïs, complète (grain entier), bleue (harina de maíz morado)": [
+{
+"nom": "黄或白玉米粉",
+"note": "可等量代替蓝玉米粉，颜色不同但用法相同。"
+}
+],
+"sarrasin, gruau, rôti, cuit": [
+{
+"nom": "藜麦，熟",
+"note": "荞麦粒（烤荞麦煮熟）可用熟藜麦等量代替，口感接近。"
+}
+],
+"noisettes, blanchies": [
+{
+"nom": "整粒杏仁，生",
+"note": "用生整杏仁等量代替，口感略有变化。"
+}
+],
+"graines de tournesol, décortiquées, séchées": [
+{
+"nom": "南瓜籽仁，干",
+"note": "沙拉/格兰诺拉中葵花籽和南瓜籽常可等量互换。"
+}
+],
+"graines de citrouille et de courge, décortiquées, séchées": [
+{
+"nom": "葵花籽仁，生",
+"note": "沙拉和烘焙中可用葵花籽仁等量代替。"
+}
+],
+"graines de carthame, décortiquées, séchées": [
+{
+"nom": "葵花籽仁，生",
+"note": "红花籽不太常见；用葵花籽仁等量代替。"
+}
+],
+"beurre de graines de tournesol, non salé": [
+{
+"nom": "南瓜籽酱或杏仁酱",
+"note": "无花生选择，等量替代；注意杏仁酱含坚果，需根据具体过敏情况确认。"
+}
+],
+"beurre de cacahuète, onctueux, allégé en matières grasses": [
+{
+"nom": "葵花籽酱，无盐",
+"note": "花生过敏时，用葵花籽酱等量代替（味道更中性）。"
+}
+],
+"beurre de cacahuète, croquant (avec morceaux), salé": [
+{
+"nom": "葵花籽酱，无盐",
+"note": "花生过敏时，用葵花籽酱等量代替。"
+}
+],
+"beurre de cacahuète, croquant (avec morceaux), non salé": [
+{
+"nom": "葵花籽酱，无盐",
+"note": "花生过敏时，用葵花籽酱等量代替。"
+}
+],
+"beurre de cacahuète, onctueux, enrichi en vitamines et minéraux": [
+{
+"nom": "葵花籽酱，无盐",
+"note": "花生过敏时，用葵花籽酱等量代替。"
+}
+],
+"beurre de cacahuète, croquant, enrichi en vitamines et minéraux": [
+{
+"nom": "葵花籽酱，无盐",
+"note": "花生过敏时，用葵花籽酱等量代替。"
+}
+],
+"lait de soja, nature et vanille, non enrichi": [
+{
+"nom": "豆浆",
+"note": "用普通原味豆奶等量代替。"
+}
+],
+"lait de coco, cru (liquide extrait de la pulpe râpée et d'eau)": [
+{
+"nom": "豆浆",
+"note": "不含椰子：用豆奶或杏仁奶等量代替（不那么绵滑）。"
+}
+],
+"lait de coco, surgelé (liquide extrait de la pulpe râpée et d'eau)": [
+{
+"nom": "豆浆",
+"note": "不含椰子：用豆奶或杏仁奶等量代替（不那么绵滑）。"
+}
+],
+"lait de coco, en conserve (liquide extrait de la pulpe râpée et d'eau)": [
+{
+"nom": "法式浓稠酸奶油或全脂液态奶油",
+"note": "非纯素的咸味菜谱中，用奶油等量代替罐装椰奶。"
+}
+],
+"crème de coco, crue (liquide extrait de la pulpe râpée)": [
+{
+"nom": "法式浓稠酸奶油（crème fraîche）",
+"note": "甜点和酱汁中奶油可作椰浆的非纯素替代品，等量使用。"
+}
+],
+"dulce de leche": [
+{
+"nom": "甜炼乳",
+"note": "牛奶焦糖酱可用煮过的甜炼乳（隔水加热）代替，某些菜谱中也可直接使用。"
+}
+],
+"fèves, graines mûres, crues": [
+{
+"nom": "海军豆，干（含水量 0%）",
+"note": "炖菜中生蚕豆可用干海军豆（白豆）等量代替。"
+}
+],
+"fèves, graines mûres, en conserve": [
+{
+"nom": "海军豆，干（含水量 0%）",
+"note": "罐装蚕豆可用罐装白芸豆等量代替。"
+}
+],
+"pois d'angole (ambrevade), graines mûres, crues": [
+{
+"nom": "扁豆，干",
+"note": "生木豆可用干扁豆等量代替，需调整烹调时间。"
+}
+],
+"dolique asperge (haricot kilomètre), graines mûres, cru": [
+{
+"nom": "鹰嘴豆，干",
+"note": "生长豇豆（豆角）可用干鹰嘴豆或黑豆等量代替。"
+}
+],
+"dolique d'égypte (haricot hyacinthe), graines mûres, cru": [
+{
+"nom": "海军豆，干（含水量 0%）",
+"note": "扁豆（鹊豆）可用干白芸豆等量代替。"
+}
+],
+"cornilles (à oeil noir), graines immatures, surgelées, non préparées": [
+{
+"nom": "冷冻或罐装白芸豆",
+"note": "没有冷冻黑眼豆时，用白芸豆等量代替。"
+}
+],
+"haricots frits (refritos), en conserve, style traditionnel": [
+{
+"nom": "自制斑豆泥",
+"note": "市售豆泥可用自制斑豆泥（煮熟压碎）代替。"
+}
+],
+"frijoles rojos volteados (haricots rouges frits, en conserve)": [
+{
+"nom": "豆泥（refritos），罐装，传统风味",
+"note": "墨西哥红豆泥可用普通豆泥等量代替。"
+}
+],
+"haricots blancs, graines mûres, germées, crues": [
+{
+"nom": "海军豆，干（含水量 0%）",
+"note": "生白芸豆芽，没有时可用等量煮熟的干白芸豆代替。"
+}
+],
+"haricots pinto, graines mûres, germées, crues": [
+{
+"nom": "斑豆，干（含水量 0%）",
+"note": "生斑豆芽，没有时可用煮熟的干斑豆代替。"
+}
+],
+"haricots rouges, graines mûres, germées, crues": [
+{
+"nom": "海军豆，干（含水量 0%）",
+"note": "生红芸豆芽，没有时可用煮熟的干红/白芸豆代替。"
+}
+],
+"huile d'avoine": [
+{
+"nom": "植物油",
+"note": "燕麦油较罕见：用中性植物油等量代替。"
+}
+],
+"huile de palme": [
+{
+"nom": "植物油",
+"note": "油炸时用中性植物油（葵花籽油、菜籽油）等量代替。"
+}
+],
+"huile de noix": [
+{
+"nom": "橄榄油",
+"note": "核桃油（味道浓）：调味时用橄榄油等量代替。"
+}
+],
+"huile d'amande": [
+{
+"nom": "植物油",
+"note": "杏仁油：用中性植物油等量代替。"
+}
+],
+"huile de noisette": [
+{
+"nom": "橄榄油",
+"note": "榛子油（味道浓）：调味时用橄榄油等量代替。"
+}
+],
+"huile d'avocat": [
+{
+"nom": "橄榄油",
+"note": "调味或低温烹调时，牛油果油可用橄榄油等量代替。"
+}
+],
+"huile de son de riz": [
+{
+"nom": "植物油",
+"note": "米糠油：用中性植物油等量代替。"
+}
+],
+"huile de pépins de raisin": [
+{
+"nom": "植物油",
+"note": "葡萄籽油：用中性植物油或淡味橄榄油等量代替。"
+}
+],
+"huile de germe de blé": [
+{
+"nom": "植物油",
+"note": "小麦胚芽油（味道浓）：非营养用途时用中性植物油等量代替。"
+}
+],
+"huile de maïs et de colza": [
+{
+"nom": "菜籽油",
+"note": "玉米菜籽调和油：用纯菜籽油等量代替。"
+}
+],
+"graisse d'oie": [
+{
+"nom": "鸭油",
+"note": "烤土豆时鹅油可用鸭油等量代替。"
+}
+],
+"graisse de dinde": [
+{
+"nom": "鸭油",
+"note": "火鸡油可用鸭油或黄油等量代替。"
+}
+],
+"graisse de poulet": [
+{
+"nom": "鸭油",
+"note": "鸡油可用鸭油或植物油等量代替。"
+}
+],
+"graisse de boeuf (suif)": [
+{
+"nom": "猪油",
+"note": "烹饪/油炸时牛油（牛脂）可用猪油等量代替。"
+}
+],
+"graisse animale, graisse de bacon": [
+{
+"nom": "猪油",
+"note": "培根油可用猪油等量代替。"
+}
+],
+"racine de gingembre, marinée, en conserve, avec édulcorant artificiel": [
+{
+"nom": "鲜姜",
+"note": "罐装腌姜：用新鲜姜末（减量，味道更冲）或普通腌姜代替。"
+}
+],
+"cornichons sucrés, faible en sodium (y compris pickles « bread and butter »)": [
+{
+"nom": "醋渍小黄瓜",
+"note": "低钠甜腌黄瓜可用普通醋腌黄瓜等量代替（调整盐量）。"
+}
+],
+"ananas, en conserve, au sirop léger, solides et liquide": [
+{
+"nom": "菠萝，生",
+"note": "糖水罐装菠萝：用新鲜菠萝块代替（减少配方中添加的糖）。"
+}
+],
+"ananas, en conserve, au sirop épais, solides et liquide": [
+{
+"nom": "菠萝，生",
+"note": "浓糖浆罐装菠萝：用新鲜菠萝代替（减少添加的糖）。"
+}
+],
+"ananas, en conserve, au sirop très épais, solides et liquide": [
+{
+"nom": "菠萝，生",
+"note": "特浓糖浆罐装菠萝：用新鲜菠萝代替（大幅减少添加的糖）。"
+}
+],
+"myrtilles, en conserve, au sirop épais, solides et liquide": [
+{
+"nom": "蓝莓，生",
+"note": "糖水罐装蓝莓：用新鲜或冷冻蓝莓代替（调整糖量）。"
+}
+],
+"mûres, en conserve, au sirop épais, solides et liquide": [
+{
+"nom": "黑莓，生",
+"note": "糖水罐装黑莓：用新鲜或冷冻黑莓代替（调整糖量）。"
+}
+],
+"fraises, en conserve, au sirop épais, solides et liquide": [
+{
+"nom": "草莓，生",
+"note": "糖水罐装草莓：用新鲜或冷冻草莓代替（调整糖量）。"
+}
+],
+"figues, en conserve, au sirop très épais, solides et liquide": [
+{
+"nom": "无花果，生",
+"note": "糖水罐装无花果：用新鲜无花果或泡发的无花果干代替（调整糖量）。"
+}
+],
+"poires, en conserve, au sirop très épais, solides et liquide": [
+{
+"nom": "梨，生",
+"note": "特浓糖浆罐装梨：用新鲜水煮梨代替（调整糖量）。"
+}
+],
+"groseilles à maquereau, en conserve, au sirop léger, solides et liquide": [
+{
+"nom": "醋栗，生",
+"note": "罐装醋栗（鹅莓）：用新鲜醋栗代替，没有时可用蓝莓。"
+}
+],
+"mandarines, en conserve, au sirop léger": [
+{
+"nom": "橘子，生",
+"note": "罐装橘子：用新鲜橘子瓣或新鲜橙子代替。"
+}
+],
+"cerises acides, en conserve, au naturel (dans l'eau), égouttées": [
+{
+"nom": "甜樱桃，生",
+"note": "罐装酸樱桃：用新鲜去核甜樱桃代替（按酸度调整糖量）。"
+}
+],
+"pruneaux, en conserve, au sirop épais, solides et liquide": [
+{
+"nom": "复水西梅干",
+"note": "糖水罐装西梅可用热水泡发的西梅干代替（不那么甜）。"
+}
+],
+"abricots, déshydratés (faible teneur en eau), soufrés, cuits en compote": [
+{
+"nom": "桃干",
+"note": "果泥和烘焙中，炖杏干和桃干可等量互换。"
+}
+],
+"abricots, déshydratés (faible teneur en eau), soufrés, crus": [
+{
+"nom": "桃干",
+"note": "烹饪和烘焙中，生杏干和桃干可等量互换。"
+}
+],
+"champignons portobello, exposés aux ultraviolets, crus": [
+{
+"nom": "褐蘑菇（意大利或克里米尼），生",
+"note": "波托贝洛蘑菇可用褐蘑菇（克里米尼）等量代替，口感更紧实。"
+}
+],
+"champignons portobello, exposés aux ultraviolets, grillés": [
+{
+"nom": "褐蘑菇（意大利或克里米尼），生",
+"note": "烤波托贝洛蘑菇可用褐蘑菇（克里米尼）等量代替。"
+}
+],
+"champignons bruns (italiens ou crimini), crus": [
+{
+"nom": "白蘑菇（巴黎蘑菇，白色）",
+"note": "褐蘑菇（克里米尼）可用白蘑菇等量代替，味道更温和。"
+}
+],
+"courge d'hiver hubbard, cuite au four, avec sel": [
+{
+"nom": "胡桃南瓜，生",
+"note": "烤哈伯德南瓜可用奶油南瓜等量代替。"
+}
+],
+"courge d'hiver hubbard, cuite au four, sans sel": [
+{
+"nom": "胡桃南瓜，生",
+"note": "烤哈伯德南瓜（无盐）可用奶油南瓜等量代替。"
+}
+],
+"courge butternut, surgelée, non préparée": [
+{
+"nom": "麝香南瓜",
+"note": "冷冻奶油南瓜可用煮熟的新鲜南瓜或哈伯德南瓜等量代替。"
+}
+],
+"citrouille, cuite, bouillie, égouttée, avec sel": [
+{
+"nom": "胡桃南瓜，生",
+"note": "熟南瓜可用熟奶油南瓜等量代替（菜泥、汤、派）。"
+}
+],
+"courgette (courge d'été), avec peau, crue": [
+{
+"nom": "西葫芦",
+"note": "带皮生西葫芦，与目录中普通西葫芦为相同的参考品种。"
+}
+],
+"chou frisé (kale), cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "菠菜，生",
+"note": "熟羽衣甘蓝可用熟菠菜等量代替（熟得更快）。"
+}
+],
+"chou frisé (kale), cuit, bouilli, égoutté, sans sel": [
+{
+"nom": "菠菜，生",
+"note": "无盐熟羽衣甘蓝可用熟菠菜等量代替。"
+}
+],
+"chou vert non pommé (collard), cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "羽衣甘蓝，生",
+"note": "熟羽衣甘蓝（collard）可用熟羽衣甘蓝（kale）等量代替。"
+}
+],
+"patience (oseille sauvage), cuite, bouillie, égouttée, avec sel": [
+{
+"nom": "菠菜，生",
+"note": "熟酸模（野酸模）可用熟菠菜等量代替，酸味较淡。"
+}
+],
+"patience (oseille sauvage), cuite, bouillie, égouttée, sans sel": [
+{
+"nom": "菠菜，生",
+"note": "无盐熟酸模（野酸模）可用熟菠菜等量代替。"
+}
+],
+"bourrache, cuite, bouillie, égouttée, avec sel": [
+{
+"nom": "菠菜，生",
+"note": "熟琉璃苣可用熟菠菜等量代替，味道更柔和。"
+}
+],
+"pourpier, cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "菠菜，生",
+"note": "熟马齿苋可用熟菠菜或野苣等量代替。"
+}
+],
+"cardon, cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "芹菜，生",
+"note": "熟刺菜蓟可用熟西芹等量代替，口感接近。"
+}
+],
+"salsifis, cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "欧防风",
+"note": "熟婆罗门参可用熟欧防风等量代替，味道接近。"
+}
+],
+"panais, cuits, bouillis, égouttés, avec sel": [
+{
+"nom": "熟胡萝卜",
+"note": "熟欧防风可用熟胡萝卜等量代替，稍不那么甜。"
+}
+],
+"chou-rave, cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "芜菁",
+"note": "熟球茎甘蓝（苤蓝）可用熟芜菁等量代替，味道接近。"
+}
+],
+"navets, cuits, bouillis, égouttés, avec sel": [
+{
+"nom": "球茎甘蓝，生",
+"note": "熟芜菁可用熟球茎甘蓝或瑞典芜菁等量代替。"
+}
+],
+"céleri-rave, cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "欧防风",
+"note": "菜泥和浓汤中熟根芹可用熟欧防风等量代替。"
+}
+],
+"brocoli, cuit, bouilli, égoutté, avec sel": [
+{
+"nom": "熟花椰菜",
+"note": "熟西兰花可用熟花椰菜等量代替。"
+}
+],
+"pommes, sans peau, cuites, bouillies": [
+{
+"nom": "无糖苹果泥",
+"note": "去皮水煮苹果压成泥可等量代替市售苹果泥。"
+}
+],
+"pommes, sans peau, cuites au micro-ondes": [
+{
+"nom": "苹果，去皮，水煮",
+"note": "微波苹果和水煮苹果可等量互换。"
+}
+],
+"graines d'arbre à pain, rôties": [
+{
+"nom": "烤栗子",
+"note": "烤面包果籽较罕见：用烤栗子等量代替（粉糯口感接近）。"
+}
+],
+"graines de bréadnut, séchées": [
+{
+"nom": "干栗子",
+"note": "干面包坚果籽较罕见：用干栗子等量代替。"
+}
+],
+"pamplemousse, cru, rose et rouge, californie et arizona": [
+{
+"nom": "橙子，生，所有商业品种",
+"note": "粉红/红葡萄柚可用新鲜橙子等量代替，苦味更淡。"
+}
+],
+"tofu, salé et fermenté (fuyu), préparé au sulfate de calcium": [
+{
+"nom": "腌制老豆腐",
+"note": "炒菜中腐乳（味道浓）可用普通腌制老豆腐代替。"
+}
+],
+"rutabagas, bouillis, égouttés, salés": [
+{
+"nom": "芜菁，生",
+"note": "芜菁可等量代替瑞典芜菁，味道稍柔和"
+}
+],
+"rutabagas, bouillis, égouttés, non salés": [
+{
+"nom": "芜菁，生",
+"note": "芜菁可等量代替瑞典芜菁，味道稍柔和"
+}
+],
+"chou-rave, bouilli, égoutté, non salé": [
+{
+"nom": "芜菁，生",
+"note": "球茎甘蓝（苤蓝）可用芜菁等量代替，煮熟后口感接近"
+}
+],
+"salsifis, bouillis, égouttés, non salés": [
+{
+"nom": "欧防风，生",
+"note": "欧防风可等量代替婆罗门参，味道稍甜"
+}
+],
+"racine de bardane, bouillie, égouttée, salée": [
+{
+"nom": "欧防风，生",
+"note": "牛蒡根可用欧防风代替，口感和烹调方式接近"
+}
+],
+"racine de bardane, bouillie, égouttée, non salée": [
+{
+"nom": "欧防风，生",
+"note": "牛蒡根可用欧防风代替，口感和烹调方式接近"
+}
+],
+"panais, bouillis, égouttés, non salés": [
+{
+"nom": "胡萝卜，生",
+"note": "炖菜中欧防风可用胡萝卜等量代替"
+}
+],
+"jicama, bouilli, égoutté, salé": [
+{
+"nom": "荸荠（马蹄）",
+"note": "豆薯可用荸荠代替以保持脆感，味道更中性"
+}
+],
+"jicama, bouilli, égoutté, non salé": [
+{
+"nom": "荸荠（马蹄）",
+"note": "豆薯可用荸荠代替以保持脆感，味道更中性"
+}
+],
+"pousses de bambou, bouillies, égouttées, salées": [
+{
+"nom": "荸荠（马蹄）",
+"note": "炒菜中竹笋可用荸荠代替以保持脆感"
+}
+],
+"pousses de bambou, bouillies, égouttées, non salées": [
+{
+"nom": "荸荠（马蹄）",
+"note": "炒菜中竹笋可用荸荠代替以保持脆感"
+}
+],
+"racine de lotus, bouillie, égouttée, salée": [
+{
+"nom": "荸荠（马蹄）",
+"note": "莲藕可用荸荠代替以保持脆感"
+}
+],
+"racine de lotus, bouillie, égouttée, non salée": [
+{
+"nom": "荸荠（马蹄）",
+"note": "莲藕可用荸荠代替以保持脆感"
+}
+],
+"sagittaire, bouillie, égouttée, salée": [
+{
+"nom": "荸荠（马蹄）",
+"note": "慈姑（块茎）可用荸荠代替，脆感接近"
+}
+],
+"sagittaire, bouillie, égouttée, non salée": [
+{
+"nom": "荸荠（马蹄）",
+"note": "慈姑（块茎）可用荸荠代替，脆感接近"
+}
+],
+"chénopode blanc, bouilli, égoutté, salé": [
+{
+"nom": "菠菜，生",
+"note": "藜（灰灰菜）可用菠菜等量代替"
+}
+],
+"chénopode blanc, bouilli, égoutté, non salé": [
+{
+"nom": "菠菜，生",
+"note": "藜（灰灰菜）可用菠菜等量代替"
+}
+],
+"pourpier, bouilli, égoutté, non salé": [
+{
+"nom": "菠菜，生",
+"note": "马齿苋可用菠菜代替，味道更中性、酸味更淡"
+}
+],
+"fanes de betterave, bouillies, égouttées, salées": [
+{
+"nom": "菠菜，生",
+"note": "甜菜叶可用菠菜等量代替"
+}
+],
+"fanes de betterave, bouillies, égouttées, non salées": [
+{
+"nom": "菠菜，生",
+"note": "甜菜叶可用菠菜等量代替"
+}
+],
+"bourrache, bouillie, égouttée, non salée": [
+{
+"nom": "菠菜，生",
+"note": "琉璃苣可用菠菜代替，味道更柔和"
+}
+],
+"feuilles de pissenlit, bouillies, égouttées, salées": [
+{
+"nom": "菠菜，生",
+"note": "蒲公英叶可用菠菜代替，苦味更淡"
+}
+],
+"feuilles de pissenlit, bouillies, égouttées, non salées": [
+{
+"nom": "菠菜，生",
+"note": "蒲公英叶可用菠菜代替，苦味更淡"
+}
+],
+"feuilles d'amarante, bouillies, égouttées, salées": [
+{
+"nom": "菠菜，生",
+"note": "苋菜叶可用菠菜等量代替"
+}
+],
+"feuilles d'amarante, bouillies, égouttées, non salées": [
+{
+"nom": "菠菜，生",
+"note": "苋菜叶可用菠菜等量代替"
+}
+],
+"tétragone (épinard de nouvelle-zélande), bouillie, égouttée, salée": [
+{
+"nom": "菠菜，生",
+"note": "番杏（新西兰菠菜）可用菠菜等量代替，味道非常接近"
+}
+],
+"tétragone (épinard de nouvelle-zélande), bouillie, égouttée, non salée": [
+{
+"nom": "菠菜，生",
+"note": "番杏（新西兰菠菜）可用菠菜等量代替，味道非常接近"
+}
+],
+"liseron d'eau, bouilli, égoutté, salé": [
+{
+"nom": "菠菜，生",
+"note": "空心菜可用菠菜代替，煮熟后味道和口感接近"
+}
+],
+"liseron d'eau, bouilli, égoutté, non salé": [
+{
+"nom": "菠菜，生",
+"note": "空心菜可用菠菜代替，煮熟后味道和口感接近"
+}
+],
+"feuilles de moringa, bouillies, égouttées, salées": [
+{
+"nom": "菠菜，生",
+"note": "辣木叶可用菠菜等量代替"
+}
+],
+"feuilles de moringa, bouillies, égouttées, non salées": [
+{
+"nom": "菠菜，生",
+"note": "辣木叶可用菠菜等量代替"
+}
+],
+"feuilles de citrouille, bouillies, égouttées, salées": [
+{
+"nom": "菠菜，生",
+"note": "南瓜叶可用菠菜代替，味道更中性"
+}
+],
+"feuilles de citrouille, bouillies, égouttées, non salées": [
+{
+"nom": "菠菜，生",
+"note": "南瓜叶可用菠菜代替，味道更中性"
+}
+],
+"fanes de navet, bouillies, égouttées, salées": [
+{
+"nom": "羽衣甘蓝（collard），水煮，沥干，无盐",
+"note": "芜菁叶可用羽衣甘蓝（collard）代替，烹调时间稍长"
+}
+],
+"fanes de navet, bouillies, égouttées, non salées": [
+{
+"nom": "羽衣甘蓝（collard），水煮，沥干，无盐",
+"note": "芜菁叶可用羽衣甘蓝（collard）代替，烹调时间稍长"
+}
+],
+"feuilles de moutarde, bouillies, égouttées, salées": [
+{
+"nom": "羽衣甘蓝（collard），水煮，沥干，无盐",
+"note": "芥菜叶可用羽衣甘蓝（collard）代替，辣味更淡"
+}
+],
+"feuilles de moutarde, bouillies, égouttées, non salées": [
+{
+"nom": "羽衣甘蓝（collard），水煮，沥干，无盐",
+"note": "芥菜叶可用羽衣甘蓝（collard）代替，辣味更淡"
+}
+],
+"escarole, bouillie, égouttée, sans sel ajouté": [
+{
+"nom": "比利时菊苣，生",
+"note": "宽叶苣荬菜可用菊苣（witloof）或苦苣代替，苦味接近"
+}
+],
+"cardon, bouilli, égoutté, non salé": [
+{
+"nom": "西芹",
+"note": "刺菜蓟可用西芹代替，但少了洋蓟风味"
+}
+],
+"céleri-rave, bouilli, égoutté, non salé": [
+{
+"nom": "欧防风，生",
+"note": "菜泥和浓汤中根芹可用欧防风代替"
+}
+],
+"haricot kilomètre (asperge), bouilli, égoutté, salé": [
+{
+"nom": "四季豆，生",
+"note": "长豇豆（豆角）可用四季豆等量代替"
+}
+],
+"haricot kilomètre (asperge), bouilli, égoutté, non salé": [
+{
+"nom": "四季豆，生",
+"note": "长豇豆（豆角）可用四季豆等量代替"
+}
+],
+"haricots noirs, mûrs, crus": [
+{
+"nom": "深红芸豆，干（含水量 0%）",
+"note": "黑豆可用红芸豆等量代替"
+}
+],
+"haricots noirs (black turtle), mûrs, crus": [
+{
+"nom": "深红芸豆，干（含水量 0%）",
+"note": "黑龟豆可用红芸豆等量代替"
+}
+],
+"haricots roses, mûrs, crus": [
+{
+"nom": "深红芸豆，干（含水量 0%）",
+"note": "粉红豆可用红芸豆或斑豆等量代替"
+}
+],
+"haricots pinto immatures, surgelés, non préparés": [
+{
+"nom": "深红芸豆，干（含水量 0%）",
+"note": "斑豆可用红芸豆等量代替"
+}
+],
+"haricots pinto, en conserve, égouttés": [
+{
+"nom": "深红芸豆，干（含水量 0%）",
+"note": "斑豆可用红芸豆等量代替"
+}
+],
+"haricots adzuki, mûrs, crus": [
+{
+"nom": "深红芸豆，干（含水量 0%）",
+"note": "红小豆可用红芸豆代替，味道更中性"
+}
+],
+"haricots french, mûrs, crus": [
+{
+"nom": "海军豆（白豆），成熟，生",
+"note": "成熟法国豆可用海军豆（白豆）等量代替"
+}
+],
+"haricots jaunes, mûrs, crus": [
+{
+"nom": "海军豆（白豆），成熟，生",
+"note": "成熟黄豆（黄色菜豆）可用白芸豆等量代替"
+}
+],
+"petits haricots blancs, mûrs, crus": [
+{
+"nom": "海军豆（白豆），成熟，生",
+"note": "小白豆可用海军豆（白豆）等量代替"
+}
+],
+"haricots de lima, gros, mûrs, crus": [
+{
+"nom": "蚕豆，成熟豆粒，生",
+"note": "利马豆可用蚕豆等量代替"
+}
+],
+"haricots de lima, gros, mûrs, en conserve": [
+{
+"nom": "蚕豆，成熟豆粒，生",
+"note": "利马豆可用蚕豆等量代替"
+}
+],
+"haricots de lima immatures, petits (baby), surgelés, non préparés": [
+{
+"nom": "蚕豆，成熟豆粒，生",
+"note": "未成熟利马豆可用新鲜蚕豆代替"
+}
+],
+"haricots de lima immatures, variété fordhook, surgelés, non préparés": [
+{
+"nom": "蚕豆，成熟豆粒，生",
+"note": "未成熟利马豆（Fordhook）可用新鲜蚕豆代替"
+}
+],
+"cornilles catjang (niébé), mûres, crues": [
+{
+"nom": "鹰嘴豆，成熟豆粒，生",
+"note": "饭豆（catjang豇豆）可用鹰嘴豆或白芸豆等量代替"
+}
+],
+"nouilles aux oeufs, sèches, enrichies": [
+{
+"nom": "宽面条",
+"note": "鸡蛋面可用意式宽面（tagliatelle）等量代替"
+}
+],
+"nouilles aux oeufs, sèches, non enrichies": [
+{
+"nom": "宽面条",
+"note": "鸡蛋面可用意式宽面（tagliatelle）等量代替"
+}
+],
+"nouilles aux oeufs, enrichies, cuites": [
+{
+"nom": "宽面条",
+"note": "鸡蛋面可用意式宽面（tagliatelle）等量代替"
+}
+],
+"nouilles japonaises soba, sèches": [
+{
+"nom": "米线",
+"note": "荞麦面可用米粉丝或全麦意大利面代替"
+}
+],
+"nouilles japonaises soba, cuites": [
+{
+"nom": "米线",
+"note": "荞麦面可用米粉丝或全麦意大利面代替"
+}
+],
+"nouilles japonaises somen, sèches": [
+{
+"nom": "米线",
+"note": "素面可用米粉丝等量代替"
+}
+],
+"nouilles japonaises somen, cuites": [
+{
+"nom": "米线",
+"note": "素面可用米粉丝等量代替"
+}
+],
+"pâtes sans gluten, au maïs, sèches": [
+{
+"nom": "米线",
+"note": "无麸质玉米意面可用米粉丝或米制意面代替"
+}
+],
+"pâtes sans gluten, au maïs, cuites": [
+{
+"nom": "米线",
+"note": "无麸质玉米意面可用米粉丝或米制意面代替"
+}
+],
+"farine de blé blanche, à pâtisserie, enrichie": [
+{
+"nom": "T55 小麦粉",
+"note": "糕点粉可用通用面粉（T55）代替，口感稍紧实"
+}
+],
+"farine de blé blanche, à pain, enrichie": [
+{
+"nom": "T55 小麦粉",
+"note": "面包粉可用通用面粉（T55）代替，发酵膨胀稍弱"
+}
+],
+"châtaignes de chine, crues": [
+{
+"nom": "欧洲栗，生，去壳",
+"note": "中国板栗可用欧洲栗等量代替"
+}
+],
+"châtaignes de chine, séchées": [
+{
+"nom": "欧洲栗，生，去壳",
+"note": "中国板栗可用欧洲栗等量代替"
+}
+],
+"châtaignes de chine, rôties": [
+{
+"nom": "欧洲栗，生，去壳",
+"note": "中国板栗可用欧洲栗等量代替"
+}
+],
+"châtaignes du japon, crues": [
+{
+"nom": "欧洲栗，生，去壳",
+"note": "日本栗可用欧洲栗等量代替"
+}
+],
+"châtaignes du japon, séchées": [
+{
+"nom": "欧洲栗，生，去壳",
+"note": "日本栗可用欧洲栗等量代替"
+}
+],
+"châtaignes du japon, rôties": [
+{
+"nom": "欧洲栗，生，去壳",
+"note": "日本栗可用欧洲栗等量代替"
+}
+],
+"noix noires, séchées": [
+{
+"nom": "核桃仁（半瓣），生",
+"note": "黑核桃可用普通核桃等量代替，味道更浓"
+}
+],
+"pignons de pin (pin pignon), séchés": [
+{
+"nom": "腰果",
+"note": "松子可用腰果代替（青酱、配料），松脂味较淡"
+}
+],
+"noix du brésil, séchées, non émondées": [
+{
+"nom": "整粒杏仁，生",
+"note": "巴西坚果可用杏仁或腰果等量代替"
+}
+],
+"cacahuètes espagnoles, grillées à l'huile, salées": [
+{
+"nom": "花生，所有品种，油烤，加盐",
+"note": "西班牙花生可用普通咸味烤花生代替"
+}
+],
+"cacahuètes valencia, grillées à l'huile, salées": [
+{
+"nom": "花生，所有品种，油烤，加盐",
+"note": "瓦伦西亚花生可用普通咸味烤花生代替"
+}
+],
+"similis-poulet (végétal), pané, frit": [
+{
+"nom": "生豆腐，硬，石膏点制",
+"note": "素鸡块可用裹粉老豆腐代替，作为植物基替代品"
+}
+],
+"crème de coco, en conserve, sucrée": [
+{
+"nom": "椰奶",
+"note": "加糖椰奶油可用椰奶加糖代替"
+}
+],
+"igname de montagne (hawaï), cuit à la vapeur, salé": [
+{
+"nom": "红薯，生，未加工（含USDA食品分发计划食品）",
+"note": "山药（夏威夷）可用红薯等量代替"
+}
+],
+"igname de montagne (hawaï), cuit à la vapeur, non salé": [
+{
+"nom": "红薯，生，未加工（含USDA食品分发计划食品）",
+"note": "山药（夏威夷）可用红薯等量代替"
+}
+],
+"gousses de moringa (drumstick), bouillies, égouttées, salées": [
+{
+"nom": "四季豆，生",
+"note": "咖喱中辣木荚（鼓槌）可用四季豆代替"
+}
+],
+"gousses de moringa (drumstick), bouillies, égouttées, non salées": [
+{
+"nom": "四季豆，生",
+"note": "咖喱中辣木荚（鼓槌）可用四季豆代替"
+}
+],
+"poires séchées, sulfurées, mijotées, avec sucre ajouté": [
+{
+"nom": "苹果干，硫处理，未煮",
+"note": "炖梨干可用炖苹果干代替，口感接近"
+}
+],
+"poires séchées, sulfurées, mijotées, sans sucre ajouté": [
+{
+"nom": "苹果干，硫处理，未煮",
+"note": "炖梨干可用炖苹果干代替，口感接近"
+}
+],
+"pêches séchées, sulfurées, mijotées, avec sucre ajouté": [
+{
+"nom": "杏干，硫处理，未煮",
+"note": "炖桃干可用炖杏干代替，味道接近"
+}
+],
+"pêches séchées, sulfurées, mijotées, sans sucre ajouté": [
+{
+"nom": "杏干，硫处理，未煮",
+"note": "炖桃干可用炖杏干代替，味道接近"
+}
+],
+"mandarines, en conserve, au jus, égouttées": [
+{
+"nom": "脐橙，罐装或新鲜",
+"note": "罐装橘子可用去皮去膜的橙子代替，味道更酸"
+}
+],
+"pamplemousse, quartiers, en conserve, au naturel, avec liquide": [
+{
+"nom": "脐橙，罐装或新鲜",
+"note": "罐装葡萄柚可用去皮去膜的橙子代替，不那么苦"
+}
+],
+"pamplemousse, quartiers, en conserve, au jus, avec liquide": [
+{
+"nom": "脐橙，罐装或新鲜",
+"note": "罐装葡萄柚可用去皮去膜的橙子代替，不那么苦"
+}
+],
+"cerises douces, en conserve, au naturel, avec liquide": [
+{
+"nom": "甜樱桃，生",
+"note": "罐装甜樱桃可用新鲜去核樱桃（或冷冻樱桃）代替"
+}
+],
+"cerises douces, en conserve, au jus, avec liquide": [
+{
+"nom": "甜樱桃，生",
+"note": "罐装甜樱桃可用新鲜去核樱桃（或冷冻樱桃）代替"
+}
+],
+"pâte à tartiner type margarine, smart balance omega plus (stérols végétaux et huile de poisson)": [
+{
+"nom": "植物黄油",
+"note": "人造黄油类涂抹酱（SMART BALANCE）可用普通植物人造黄油代替"
+}
+],
+"macaronis aux légumes, enrichis, secs": [
+{
+"nom": "宽面条",
+"note": "蔬菜通心粉可用普通意面（通心粉或宽面）代替"
+}
+],
+"macaronis aux légumes, enrichis, cuits": [
+{
+"nom": "宽面条",
+"note": "蔬菜通心粉可用普通意面（通心粉或宽面）代替"
+}
+],
+"haricots noirs (black turtle), graines mûres, en conserve": [
+{
+"nom": "黑豆，罐装，加盐，沥干冲洗",
+"note": "罐装黑龟豆可等量代替普通黑豆。"
+}
+],
+"haricots great northern, graines mûres, en conserve": [
+{
+"nom": "白腰豆，罐装，加盐，沥干冲洗",
+"note": "大北豆可用白腰豆（cannellini）代替，口感和味道非常接近。"
+}
+],
+"haricots cranberry (romains), graines mûres, crus": [
+{
+"nom": "斑豆，干（含水量 0%）",
+"note": "生蔓越莓豆（罗马豆）可用斑豆等量代替。"
+}
+],
+"haricots cranberry (romains), graines mûres, en conserve": [
+{
+"nom": "斑豆，罐装，加盐，沥干冲洗",
+"note": "罐装蔓越莓豆（罗马豆）可用罐装斑豆代替。"
+}
+],
+"haricots frits (refritos), en conserve, traditionnels, à teneur réduite en sodium": [
+{
+"nom": "斑豆豆泥（refritos），罐装",
+"note": "可用普通斑豆豆泥等量代替。"
+}
+],
+"beurre d'amande, nature, salé": [
+{
+"nom": "腰果酱，原味，无盐",
+"note": "杏仁酱可用腰果酱代替，味道更柔和、更甜。"
+}
+],
+"beurre d'amande, nature, non salé": [
+{
+"nom": "腰果酱，原味，加盐",
+"note": "无盐杏仁酱可用腰果酱等量代替。"
+}
+],
+"beurre de noix de cajou, nature, salé": [
+{
+"nom": "杏仁酱，原味，加盐",
+"note": "腰果酱可用杏仁酱等量代替。"
+}
+],
+"beurre de sésame (tahini), type de graines non précisé": [
+{
+"nom": "花生酱",
+"note": "应急时芝麻酱（tahini）可用花生酱代替（味道不同，不那么苦）。"
+}
+],
+"beurre de sésame (tahini), à partir de graines rôties et grillées (type le plus courant)": [
+{
+"nom": "腰果酱，原味，无盐",
+"note": "芝麻酱（tahini）可用腰果酱或杏仁酱代替，味道更柔和。"
+}
+],
+"cacahuètes, tous types, rôties à l'huile, salées": [
+{
+"nom": "腰果，生",
+"note": "咸味菜谱或炒菜中，烤花生可用腰果代替。"
+}
+],
+"cacahuètes, tous types, rôties à sec, salées": [
+{
+"nom": "腰果，干烤，加盐",
+"note": "干烤花生可用干烤腰果等量代替。"
+}
+],
+"noix de pécan, rôties à sec, salées": [
+{
+"nom": "榛子，生",
+"note": "烘焙中碧根果可用榛子或核桃代替，味道略有不同。"
+}
+],
+"noix, rôties à sec, salées": [
+{
+"nom": "碧根果，干烤，加盐",
+"note": "烘焙菜谱中核桃可用碧根果等量代替。"
+}
+],
+"noisettes, rôties à sec, non salées": [
+{
+"nom": "核桃，干烤，加盐",
+"note": "大多数烘焙菜谱中榛子可用核桃或杏仁代替。"
+}
+],
+"graines de tournesol, décortiquées, grillées, sans sel": [
+{
+"nom": "南瓜子仁，生",
+"note": "葵花籽仁可用南瓜籽（pepitas）等量代替。"
+}
+],
+"graines de courge et potiron, décortiquées, rôties, sans sel": [
+{
+"nom": "葵花籽仁，烘烤，无盐",
+"note": "烤南瓜籽可用葵花籽仁等量代替。"
+}
+],
+"farine de blé, blanche, tout usage, non enrichie": [
+{
+"nom": "小麦粉，通用，强化",
+"note": "非强化通用面粉可用强化面粉等量代替。"
+}
+],
+"farine de blé, blanche, préparation pour tortillas, enrichie": [
+{
+"nom": "白面粉，通用，非强化",
+"note": "墨西哥薄饼预拌粉可用普通通用小麦粉等量代替。"
+}
+],
+"pâtes, sans gluten, à la farine de maïs et de riz, cuites": [
+{
+"nom": "米粉（米线）",
+"note": "无麸质意面（玉米和米）可用米粉代替，做出类似菜肴。"
+}
+],
+"nouilles chinoises, cellophane ou vermicelles de riz (haricots mungo), déshydratées": [
+{
+"nom": "米粉（米线）",
+"note": "中式粉丝（绿豆粉丝）可用米粉代替，煮熟后口感接近。"
+}
+],
+"huile d'arachide, salade ou cuisine": [
+{
+"nom": "葵花籽油",
+"note": "花生油可用葵花籽油代替，味道中性，适合烹饪和油炸。"
+}
+],
+"huile de sésame, salade ou cuisine": [
+{
+"nom": "花生油，凉拌或烹饪用",
+"note": "炒菜时芝麻油（烹饪用，非焙炒）可用花生油代替。"
+}
+],
+"huile de soja, salade ou cuisine": [
+{
+"nom": "葵花籽油",
+"note": "大豆油可用葵花籽油等量代替，同样味道中性。"
+}
+],
+"huile de coton, salade ou cuisine": [
+{
+"nom": "葵花籽油",
+"note": "棉籽油不易买到，可用葵花籽油或大豆油等量代替。"
+}
+],
+"margarine à tartiner, 40-49% de matières grasses, en pot": [
+{
+"nom": "人造黄油",
+"note": "除精致糕点外，人造黄油涂抹酱在大多数用途中可等量代替黄油。"
+}
+],
+"beurre, salé": [
+{
+"nom": "黄油，无盐",
+"note": "含盐黄油可用无盐黄油加一小撮盐代替。"
+}
+],
+"beurre, sans sel": [
+{
+"nom": "黄油，含盐",
+"note": "无盐黄油可用含盐黄油代替，减少配方中添加的盐。"
+}
+],
+"substitut de beurre, sans matières grasses, en poudre": [
+{
+"nom": "人造黄油",
+"note": "黄油替代粉可用融化的黄油或人造黄油调整用量代替。"
+}
+],
+"fromage bleu": [
+{
+"nom": "洛克福奶酪",
+"note": "普通蓝纹奶酪可用洛克福奶酪代替，味道更浓烈。"
+}
+],
+"fromage, roquefort": [
+{
+"nom": "蓝纹奶酪",
+"note": "洛克福奶酪可用其他蓝纹奶酪代替，味道稍温和。"
+}
+],
+"fromage, brie": [
+{
+"nom": "卡门贝尔奶酪",
+"note": "布里奶酪可用卡门贝尔奶酪等量代替，味道非常接近。"
+}
+],
+"fromage, camembert": [
+{
+"nom": "卡门贝尔奶酪",
+"note": "卡门贝尔奶酪（USDA款）可用目录中的标准卡门贝尔奶酪等量代替。"
+}
+],
+"fromage, edam": [
+{
+"nom": "高达奶酪",
+"note": "埃丹奶酪可用高达奶酪代替，口感和味道非常接近。"
+}
+],
+"fromage, gouda": [
+{
+"nom": "埃丹奶酪",
+"note": "高达奶酪可用埃丹奶酪代替，脂肪稍少。"
+}
+],
+"fromage, gruyère": [
+{
+"nom": "埃曼塔尔奶酪",
+"note": "格吕耶尔奶酪可用埃门塔尔奶酪代替，味道稍温和。"
+},
+{
+"nom": "切达奶酪",
+"note": "焗菜中格吕耶尔奶酪也可用切达代替，味道不同但融化效果相近。"
+}
+],
+"fromage, monterey jack": [
+{
+"nom": "切达奶酪",
+"note": "蒙特雷杰克奶酪可用温和切达等量代替，融化效果相近。"
+}
+],
+"fromage, mélange mexicain": [
+{
+"nom": "切达奶酪",
+"note": "墨西哥混合奶酪可单用切达，或切达配蒙特雷杰克代替。"
+}
+],
+"fromage, muenster": [
+{
+"nom": "高达奶酪",
+"note": "蒙斯特奶酪可用高达或埃丹代替，融化效果和温和口味相近。"
+}
+],
+"fromage, feta": [
+{
+"nom": "新鲜山羊奶酪",
+"note": "菲达奶酪可用捏碎的新鲜山羊奶酪代替，味道更温和、不那么咸。"
+}
+],
+"fromage, neufchâtel": [
+{
+"nom": "奶油奶酪",
+"note": "纳沙泰尔奶酪可用普通奶油奶酪代替，口感接近，脂肪稍少。"
+}
+],
+"fromage à la crème": [
+{
+"nom": "纳沙泰尔奶酪",
+"note": "奶油奶酪可用纳沙泰尔奶酪等量代替，脂肪稍少。"
+}
+],
+"fromage, romano": [
+{
+"nom": "帕玛森奶酪",
+"note": "擦在意面上时，罗马诺奶酪可用帕玛森代替，味道接近。"
+}
+],
+"crème aigre, allégée": [
+{
+"nom": "原味希腊酸奶，脱脂",
+"note": "低脂酸奶油可用低脂原味希腊酸奶等量代替。"
+}
+],
+"crème aigre, sans matières grasses": [
+{
+"nom": "原味希腊酸奶，脱脂",
+"note": "无脂酸奶油可用无脂原味希腊酸奶代替。"
+}
+],
+"crème aigre, à teneur réduite en matières grasses": [
+{
+"nom": "原味希腊酸奶，全脂奶",
+"note": "减脂酸奶油可用原味希腊酸奶代替。"
+}
+],
+"abricots, en conserve, à l'eau, sans peau, solides et liquides": [
+{
+"nom": "桃子，罐装，果汁浸，带汁",
+"note": "甜点中罐装杏可用罐装桃代替，味道接近。"
+}
+],
+"abricots, en conserve, au sirop épais, sans peau, solides et liquides": [
+{
+"nom": "桃子，罐装，果汁浸，带汁",
+"note": "糖水罐装杏可用果汁浸罐装桃代替，味道相近。"
+}
+],
+"salade de fruits (pêche, poire, abricot, ananas et cerise), en conserve, à l'eau, solides et liquides": [
+{
+"nom": "什锦水果（桃、菠萝、梨、葡萄、樱桃），罐装，水浸，固形物和汁",
+"note": "水浸罐装水果沙拉可用水浸罐装什锦水果代替，成分非常接近。"
+}
+],
+"salade de fruits (pêche, poire, abricot, ananas et cerise), en conserve, au jus, solides et liquides": [
+{
+"nom": "什锦水果（桃、菠萝、梨、葡萄、樱桃），罐装，果汁浸，固形物和汁",
+"note": "果汁浸罐装水果沙拉可用果汁浸罐装什锦水果代替，成分非常接近。"
+}
+],
+"graines de sésame, décortiquées, grillées, salées": [
+{
+"nom": "芝麻仁，去皮，烘烤，无添加盐",
+"note": "烤咸芝麻可用无盐芝麻代替，并调整配方中的盐。"
+}
+],
+"graines de tournesol, décortiquées, rôties à sec, sans sel": [
+{
+"nom": "南瓜籽仁，烘烤，无盐",
+"note": "干烤葵花籽可用烤南瓜籽等量代替。"
+}
+],
+"lait de soja, au chocolat, avec calcium et vitamines a et d ajoutés": [
+{
+"nom": "杏仁奶",
+"note": "巧克力豆奶可用巧克力杏仁奶或原味杏仁奶加可可代替。"
+}
+],
+"lait de soja (tous parfums), non sucré, avec calcium et vitamines a et d ajoutés": [
+{
+"nom": "杏仁奶",
+"note": "原味豆奶可用杏仁奶代替，味道更中性、更清淡。"
+}
+],
+"lait de soja (tous parfums), allégé en matières grasses, avec calcium et vitamines a et d ajoutés": [
+{
+"nom": "杏仁奶",
+"note": "低脂豆奶可用杏仁奶等量代替。"
+}
+],
+"haricots de lima, graines immatures, en conserve, conditionnement classique, solides et liquides": [
+{
+"nom": "四季豆，生",
+"note": "罐装利马豆可用四季豆等量代替，口感更紧实。"
+}
+],
+"tofu, cru, ferme, préparé au sulfate de calcium": [
+{
+"nom": "生豆腐，普通，石膏点制",
+"note": "老豆腐可用普通豆腐（较软）代替并调整烹调，口感更软嫩。"
+}
+],
+"tofu, cru, régulier, préparé au sulfate de calcium": [
+{
+"nom": "生豆腐，硬，石膏点制",
+"note": "想要更紧实的口感（煎、烤）时，普通豆腐可用老豆腐代替。"
+}
+],
+"jus de pamplemousse, blanc, concentré surgelé, non sucré, non dilué": [
+{
+"nom": "橙汁，冷冻浓缩，无糖，未稀释，添加钙",
+"note": "浓缩葡萄柚汁可用浓缩橙汁代替，味道更柔和。"
+}
+],
+"sauce salade, mayonnaise, allégée": [
+{
+"nom": "沙拉酱，蛋黄酱，经典",
+"note": "低脂蛋黄酱可用普通蛋黄酱代替，减少用量。"
+}
+],
+"sauce salade, mayonnaise, classique": [
+{
+"nom": "沙拉酱，蛋黄酱，低脂",
+"note": "普通蛋黄酱可用低脂蛋黄酱代替以减少脂肪。"
+}
+],
+"poisson, surimi": [
+{
+"nom": "蟹肉",
+"note": "蟹棒可用真蟹肉代替，味道更细腻，口感不同。"
+}
+],
+"graisse végétale, usage domestique, saindoux et huile végétale": [
+{
+"nom": "黄油块，无盐",
+"note": "用黄油等量代替（或用中性植物油，效果更清淡）。"
+}
+],
+"substitut de crème, en poudre": [
+{
+"nom": "奶粉",
+"note": "咖啡或菜谱中奶粉可代替奶精粉，奶味更浓。"
+}
+],
+"garniture à dessert, en bombe (pressurisée)": [
+{
+"nom": "打发奶油",
+"note": "用自制打发奶油（打发的全脂液态奶油）等量代替喷罐装饰奶油。"
+}
+],
+"substitut de fromage, mozzarella": [
+{
+"nom": "马苏里拉奶酪",
+"note": "真马苏里拉奶酪等量代替奶酪替代品，融化更好、味道更浓。"
+}
+],
+"beurre clarifié (ghee)": [
+{
+"nom": "黄油块，无盐",
+"note": "普通黄油等量代替酥油/澄清黄油，但烹调时更易焦（不太适合高温）。"
+}
+],
+"fromage à tartiner, base de fromage à la crème": [
+{
+"nom": "奶油奶酪",
+"note": "用普通奶油奶酪等量代替。"
+}
+],
+"parmesan râpé à saupoudrer, sans matière grasse": [
+{
+"nom": "帕玛森奶酪，擦碎",
+"note": "用普通帕玛森奶酪碎等量代替（脂肪和味道稍多）。"
+}
+],
+"mélange margarine-beurre, huile de soja et beurre": [
+{
+"nom": "黄油块，无盐",
+"note": "用纯黄油等量代替，偏好植物基时用人造黄油。"
+}
+],
+"huile de canola industrielle, partiellement hydrogénée, pour friture": [
+{
+"nom": "菜籽油（芥花油）",
+"note": "用普通非氢化菜籽油等量代替。"
+}
+],
+"igname, cuite, bouillie ou au four, égouttée, salée": [
+{
+"nom": "红薯",
+"note": "大多数菜谱中红薯可等量代替薯蓣（口感和味道接近，稍甜）。"
+}
+],
+"chayote, cuite, bouillie, égouttée, salée": [
+{
+"nom": "带皮西葫芦，生",
+"note": "西葫芦（生食时用黄瓜）可等量代替佛手瓜。"
+}
+],
+"radis oriental (daikon), cuit, bouilli, égoutté, salé": [
+{
+"nom": "芜菁，生",
+"note": "熟菜中芜菁可等量代替白萝卜（味道稍浓）。"
+}
+],
+"nouilles aux oeufs et aux épinards, enrichies, sèches": [
+{
+"nom": "鸡蛋面，干，强化",
+"note": "原味鸡蛋面可等量代替菠菜鸡蛋面（缺少颜色和蔬菜成分）。"
+}
+],
+"pois cassés verts, graines mûres, crus": [
+{
+"nom": "豌豆瓣，干，水煮，无盐",
+"note": "黄豌豆瓣可等量代替青豌豆瓣，味道几乎相同。"
+}
+],
+"haricots mungo germés, graines mûres, en conserve, égouttés": [
+{
+"nom": "大豆，成熟豆粒发芽，生",
+"note": "新鲜黄豆芽可代替罐装绿豆芽，更脆（冲洗后等量使用）。"
+}
+],
+"riz brun étuvé sec, uncle ben's": [
+{
+"nom": "长粒糙米，生",
+"note": "用普通糙米（非速食）代替；因未经蒸谷处理，需延长烹调时间。"
+}
+],
+"riz blanc gluant, non enrichi, cuit": [
+{
+"nom": "糯米",
+"note": "糯米/普通圆粒米可互换；没有时可用阿博里奥等圆粒米代替，效果更黏。"
+}
+],
+"pois carré (haricot ailé), graines immatures, cuit, bouilli, égoutté, salé": [
+{
+"nom": "四季豆，生",
+"note": "普通四季豆可等量代替四棱豆，口感接近。"
+}
+],
+"courge éponge (luffa), cuite, bouillie, égouttée, salée": [
+{
+"nom": "带皮西葫芦，生",
+"note": "炒菜或熟菜中西葫芦可等量代替丝瓜。"
+}
+],
+"cacahuètes, tous types, cuites, bouillies, salées": [
+{
+"nom": "西班牙花生，油烤，加盐",
+"note": "烤花生可代替煮花生，口感更脆、不那么软。"
+}
+],
+"niébé (cornille), jeunes gousses avec graines, cuites, bouillies, égouttées, salées": [
+{
+"nom": "四季豆，生",
+"note": "普通四季豆可等量代替豇豆嫩荚。"
+}
+],
+"dolique lablab, graines immatures, cuites, bouillies, égouttées, salées": [
+{
+"nom": "利马豆，嫩豆粒，生",
+"note": "利马豆（或毛豆）可等量代替扁豆（鹊豆）。"
+}
+],
+"haricots adzuki, graines mûres, en conserve, sucrés": [
+{
+"nom": "红小豆，成熟，生",
+"note": "没有罐装甜红小豆时，可将干红小豆煮熟后自行加糖。"
+}
+],
+"lupins, graines mûres, cuits, bouillis, salés": [
+{
+"nom": "鹰嘴豆，干",
+"note": "大多数地中海菜谱中鹰嘴豆可等量代替羽扇豆。"
+}
+],
+"farine de maïs blanche, auto-levante, dégermée, enrichie": [
+{
+"nom": "玉米粉",
+"note": "没有自发玉米粉时，用普通玉米粉，每150克加1.5茶匙泡打粉和1/2茶匙盐。"
+}
+],
+"gourde calebasse (à fleurs blanches), cuite, bouillie, égouttée, salée": [
+{
+"nom": "带皮西葫芦，生",
+"note": "炖菜中西葫芦可等量代替葫芦（瓠瓜）。"
+}
+],
+"piments rouges forts en conserve, sans graines, avec jus": [
+{
+"nom": "墨西哥青辣椒",
+"note": "罐装墨西哥辣椒可代替罐装红辣椒，辣度稍低。"
+}
+],
+"galettes de pommes de terre rissolées, surgelées, nature, préparées, poêlées à l'huile de canola": [
+{
+"nom": "土豆",
+"note": "没有冷冻薯饼时，将生土豆擦丝做成饼自行煎制。"
+}
+],
+"sauce tomate en conserve, aux oignons, poivrons verts et céleri": [
+{
+"nom": "番茄酱汁，罐装",
+"note": "用原味番茄酱加切碎炒香的洋葱、青椒和西芹，等量使用。"
+}
+],
+"niébés (à oeil noir), graines immatures, cuits, bouillis, égouttés, avec sel": [
+{
+"nom": "黑豆，干（含水量 0%）",
+"note": "大多数炖菜中豇豆可用黑豆或其他干豆等量代替"
+}
+],
+"calebasse (gourde à fleurs blanches), cuite, bouillie, égouttée, sans sel": [
+{
+"nom": "西葫芦",
+"note": "熟葫芦（瓠瓜）可用西葫芦等量代替，煮熟后口感和味道接近"
+}
+],
+"poireaux (bulbe et partie inférieure des feuilles), cuits, bouillis, égouttés, avec sel": [
+{
+"nom": "洋葱",
+"note": "没有韭葱时，可用洋葱（最好是甜洋葱）等量代替，味道更浓"
+}
+],
+"champignons bruns, italiens ou crimini, exposés aux ultraviolets, crus": [
+{
+"nom": "白蘑菇（双孢菇）",
+"note": "褐蘑菇（克里米尼）可用白蘑菇等量代替，味道更温和"
+}
+],
+"fanes de navet et navets, surgelés, cuits, bouillis, égouttés, sans sel": [
+{
+"nom": "羽衣甘蓝，生",
+"note": "芜菁叶可用羽衣甘蓝（kale）或菠菜等量代替"
+}
+],
+"courge cireuse (melon chinois à conserver), cuite, bouillie, égouttée, avec sel": [
+{
+"nom": "西葫芦",
+"note": "熟冬瓜可用西葫芦或佛手瓜等量代替"
+}
+],
+"farine de blé, blanche, tout usage, enrichie, blanchie": [
+{
+"nom": "小麦粉，半全麦或全麦",
+"note": "可用全麦粉代替（口感更紧实），或各半混合使配方更轻盈"
+}
+],
+"nouilles aux oeufs, non enrichies, cuites, sans sel ajouté": [
+{
+"nom": "意面（普通面条）",
+"note": "鸡蛋面可用普通扁平意面（意式宽面）等量代替"
+}
+],
+"pâtes, sans gluten, farine de riz brun, cuites, tinkyada": [
+{
+"nom": "普通小麦意面",
+"note": "无麸质意面（米/玉米/藜麦）：麸质不耐受者的实用替代品；若无需无麸质，也可反过来用普通小麦意面代替，调整烹调时间（通常更短）"
+}
+],
+"pâtes, sans gluten, farine de riz et extrait de son de riz, cuites, de boles": [
+{
+"nom": "普通小麦意面",
+"note": "米制无麸质意面：麸质不耐受者的替代品；否则可用普通小麦意面等量代替"
+}
+],
+"pâtes, sans gluten, farine de maïs et farine de quinoa, cuites, ancient harvest": [
+{
+"nom": "普通小麦意面",
+"note": "玉米/藜麦无麸质意面：麸质不耐受者的替代品；否则用普通小麦意面等量代替"
+}
+],
+"pâtes complètes, 51% de blé complet, reste en semoule non enrichie, sèches": [
+{
+"nom": "全麦意面（100%全麦）",
+"note": "51%全麦意面：可根据所需膳食纤维，用普通全麦意面或白意面等量代替"
+}
+],
+"pâtes complètes, 51% de blé complet, reste en semoule non enrichie, cuites": [
+{
+"nom": "全麦意面（100%全麦）",
+"note": "可用普通全麦意面或白意面等量代替"
+}
+],
+"noix de coco, chair, séchée (déshydratée), sucrée, râpée": [
+{
+"nom": "无糖椰丝",
+"note": "用无糖椰丝代替并减少配方中的糖（加糖版会额外带入糖分）"
+}
+],
+"graines de courge et de citrouille, entières, grillées, sans sel": [
+{
+"nom": "葵花籽",
+"note": "烤南瓜籽可用烤葵花籽等量代替"
+}
+],
+"graines de courge et de citrouille, entières, grillées, salées": [
+{
+"nom": "葵花籽",
+"note": "用烤咸葵花籽等量代替"
+}
+],
+"pommes de terre frites, tous types, salées lors de la transformation, surgelées, non préparées": [
+{
+"nom": "新鲜土豆",
+"note": "冷冻薯条可用新鲜土豆切条后烤或炸代替"
+}
+],
+"bacon façon canadienne, hormel": [
+{
+"nom": "培根",
+"note": "加拿大培根（里脊片）可用普通培根或火腿片代替"
+}
+],
+"beurre allégé, en plaquette, salé": [
+{
+"nom": "黄油，含盐",
+"note": "低脂黄油可用普通黄油代替，用量稍减（低脂黄油含水更多）"
+}
+],
+"beurre allégé, en plaquette, non salé": [
+{
+"nom": "黄油，含盐",
+"note": "无盐低脂黄油可用普通无盐黄油代替，用量稍减"
+}
+],
+"margarine à tartiner, 35-39% de matière grasse, en pot": [
+{
+"nom": "黄油，含盐",
+"note": "人造黄油涂抹酱可用黄油等量代替（口感和味道不同，不太适合精致糕点）"
+}
+],
+"huile végétale de soja, raffinée": [
+{
+"nom": "菜籽油（芥花油）",
+"note": "日常烹饪中精炼大豆油可用菜籽油或葵花籽油等量代替"
+}
+],
+"matière grasse végétale (shortening), usage domestique, composite": [
+{
+"nom": "黄油，含盐",
+"note": "烘焙中植物起酥油可用冷黄油等量代替（口感和味道略有不同）"
+}
+],
+"poisson, carpe, cru": [
+{
+"nom": "罗非鱼，养殖，生",
+"note": "鲤鱼可用罗非鱼或其他白肉淡水鱼等量代替"
+}
+],
+"poisson, brosme, cru": [
+{
+"nom": "大西洋鳕鱼，野生捕捞，生",
+"note": "单鳍鳕（cusk）可用鳕鱼或黑线鳕等量代替"
+}
+],
+"poisson, lingue, cru": [
+{
+"nom": "大西洋鳕鱼，野生捕捞，生",
+"note": "魣鳕可用鳕鱼等量代替，同为白肉"
+}
+],
+"poisson, lotte de rivière (burbot), cru": [
+{
+"nom": "罗非鱼，养殖，生",
+"note": "江鳕（淡水）可用罗非鱼或鳕鱼代替"
+}
+],
+"poisson, lingcod (morue-lingue du pacifique), cru": [
+{
+"nom": "大西洋鳕鱼，野生捕捞，生",
+"note": "太平洋蛇鲭（lingcod）可用鳕鱼或黑线鳕等量代替"
+}
+],
+"poisson, tilapia, cru": [
+{
+"nom": "大西洋鳕鱼，野生捕捞，生",
+"note": "罗非鱼可用鳕鱼或其他肉质紧实的白鱼等量代替"
+}
+],
+"poisson, tassergal, cru": [
+{
+"nom": "鲭鱼",
+"note": "蓝鱼（扁鲹，多脂鱼）可用鲭鱼等量代替"
+}
+],
+"poisson, mahi-mahi, cru": [
+{
+"nom": "金枪鱼",
+"note": "煎烤时鬼头刀可用金枪鱼或剑鱼代替"
+}
+],
+"poisson, chanos (poisson-lait), cru": [
+{
+"nom": "罗非鱼，养殖，生",
+"note": "虱目鱼可用罗非鱼等量代替"
+}
+],
+"poisson, lotte (baudroie), crue": [
+{
+"nom": "大比目鱼（大西洋和太平洋），生",
+"note": "鮟鱇鱼肉质紧实，可用大比目鱼代替，口感接近"
+}
+],
+"poisson, tile (tacaud tile), cru": [
+{
+"nom": "笛鲷，混合品种，生",
+"note": "方头鱼可用笛鲷或鳕鱼等量代替"
+}
+],
+"poisson, espadon, cru": [
+{
+"nom": "金枪鱼",
+"note": "烧烤时剑鱼可用金枪鱼（排）代替"
+}
+],
+"poisson, stromatée (butterfish), cru": [
+{
+"nom": "鲭鱼",
+"note": "鲳鱼（butterfish）可用鲭鱼代替，同为多脂鱼"
+}
+],
+"poisson, sar à tête de mouton (sheepshead), cru": [
+{
+"nom": "笛鲷，混合品种，生",
+"note": "羊头鲷可用笛鲷或鳕鱼代替"
+}
+],
+"poisson, spot (sciène tachetée), cru": [
+{
+"nom": "笛鲷，混合品种，生",
+"note": "点斑鱼（白肉小鱼）可用笛鲷代替"
+}
+],
+"poisson, scup (dorade tachetée), cru": [
+{
+"nom": "笛鲷，混合品种，生",
+"note": "斑鲷可用笛鲷或鲷鱼等量代替"
+}
+],
+"babeurre, en poudre": [
+{
+"nom": "酪乳",
+"note": "复水酪乳粉（粉加水）可用瓶装液态酪乳代替"
+}
+],
+"crème liquide, mi-crème mi-lait (half and half)": [
+{
+"nom": "全脂牛奶＋液态奶油（1:1）混合",
+"note": "半奶油（half and half）可用全脂牛奶和液态奶油各半混合制成"
+}
+],
+"fromage frais, queso fresco": [
+{
+"nom": "奶酪，菲达",
+"note": "墨西哥鲜奶酪可用捏碎的菲达或沥干的茅屋奶酪代替，味道更咸"
+}
+],
+"fromage blanc, queso blanco": [
+{
+"nom": "奶酪，菲达",
+"note": "墨西哥白奶酪可根据用途（融化或捏碎）用菲达或马苏里拉代替"
+}
+],
+"fromage mexicain, queso añejo": [
+{
+"nom": "切达奶酪",
+"note": "墨西哥陈年奶酪（擦丝用熟成奶酪）可用帕玛森或陈年切达代替"
+}
+],
+"fromage mexicain, queso cotija": [
+{
+"nom": "切达奶酪",
+"note": "墨西哥科蒂哈奶酪（擦丝用咸奶酪）可用帕玛森代替"
+}
+],
+"fromage mexicain, queso asadero": [
+{
+"nom": "马苏里拉或波萝伏洛奶酪",
+"note": "墨西哥烤奶酪（易融）可用马苏里拉或波萝伏洛代替"
+}
+],
+"fromage mexicain, queso chihuahua": [
+{
+"nom": "蒙特雷杰克奶酪",
+"note": "墨西哥奇瓦瓦奶酪（易融）可用蒙特雷杰克或马苏里拉代替"
+}
+],
+"préparation fromagère américaine, cold-pack": [
+{
+"nom": "切达奶酪",
+"note": "美式冷装奶酪制品可用融化切达等量代替"
+}
+],
+"oeufs brouillés, préparation surgelée": [
+{
+"nom": "新鲜鸡蛋",
+"note": "冷冻炒蛋可用自制新鲜鸡蛋代替"
+}
+],
+"garniture fouettée, surgelée, allégée": [
+{
+"nom": "自制打发奶油",
+"note": "低脂冷冻打发装饰可用自制打发液态奶油代替"
+}
+],
+"lait de bufflonne indienne, liquide": [
+{
+"nom": "全脂牛奶",
+"note": "水牛奶可用全脂牛奶等量代替"
+}
+],
+"lait de brebis, liquide": [
+{
+"nom": "全脂牛奶",
+"note": "绵羊奶可用全脂牛奶代替，味道较淡"
+}
+],
+"lait, imitation, non à base de soja": [
+{
+"nom": "全脂牛奶",
+"note": "仿制奶（非乳制、非大豆）可根据需要用牛奶或植物饮料代替"
+}
+],
+"succédané de crème, liquide, léger": [
+{
+"nom": "淡液态奶油",
+"note": "淡奶精液可用淡液态奶油或淡炼乳代替"
+}
+],
+"succédané de crème, en poudre, léger": [
+{
+"nom": "奶粉",
+"note": "咖啡用淡奶精粉可用奶粉代替"
+}
+],
+"succédané de crème, aromatisé, liquide": [
+{
+"nom": "淡液态奶油",
+"note": "调味奶精液可用淡液态奶油加香精（香草、焦糖）代替"
+}
+],
+"fromage, cheddar américain, imitation": [
+{
+"nom": "切达干酪",
+"note": "用真切达等量代替，味道更好、融化更佳"
+}
+],
+"fromage, cheddar, sans matières grasses": [
+{
+"nom": "切达干酪",
+"note": "普通（或低脂）切达代替无脂切达，味道和融化效果更好"
+}
+],
+"fromage américain, sans matières grasses": [
+{
+"nom": "切达干酪",
+"note": "可用融化切达等量代替，味道更浓"
+}
+],
+"substitut de crème, aromatisé, en poudre": [
+{
+"nom": "淡奶油（咖啡奶油或餐桌奶油）",
+"note": "用淡液态奶油代替奶精粉，必要时稀释"
+}
+],
+"huile de soja, pour salade ou cuisson, partiellement hydrogénée": [
+{
+"nom": "葵花籽油",
+"note": "用中性植物油（葵花籽油、菜籽油）等量代替"
+}
+],
+"pâte à tartiner à l'huile végétale, type margarine, 20% de matières grasses, salée": [
+{
+"nom": "黄油块，含盐",
+"note": "黄油可等量代替低脂人造黄油，但脂肪和风味更多"
+}
+],
+"huile industrielle de canola, pour salades, woks et friture légère": [
+{
+"nom": "菜籽油（芥花油）",
+"note": "相当于日常食用的菜籽油，等量使用"
+}
+],
+"pâte à tartiner à l'huile végétale, type margarine, 20% de matières grasses, non salée": [
+{
+"nom": "黄油块，无盐",
+"note": "无盐黄油可等量代替无盐低脂人造黄油"
+}
+],
+"pâte à tartiner huile végétale-beurre, type margarine, en pot, salée": [
+{
+"nom": "黄油块，含盐",
+"note": "用纯黄油等量代替，味道更浓"
+}
+],
+"substitut d'oeuf, liquide ou surgelé, sans matières grasses": [
+{
+"nom": "全蛋，生，新鲜",
+"note": "约1/4杯液态鸡蛋替代品相当于一个全蛋"
+}
+],
+"huile de maïs, industrielle et de détail, tout usage pour salade ou cuisson": [
+{
+"nom": "葵花籽油",
+"note": "可用葵花籽油或其他中性油等量代替"
+}
+],
+"margarine, pâte à tartiner à l'huile végétale, 67-70% de matières grasses, en pot": [
+{
+"nom": "黄油块，含盐",
+"note": "黄油（或高脂人造黄油）可等量代替这种盒装人造黄油"
+}
+],
+"vinaigrette mayonnaise, à l'huile de soja et de carthame, salée": [
+{
+"nom": "蛋黄酱",
+"note": "用普通蛋黄酱等量代替"
+}
+],
+"crème liquide légère (crème à café ou crème de table)": [
+{
+"nom": "浓奶油",
+"note": "浓奶油加少许牛奶稀释（约各半）即相当于淡奶油"
+}
+],
+"huile de carthame, pour salade ou cuisson, riche en oléique (huile de carthame courante du commerce)": [
+{
+"nom": "葵花籽油",
+"note": "用葵花籽油代替，同样味道中性"
+}
+],
+"margarine, 80% de matières grasses, en plaquette, à base d'huiles de maïs et de soja ordinaires et hydrogénées": [
+{
+"nom": "黄油块，含盐",
+"note": "就脂肪含量而言，黄油最接近这种80%脂肪的人造黄油"
+}
+],
+"maïs doux jaune, cuit, bouilli, égoutté, salé": [
+{
+"nom": "黄甜玉米，罐装，盐水浸，带汁",
+"note": "大多数菜谱中沥干的罐装玉米可代替煮熟的鲜玉米"
+}
+],
+"haricots verts, cuits, bouillis, égouttés, salés": [
+{
+"nom": "黄荚菜豆，水煮，沥干，加盐",
+"note": "黄荚菜豆可等量代替四季豆，味道更柔和"
+}
+],
+"poivrons rouges, cuits, bouillis, égouttés, salés": [
+{
+"nom": "青甜椒，水煮，沥干，加盐",
+"note": "可互换；青椒比红椒更苦、不那么甜"
+}
+],
+"courge poivrée (acorn), cuite, bouillie, en purée, salée": [
+{
+"nom": "奶油南瓜，冷冻，水煮，加盐",
+"note": "菜泥中奶油南瓜可代替橡子南瓜，味道稍甜"
+}
+],
+"courge d'hiver hubbard, cuite, bouillie, en purée, salée": [
+{
+"nom": "奶油南瓜，冷冻，水煮，加盐",
+"note": "哈伯德南瓜的常用替代品，口感和味道接近"
+}
+],
+"riz blanc, à grain long, précuit ou instantané, enrichi, cru": [
+{
+"nom": "长粒白米，普通，强化，熟",
+"note": "用普通白米代替，延长烹调时间（15-20分钟而非5分钟）"
+}
+],
+"riz blanc, à grain long, précuit ou instantané, enrichi, préparé": [
+{
+"nom": "长粒白米，普通，强化，熟",
+"note": "用煮熟的普通白米代替，烹调时间更长"
+}
+],
+"haricots blancs (navy), secs, cuits, bouillis, salés": [
+{
+"nom": "大北豆，干，水煮，加盐",
+"note": "汤和焖豆中大北豆可代替海军豆（白豆）"
+}
+],
+"haricots pinto, secs, cuits, bouillis, salés": [
+{
+"nom": "红芸豆，罐装，沥干",
+"note": "辣豆汤和墨西哥卷饼中红芸豆可代替斑豆"
+}
+],
+"haricots noirs, secs, cuits, bouillis, salés": [
+{
+"nom": "斑豆，干，水煮，加盐",
+"note": "大多数墨西哥菜中斑豆可代替黑豆"
+}
+],
+"farine de maïs blanche, à levure incorporée, tamisée, nature, enrichie": [
+{
+"nom": "全谷玉米面粉，白色",
+"note": "用原味玉米粉，每杯加1.5茶匙泡打粉和1/4茶匙盐"
+}
+],
+"farine de maïs jaune, à levure incorporée, tamisée, nature, enrichie": [
+{
+"nom": "全谷玉米面粉，黄色",
+"note": "用原味黄玉米粉，每杯加1.5茶匙泡打粉和1/4茶匙盐"
+}
+],
+"hormel, jambon cure 81": [
+{
+"nom": "熟火腿",
+"note": "用普通熟火腿等量代替"
+}
+],
+"bacon canadien, non préparé": [
+{
+"nom": "熟火腿",
+"note": "大多数菜谱（三明治、配料）中熟火腿片可代替加拿大培根"
+}
+],
+"tourterelle, cuite (y compris le pigeonneau)": [
+{
+"nom": "鹌鹑",
+"note": "鹌鹑是这种小型野禽的常用替代品，烹调方式相近"
+}
+],
+"poisson, loquette d'amérique, cru": [
+{
+"nom": "大西洋鳕鱼，生",
+"note": "肉质紧实的白鱼，大西洋鳕鱼是不错的替代品"
+}
+],
+"poisson, saumon keta, cru": [
+{
+"nom": "粉红鲑，生",
+"note": "太平洋鲑鱼各品种可互换，口感和味道相近"
+}
+],
+"poisson, meunier blanc, cru": [
+{
+"nom": "梭鲈（walleye），生",
+"note": "白肉淡水鱼，梭鲈（walleye）是不错的替代品"
+}
+],
+"poisson, grand brochet, cru": [
+{
+"nom": "梭鲈（walleye），生",
+"note": "肉质紧实的淡水鱼，常用梭鲈（walleye）代替"
+}
+],
+"poisson, hoplostète orange, cru": [
+{
+"nom": "鳕鱼",
+"note": "味道温和的白鱼，可等量代替（鳕鱼）。"
+}
+],
+"poisson, saumon quinnat, cru": [
+{
+"nom": "三文鱼",
+"note": "另一种鲑鱼（红鲑），等量使用。"
+}
+],
+"poisson, lieu d'alaska, cru": [
+{
+"nom": "鳕鱼",
+"note": "肉质紧实的白鱼，可等量代替鳕鱼。"
+}
+],
+"poisson, morue du pacifique, cuite": [
+{
+"nom": "鳕鱼",
+"note": "太平洋鳕鱼和大西洋鳕鱼可互换。"
+}
+],
+"poisson, hareng du pacifique, cru": [
+{
+"nom": "大西洋鲱鱼，生",
+"note": "太平洋鲱鱼和大西洋鲱鱼可等量互换。"
+}
+],
+"poisson, turbot européen, cru": [
+{
+"nom": "鳎鱼",
+"note": "肉质细嫩的比目鱼类，鳎鱼可等量代替大菱鲆。"
+}
+],
+"poisson, brosme, cuit à sec": [
+{
+"nom": "鳕鱼",
+"note": "味道温和的白鱼，可等量代替单鳍鳕。"
+}
+],
+"poisson, maquereau espagnol, cru": [
+{
+"nom": "大西洋鲭鱼，生",
+"note": "西班牙鲭和大西洋鲭可互换。"
+}
+],
+"poisson, anchois européen, cru": [
+{
+"nom": "沙丁鱼",
+"note": "小型多脂鱼，沙丁鱼可代替鳀鱼，味道稍温和。"
+}
+],
+"crustacé, crabe bleu, cru": [
+{
+"nom": "雪蟹（皇后蟹），生",
+"note": "雪蟹可代替蓝蟹，蟹肉稍细腻。"
+}
+],
+"poisson, lingue, cuite à sec": [
+{
+"nom": "鳕鱼",
+"note": "肉质紧实的白鱼，鳕鱼可等量代替魣鳕。"
+}
+],
+"poisson, lieu de l'atlantique, cru": [
+{
+"nom": "鳕鱼",
+"note": "大多数菜谱中绿青鳕和鳕鱼可互换。"
+}
+],
+"kéfir, faible en gras, nature, lifeway": [
+{
+"nom": "希腊酸奶，原味，低脂",
+"note": "低脂原味开菲尔可用低脂原味希腊酸奶代替（更稠，需要时稍加稀释）。"
+}
+],
+"poisson, flétan du groenland, cru": [
+{
+"nom": "大比目鱼（大西洋和太平洋），生",
+"note": "格陵兰大比目鱼和普通大比目鱼可等量互换。"
+}
+],
+"poisson, anguille, espèces mélangées, crue": [
+{
+"nom": "三文鱼",
+"note": "肉质丰腴的多脂鱼，很多做法中三文鱼可代替鳗鱼。"
+}
+],
+"lait, babeurre, liquide, entier": [
+{
+"nom": "牛奶＋柠檬汁或醋（自制）",
+"note": "1杯牛奶加1汤匙柠檬汁或醋，静置5分钟即可代替酪乳。"
+}
+],
+"mollusque, poulpe commun, cru": [
+{
+"nom": "鱿鱼，冷冻，仅鱿鱼筒",
+"note": "鱿鱼可代替章鱼，熟得更快。"
+}
+],
+"mollusque, huître du pacifique, crue": [
+{
+"nom": "牡蛎",
+"note": "各种牡蛎可等量互换。"
+}
+],
+"poisson, perche, espèces mélangées, crue": [
+{
+"nom": "罗非鱼，干热烹调",
+"note": "味道温和的淡水鱼，罗非鱼是鲈鱼的不错替代品。"
+}
+],
+"poisson, requin, espèces mélangées, cru": [
+{
+"nom": "剑鱼，干热烹调",
+"note": "肉质同样紧实，鱼排中剑鱼可代替鲨鱼。"
+}
+],
+"poisson, aiglefin, cuit à sec": [
+{
+"nom": "鳕鱼",
+"note": "黑线鳕和鳕鱼是经典的可互换鱼类。"
+}
+],
+"poisson, tilapia, cuit à sec": [
+{
+"nom": "鳕鱼",
+"note": "味道温和的白鱼，鳕鱼是罗非鱼的不错替代品。"
+}
+],
+"poisson, mahi-mahi, cuit à sec": [
+{
+"nom": "剑鱼，干热烹调",
+"note": "肉质紧实致密，剑鱼可代替鬼头刀。"
+}
+],
+"poisson, chanos (milkfish), cuit à sec": [
+{
+"nom": "罗非鱼，干热烹调",
+"note": "罗非鱼是虱目鱼的不错替代品，肉质同样细嫩。"
+}
+],
+"poisson, mérou, espèces mélangées, cru": [
+{
+"nom": "笛鲷，混合品种，生",
+"note": "笛鲷可代替石斑鱼，同为紧实的白肉。"
+}
+],
+"crustacé, crabe dormeur (dungeness), cru": [
+{
+"nom": "螃蟹",
+"note": "其他蟹类（普通蟹）可等量互换。"
+}
+],
+"poisson, espadon, cuit à sec": [
+{
+"nom": "金枪鱼",
+"note": "做成鱼排的紧实鱼类，金枪鱼可代替剑鱼。"
+}
+],
+"poisson, merlan, espèces mélangées, cru": [
+{
+"nom": "鳕鱼",
+"note": "味道温和的白鱼，鳕鱼可等量代替牙鳕。"
+}
+],
+"poisson, morue charbonnière (sablefish), cuite à sec": [
+{
+"nom": "三文鱼",
+"note": "肉质丰腴的多脂鱼，三文鱼可代替裸盖鱼（银鳕鱼）。"
+}
+],
+"huile de carthame, pour salade ou cuisson, riche en acide linoléique (plus de 70%)": [
+{
+"nom": "葵花籽油",
+"note": "烟点相近的中性油，可等量代替。"
+}
+],
+"crème aigre, allégée en matière grasse, fermentée": [
+{
+"nom": "希腊酸奶，原味，低脂",
+"note": "低脂原味希腊酸奶可等量代替低脂酸奶油。"
+}
+],
+"mollusque, palourde, espèces mélangées, crue": [
+{
+"nom": "贻贝",
+"note": "大多数海鲜菜谱中青口可代替蛤蜊。"
+}
+],
+"fromage cottage, faible en gras, 1% de matière grasse": [
+{
+"nom": "里科塔奶酪",
+"note": "咸味或甜味菜谱中里科塔奶酪可代替低脂茅屋奶酪。"
+}
+],
+"crustacé, homard d'amérique, cru": [
+{
+"nom": "岩龙虾",
+"note": "刺龙虾可代替龙虾，口感和味道接近。"
+}
+],
+"crustacé, crabe royal d'alaska, cru": [
+{
+"nom": "蓝蟹，生",
+"note": "蓝蟹可等量代替阿拉斯加帝王蟹。"
+}
+],
+"huile de soja industrielle, raffinée, pour woks et fritures légères": [
+{
+"nom": "植物油",
+"note": "轻度油炸时任何中性植物油都可代替大豆油。"
+}
+],
+"poisson, sériole (yellowtail), espèces mélangées, crue": [
+{
+"nom": "金枪鱼",
+"note": "金枪鱼可代替五条鰤（黄尾鱼），同为多脂鱼。"
+}
+],
+"caviar noir et rouge, en grains": [
+{
+"nom": "圆鳍鱼子（仿鱼子酱）",
+"note": "比鱼子酱便宜得多的替代品，味道更咸，口感稍硬。"
+}
+],
+"poisson, morue de l'atlantique, séchée et salée": [
+{
+"nom": "鳕鱼",
+"note": "新鲜鳕鱼（若用咸鳕鱼干需先脱盐、泡发）。"
+}
+],
+"mollusque, pétoncle (coquille saint-jacques), espèces mélangées, cru": [
+{
+"nom": "虾",
+"note": "很多海鲜菜谱中虾可代替扇贝。"
+}
+],
+"poisson, esturgeon, espèces mélangées, fumé": [
+{
+"nom": "烟熏三文鱼",
+"note": "烟熏三文鱼可代替烟熏鲟鱼，更容易买到。"
+}
+],
+"lait de chèvre, liquide, enrichi en vitamine d": [
+{
+"nom": "全脂牛奶",
+"note": "全脂牛奶可代替山羊奶，味道更中性。"
+}
+],
+"mollusque, seiche, espèces mélangées, crue": [
+{
+"nom": "鱿鱼，冷冻，仅鱿鱼筒",
+"note": "鱿鱼可代替墨鱼，口感和味道接近。"
+}
+],
+"pâte à tartiner à l'huile végétale (type margarine), 60% de matière grasse, en pot, salée": [
+{
+"nom": "黄油",
+"note": "黄油可等量代替人造黄油（味道更浓郁，烘焙时口感略有不同）。"
+}
+],
+"sauce à salade à la française, du commerce, ordinaire, sans sel": [
+{
+"nom": "油醋汁",
+"note": "自制油醋汁（油加醋）可代替市售法式沙拉酱。"
+}
+],
+"sauce à salade, mayonnaise légère, smart balance, omega plus light": [
+{
+"nom": "蛋黄酱",
+"note": "普通蛋黄酱可代替清淡蛋黄酱（按配方调整脂肪用量）。"
+}
+],
+"crustacé, langouste, espèces mélangées, crue": [
+{
+"nom": "龙虾",
+"note": "龙虾可代替刺龙虾，口感和味道接近。"
+}
+],
+"poisson plat (flet et sole), cuit à sec": [
+{
+"nom": "鳎鱼",
+"note": "鳎鱼可等量代替鲽鱼（比目鱼类）。"
+}
+],
+"haricots beurre jaunes, surgelés, cuits, bouillis, égouttés, salés": [
+{
+"nom": "四季豆，冷冻，水煮，沥干，加盐",
+"note": "黄荚菜豆（wax beans）可用四季豆按相同比例代替。"
+}
+],
+"poivrons rouges, surgelés, hachés, bouillis, égouttés, salés": [
+{
+"nom": "青甜椒，冷冻，切碎，水煮，沥干，无盐",
+"note": "青椒可等量代替红椒（味道更青、略带苦味）。"
+}
+],
+"haricots pinto, graines mûres, germées, cuites, bouillies, égouttées, salées": [
+{
+"nom": "深红芸豆，干（含水量 0%）",
+"note": "辣豆汤和炖菜中红芸豆（kidney）可代替斑豆。"
+}
+],
+"maïs sucré blanc, surgelé, en grains égrenés, bouilli, égoutté, salé": [
+{
+"nom": "黄甜玉米，冷冻，脱粒，水煮，沥干，无盐",
+"note": "黄甜玉米可等量代替白甜玉米（味道稍甜）。"
+}
+],
+"haricots de lima, graines immatures, surgelés, petits (baby), cuits, bouillis, égouttés, salés": [
+{
+"nom": "毛豆",
+"note": "毛豆可代替未成熟利马豆，口感接近。"
+}
+],
+"haricots de lima, graines immatures, surgelés, petits, cuits, bouillis, égouttés, sans sel": [
+{
+"nom": "羊肉末，烤",
+"note": "炖菜中可等量代替利马豆，味道更柔和，口感接近"
+}
+],
+"niébés (dolique à oeil noir), communs, graines mûres, en conserve, nature": [
+{
+"nom": "罐装红芸豆",
+"note": "沙拉和炖菜中豇豆（黑眼豆）可用红芸豆或鹰嘴豆1:1代替"
+}
+],
+"émeu, haché, cru": [
+{
+"nom": "牛肉末",
+"note": "鸸鹋肉末非常瘦；用牛肉末等量代替，稍缩短烹调时间以免变干"
+}
+],
+"autruche, muscle en éventail (fan), cru": [
+{
+"nom": "牛肉末",
+"note": "鸵鸟肉（非常瘦的红肉）可等量代替牛肉，快速烹调以免变硬"
+}
+],
+"veau, haché, cru": [
+{
+"nom": "牛肉末",
+"note": "可等量代替小牛肉末，味道稍浓"
+}
+],
+"dinde, hachée, crue": [
+{
+"nom": "鸡肉，绞碎，生",
+"note": "大多数菜谱中火鸡肉末和鸡肉末可等量互换"
+}
+],
+"poulet, haché, cru": [
+{
+"nom": "火鸡肉，绞碎，生",
+"note": "鸡肉末和火鸡肉末可等量互换"
+}
+],
+"gibier, wapiti, cru": [
+{
+"nom": "牛肉末",
+"note": "马鹿（野味）可用牛肉等量代替，肉更瘦，烹调时间更短"
+}
+],
+"gibier, cerf, cru": [
+{
+"nom": "牛肉末",
+"note": "鹿肉可等量代替牛肉，味道更浓，有野味"
+}
+],
+"gibier, chèvre, cru": [
+{
+"nom": "羊肉末，烤",
+"note": "炖菜和咖喱中山羊肉（野味）可等量代替羊肉"
+}
+],
+"gibier, orignal, cru": [
+{
+"nom": "牛肉末",
+"note": "驼鹿（野味）可等量代替牛肉"
+}
+],
+"gibier, cheval, cru": [
+{
+"nom": "牛肉末",
+"note": "大多数做法中马肉可等量代替牛肉"
+}
+],
+"gibier, caribou, cru": [
+{
+"nom": "牛肉末",
+"note": "北美驯鹿（野味）可等量代替牛肉"
+}
+],
+"gibier, antilope, cru": [
+{
+"nom": "牛肉末",
+"note": "羚羊（野味）可等量代替牛肉或羊肉"
+}
+],
+"oie, foie, cru": [
+{
+"nom": "生鸭肥肝",
+"note": "生鹅肝可用生鸭肥肝等量代替，味道和口感非常接近"
+}
+],
+"caille, chair seulement, crue": [
+{
+"nom": "鸡翅，肉和皮，生",
+"note": "鹌鹑可用鸡肉（肉和皮）等量代替，调整烹调时间（鹌鹑更小、熟得更快）"
+}
+],
+"faisan, chair seulement, crue": [
+{
+"nom": "鸡翅，肉和皮，生",
+"note": "雉鸡可用鸡肉等量代替，味道更细腻，口感接近"
+}
+],
+"pintade, chair seulement, crue": [
+{
+"nom": "鸡翅，肉和皮，生",
+"note": "珍珠鸡可用鸡肉等量代替"
+}
+],
+"oeuf de cane, entier, frais, cru": [
+{
+"nom": "鸡蛋",
+"note": "1个鸭蛋≈1.5个鸡蛋；烘焙时调整液体用量"
+}
+],
+"oeuf d'oie, entier, frais, cru": [
+{
+"nom": "鸡蛋",
+"note": "1个鹅蛋≈2个鸡蛋；口感更浓郁"
+}
+],
+"oeuf de caille, entier, frais, cru": [
+{
+"nom": "鸡蛋",
+"note": "4-5个鹌鹑蛋≈1个鸡蛋"
+}
+],
+"oeuf de dinde, entier, frais, cru": [
+{
+"nom": "鸡蛋",
+"note": "1个火鸡蛋≈1.5个鸡蛋"
+}
+],
+"pâté de foie gras, en conserve (pâté de foie d'oie), fumé": [
+{
+"nom": "烟熏鸭肥肝",
+"note": "味道和口感都接近的替代品，等量使用"
+}
+],
+"lait, babeurre, liquide, cultivé, faible en matières grasses": [
+{
+"nom": "牛奶＋柠檬汁或醋",
+"note": "1杯牛奶加1汤匙醋/柠檬汁（静置5-10分钟）可等量代替酪乳"
+}
+],
+"lait, babeurre, liquide, cultivé, réduit en matières grasses": [
+{
+"nom": "牛奶＋柠檬汁或醋",
+"note": "酪乳的经典替代品，等量使用"
+}
+],
+"margarine, ordinaire, 80% de matière grasse, composite, en pot, avec sel": [
+{
+"nom": "黄油块，含盐",
+"note": "人造黄油可用含盐黄油等量代替，味道更浓郁"
+}
+],
+"margarine, ordinaire, 80% de matière grasse, composite, en pot, sans sel": [
+{
+"nom": "黄油块，无盐",
+"note": "无盐人造黄油可用无盐黄油等量代替"
+}
+],
+"huile végétale, natreon canola, haute stabilité, sans gras trans, riche en oléique (70%)": [
+{
+"nom": "菜籽油（芥花油）",
+"note": "日常烹饪中，专用植物油/菜籽油可用普通菜籽油等量代替"
+}
+],
+"poisson, saumon coho, sauvage, cru": [
+{
+"nom": "大西洋鲑，野生，生",
+"note": "银鲑可等量代替大西洋鲑，肉质稍瘦"
+}
+],
+"poisson, truite arc-en-ciel, sauvage, crue": [
+{
+"nom": "银鲑，野生，生",
+"note": "虹鳟可等量代替三文鱼，味道更温和"
+}
+],
+"poisson, thon albacore, frais, cru": [
+{
+"nom": "鲣鱼，鲜，生",
+"note": "黄鳍金枪鱼和鲣鱼可等量互换，尤其用于罐头"
+}
+],
+"poisson, morue de l'atlantique, cuite, à chaleur sèche": [
+{
+"nom": "黑线鳕，生",
+"note": "大西洋鳕鱼可用生黑线鳕等量代替，同为白肉"
+}
+],
+"poisson, hoplostète orange, cuit, à chaleur sèche": [
+{
+"nom": "黑线鳕，生",
+"note": "大西洋胸棘鲷（橙连鳍鲑）可用鳕鱼或黑线鳕等量代替，同为温和白鱼"
+}
+],
+"poisson, thazard franc (king mackerel), cuit, à chaleur sèche": [
+{
+"nom": "大西洋鲭鱼，生",
+"note": "大鲭（king mackerel）可用大西洋鲭鱼等量代替"
+}
+],
+"poisson, flétan du groenland, cuit, à chaleur sèche": [
+{
+"nom": "大比目鱼（大西洋和太平洋），干热烹调",
+"note": "格陵兰大比目鱼可用大西洋/太平洋大比目鱼等量代替"
+}
+],
+"crustacés, homard d'amérique (northern), cuit, à chaleur humide": [
+{
+"nom": "龙虾（刺龙虾），混合品种，生",
+"note": "炖菜或浓汤中龙虾可用刺龙虾等量代替"
+}
+],
+"poisson, anchois européen, en conserve à l'huile, égoutté": [
+{
+"nom": "大西洋沙丁鱼，油浸罐装，沥干，带骨",
+"note": "鳀鱼可用油浸沙丁鱼罐头等量代替，咸味较淡"
+}
+],
+"crustacés, crabe des neiges (queen crab), cuit, à chaleur humide": [
+{
+"nom": "蓝蟹，湿热烹调",
+"note": "雪蟹可用蓝蟹等量代替"
+}
+],
+"crustacés, crabe dormeur du pacifique (dungeness), cuit, à chaleur humide": [
+{
+"nom": "蓝蟹，湿热烹调",
+"note": "珍宝蟹可用蓝蟹等量代替"
+}
+],
+"crustacés, crabe royal d'alaska, cuit, à chaleur humide": [
+{
+"nom": "蓝蟹，湿热烹调",
+"note": "阿拉斯加帝王蟹可用蓝蟹等量代替（口感稍软）"
+}
+],
+"crevette, imitation (à base de surimi), espèces mélangées": [
+{
+"nom": "虾",
+"note": "用真正的熟虾代替：味道更浓，比例相同"
+}
+],
+"saumon, sockeye (rouge), en conserve, égoutté, sans peau ni arêtes": [
+{
+"nom": "淡色金枪鱼，水浸罐装，沥干",
+"note": "沙拉和三明治中没有罐装三文鱼时用罐装金枪鱼"
+}
+],
+"sardine, atlantique, en conserve à l'huile, égouttée, avec arêtes": [
+{
+"nom": "淡色金枪鱼，水浸罐装，沥干",
+"note": "没有沙丁鱼时用罐装金枪鱼，味道更温和"
+}
+],
+"lait, concentré non sucré (évaporé), en conserve, écrémé, enrichi en vitamines a et d": [
+{
+"nom": "无糖炼乳",
+"note": "全脂淡炼乳，脂肪稍多"
+}
+],
+"morue, pacifique, cuite à chaleur sèche (peut contenir des additifs de rétention d'humidité)": [
+{
+"nom": "绿青鳕",
+"note": "狭鳕，同为白鱼，烹调方式相同"
+}
+],
+"colin d'alaska (lieu noir), cuit à chaleur sèche (peut contenir des additifs de rétention d'humidité)": [
+{
+"nom": "鳕鱼",
+"note": "鳕鱼，同为白鱼，烹调方式相同"
+}
+],
+"produit fromager, fondu pasteurisé, type américain, allégé en matière grasse, enrichi en vitamine d": [
+{
+"nom": "切达奶酪",
+"note": "没有低脂再制奶酪时用普通切达，不那么容易融化"
+}
+],
+"poivron, doux, vert, surgelé, haché, cuit à l'eau, égoutté, salé": [
+{
+"nom": "青甜椒",
+"note": "没有冷冻品时用新鲜青椒丝，缩短水煮时间"
+}
+],
+"maïs doux, jaune, surgelé, grains égrenés, cuit à l'eau, égoutté, salé": [
+{
+"nom": "甜玉米，黄白粒，鲜，生",
+"note": "没有冷冻品时用新鲜玉米粒，烹调时间稍短"
+}
+],
+"matière grasse type margarine (shortening), industrielle, huile de soja (partiellement hydrogénée) et de coton, usage principal : pâtes feuilletées": [
+{
+"nom": "黄油",
+"note": "做千层酥皮时没有工业起酥油可用黄油（或人造黄油）"
+}
+],
+"courgette, courge d'été, avec peau, surgelée, cuite à l'eau, égouttée, salée": [
+{
+"nom": "西葫芦",
+"note": "没有冷冻品时用新鲜西葫芦，烹调时间稍短"
+}
+],
+"cornille (haricot à oeil noir), graines mûres, cuite à l'eau, salée": [
+{
+"nom": "红芸豆",
+"note": "没有黑眼豆时用红芸豆，口感接近"
+}
+],
+"gibier, sanglier, sauvage, cru": [
+{
+"nom": "猪肉",
+"note": "没有野猪肉时用普通猪肉，味道较淡"
+}
+],
+"gibier, wapiti, haché, cru": [
+{
+"nom": "牛肉末",
+"note": "没有马鹿肉末时用牛肉末，肉更肥"
+}
+],
+"gibier, cerf, haché, cru": [
+{
+"nom": "牛肉末",
+"note": "没有鹿肉末时用牛肉末，肉更肥"
+}
+],
+"gibier, lapin, sauvage, cru": [
+{
+"nom": "兔肉",
+"note": "没有野兔时用家兔，肉更嫩"
+}
+],
+"faisan, cuisse, chair seule, crue": [
+{
+"nom": "鸡肉",
+"note": "没有雉鸡时用鸡（腿），味道更温和"
+}
+],
+"caille, blanc (poitrine), chair seule, crue": [
+{
+"nom": "鸡肉",
+"note": "没有鹌鹑时用鸡（胸），调整烹调时间（块头更大）"
+}
+],
+"bison, haché, nourri à l'herbe, cru": [
+{
+"nom": "牛肉末",
+"note": "没有野牛肉末时用普通牛肉末，肉更肥"
+}
+],
+"canard, sauvage, chair et peau, cru": [
+{
+"nom": "鸭肉",
+"note": "没有野鸭时用家鸭，肉不那么紧实"
+}
+],
+"émeu, filet (longe), cuit au gril": [
+{
+"nom": "牛肉末",
+"note": "没有鸸鹋肉时用瘦牛肉（少见的特殊肉类）"
+}
+],
+"gibier, buffle d'eau, cru": [
+{
+"nom": "牛肉末",
+"note": "没有水牛肉时用牛肉（少见的特殊肉类）"
+}
+],
+"pigeonneau (pigeon), chair seule, crue": [
+{
+"nom": "鸡肉",
+"note": "没有乳鸽时用鸡肉，调整烹调时间（块头更大）"
+}
+],
+"gibier, chèvre, cuit, rôti": [
+{
+"nom": "羊肉",
+"note": "没有山羊肉（小山羊）时用羊肉，味道接近"
+}
+],
+"porc, bacon, graisse fondue, cuite": [
+{
+"nom": "黄油",
+"note": "烹调时没有培根油可用黄油代替"
+}
+],
+"gibier, orignal (élan), cuit, rôti": [
+{
+"nom": "牛肉末",
+"note": "没有驼鹿肉时用牛肉（少见的特殊肉类）"
+}
+],
+"gibier, cheval, cuit, rôti": [
+{
+"nom": "牛肉末",
+"note": "没有马肉时用牛肉，味道更温和"
+}
+],
+"autruche, hachée, cuite à la poêle": [
+{
+"nom": "牛肉末",
+"note": "没有鸵鸟肉末时用瘦牛肉末"
+}
+],
+"boeuf, salé, tranches façon bacon, cuit": [
+{
+"nom": "培根",
+"note": "没有牛肉培根时用普通猪肉培根"
+}
+],
+"dinde, en conserve, chair seule, avec bouillon": [
+{
+"nom": "鸡肉，罐装，仅肉，带汤",
+"note": "没有罐装火鸡时用罐装鸡肉"
+}
+],
+"bâtonnets de dinde, panés, enrobés de pâte, frits": [
+{
+"nom": "裹粉鸡柳，未熟",
+"note": "没有裹粉火鸡条时用裹粉鸡柳"
+}
+],
+"gélinotte huppée, blanc (poitrine), sans peau, cru": [
+{
+"nom": "鸡肉",
+"note": "没有披肩榛鸡时用鸡肉（少见的野禽）"
+}
+],
+"gibier, beefalo, assortiment de coupes, cru": [
+{
+"nom": "牛肉末",
+"note": "没有皮弗娄牛（野牛与牛杂交）时用牛肉末"
+}
+],
+"bernache du canada, blanc (poitrine) seul, sans peau, cru": [
+{
+"nom": "鹅肉",
+"note": "没有加拿大黑雁时用家鹅"
+}
+],
+"boeuf, abats et sous-produits, graisse de rognon (suif), crue": [
+{
+"nom": "猪油",
+"note": "没有牛板油（牛脂）时用猪油（或黄油）"
+}
+],
+"boeuf, abats et sous-produits, foie, cru": [
+{
+"nom": "小牛肝",
+"note": "没有牛肝时用小牛肝，味道更温和"
+}
+],
+"poisson, poisson-chat (channel), sauvage, cuit, chaleur sèche": [
+{
+"nom": "罗非鱼，干热烹调",
+"note": "野生鲶鱼：用熟罗非鱼代替，同样味道温和"
+}
+],
+"poisson, poisson-chat (channel), d'élevage, cuit, chaleur sèche": [
+{
+"nom": "罗非鱼，干热烹调",
+"note": "养殖鲶鱼：用熟罗非鱼代替"
+}
+],
+"poisson, bar d'eau douce, espèces mélangées, cuit, chaleur sèche": [
+{
+"nom": "海鲈，混合品种，干热烹调",
+"note": "淡水鲈：用海鲈或类似白鱼代替"
+}
+],
+"poisson, sébaste du pacifique, espèces mélangées, cuit, chaleur sèche": [
+{
+"nom": "大西洋平鲉，干热烹调",
+"note": "太平洋平鲉：用大西洋平鲉或肉质紧实的白鱼代替"
+}
+],
+"poisson, maquereau du pacifique et chinchard, espèces mélangées, cuit, chaleur sèche": [
+{
+"nom": "大西洋鲭鱼，干热烹调",
+"note": "太平洋鲭/竹荚鱼：用大西洋鲭鱼代替"
+}
+],
+"poisson, thon rouge, frais, cuit, chaleur sèche": [
+{
+"nom": "淡色金枪鱼，油浸罐装，沥干",
+"note": "熟鲜蓝鳍金枪鱼：没有时用沥干的罐装淡色金枪鱼"
+}
+],
+"poisson, thon listao, frais, cuit, chaleur sèche": [
+{
+"nom": "淡色金枪鱼，油浸罐装，沥干",
+"note": "熟鲜鲣鱼：没有时用沥干的罐装淡色金枪鱼"
+}
+],
+"poisson, thon albacore, frais, cuit, chaleur sèche": [
+{
+"nom": "淡色金枪鱼，油浸罐装，沥干",
+"note": "熟鲜黄鳍金枪鱼：没有时用沥干的罐装淡色金枪鱼"
+}
+],
+"crustacés, écrevisse, espèces mélangées, sauvage, cuite, chaleur humide": [
+{
+"nom": "虾，熟",
+"note": "熟野生小龙虾：用熟虾代替，口感和用途接近"
+}
+],
+"crustacés, écrevisse, espèces mélangées, d'élevage, cuite, chaleur humide": [
+{
+"nom": "虾，熟",
+"note": "熟养殖小龙虾：用熟虾代替"
+}
+],
+"oeuf, jaune, cru, surgelé, salé, pasteurisé": [
+{
+"nom": "全蛋，生，新鲜",
+"note": "冷冻加盐/巴氏杀菌蛋黄：用新鲜蛋黄代替（去掉额外加的盐）"
+}
+],
+"oeuf, entier, cru, surgelé, salé, pasteurisé": [
+{
+"nom": "全蛋，生，新鲜",
+"note": "冷冻加盐/巴氏杀菌全蛋：用新鲜全蛋代替"
+}
+],
+"oeuf, jaune, cru, surgelé, sucré, pasteurisé": [
+{
+"nom": "全蛋，生，新鲜",
+"note": "冷冻加糖/巴氏杀菌蛋黄：用新鲜蛋黄代替（去掉额外加的糖）"
+}
+],
+"oeuf, blanc, séché, en flocons, stabilisé, à teneur réduite en glucose": [
+{
+"nom": "全蛋，生，新鲜",
+"note": "片状干蛋白：用新鲜蛋白代替（脱水产品，需调整比例）"
+}
+],
+"oeuf, blanc, séché, en poudre, stabilisé, à teneur réduite en glucose": [
+{
+"nom": "全蛋，生，新鲜",
+"note": "粉状干蛋白：用新鲜蛋白代替"
+}
+],
+"margarine, ordinaire, 80% de matière grasse, mélange, en pot, salée, avec vitamine d ajoutée": [
+{
+"nom": "黄油，含盐",
+"note": "盒装含盐人造黄油：用含盐黄油代替，味道更浓郁"
+}
+],
+"margarine, ordinaire, 80% de matière grasse, mélange, en bâtonnet, salée, avec vitamine d ajoutée": [
+{
+"nom": "黄油，含盐",
+"note": "条装含盐人造黄油：用含盐黄油代替"
+}
+],
+"margarine, ordinaire, 80% de matière grasse, mélange, en bâtonnet, sans sel, avec vitamine d ajoutée": [
+{
+"nom": "黄油，无盐",
+"note": "条装无盐人造黄油：用无盐黄油代替"
+}
+],
+"fromage cottage, sans matière grasse, non crémé, sec, gros ou petit grain": [
+{
+"nom": "茅屋奶酪，全脂，大颗粒或小颗粒",
+"note": "无脂干茅屋奶酪：用普通茅屋奶酪代替（口感更绵滑）"
+}
+],
+"lait au chocolat, liquide, commercial, à teneur réduite en matière grasse, avec calcium ajouté": [
+{
+"nom": "巧克力牛奶，低脂，强化维生素A、D",
+"note": "减脂巧克力牛奶：用市售低脂巧克力牛奶或牛奶加可可粉代替"
+}
+],
+"lait au chocolat, liquide, commercial, entier, avec vitamines a et d ajoutées": [
+{
+"nom": "巧克力牛奶，低脂，强化维生素A、D",
+"note": "全脂巧克力牛奶：没有时用低脂巧克力牛奶或牛奶加可可和糖"
+}
+],
+"lait au chocolat, liquide, commercial, à teneur réduite en matière grasse, avec vitamines a et d ajoutées": [
+{
+"nom": "巧克力牛奶，低脂，强化维生素A、D",
+"note": "强化维生素的减脂巧克力牛奶：用普通低脂巧克力牛奶代替"
+}
+],
+"dinde, entière, poitrine, chair seule, crue": [
+{
+"nom": "肉鸡（煎烤用），胸，去皮去骨，仅肉，生",
+"note": "生火鸡胸：用生鸡胸代替，烹调方式相近但稍快"
+}
+],
+"dinde, hachée, 85% maigre, 15% gras, crue": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "生火鸡肉末85/15：用牛肉末85/15代替，或用鸡肉末保持禽肉"
+}
+],
+"dinde, entière, viande brune, chair seule, crue": [
+{
+"nom": "肉鸡（煎烤用），胸，去皮去骨，仅肉，生",
+"note": "生火鸡深色肉：用生鸡大腿代替"
+}
+],
+"gibier, sanglier, sauvage, cuit, rôti": [
+{
+"nom": "牛肉末，95%瘦/5%肥，生",
+"note": "烤野猪肉：用猪肉（肩肉或烤肉）代替，味道更温和"
+}
+],
+"agneau, néo-zélandais, importé, foie, cru": [
+{
+"nom": "鸡肝，所有等级，生",
+"note": "生羊肝：用生鸡肝代替，味道更温和"
+}
+],
+"gibier, lapin, sauvage, cuit, mijoté": [
+{
+"nom": "烤鸡，仅肉，烤",
+"note": "炖兔肉：用炖鸡代替，口感和烹调方式接近"
+}
+],
+"gibier, buffle d'eau, cuit, rôti": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "烤水牛肉：用烤牛肉代替，同为瘦肉"
+}
+],
+"gibier, wapiti, haché, cuit à la poêle": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "煎马鹿肉末：用煎牛肉末85/15代替"
+}
+],
+"gibier, cerf, haché, cuit à la poêle": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "煎鹿肉末：用煎牛肉末85/15代替"
+}
+],
+"gibier, bison, haché, cuit à la poêle": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "煎野牛肉末：用煎牛肉末85/15代替，稍肥"
+}
+],
+"dinde, toutes catégories, foie, cuit, mijoté": [
+{
+"nom": "鸡肝，所有等级，生",
+"note": "炖火鸡肝：用更常见的炖鸡肝代替"
+}
+],
+"agneau, néo-zélandais, importé, haché, cru": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "生羊肉末：用牛肉末代替，味道更中性"
+}
+],
+"poulet, haché, émietté, cuit, doré à la poêle": [
+{
+"nom": "烤鸡，仅肉，烤",
+"note": "熟鸡肉末碎：用熟火鸡肉末代替"
+}
+],
+"canard, domestique, chair seule, cuit, rôti": [
+{
+"nom": "烤鸡，仅肉，烤",
+"note": "烤整鸭（仅肉）：用烤鸡代替，脂肪更少、更易买到"
+}
+],
+"canard, sauvage, poitrine, chair seule, crue": [
+{
+"nom": "家鸭，仅肉，生",
+"note": "生野鸭胸：用家鸭（仅肉）代替，更容易买到"
+}
+],
+"oie, domestique, chair seule, cuite, rôtie": [
+{
+"nom": "家鸭，仅肉，烤",
+"note": "烤鹅（仅肉）：用烤鸭代替，味道和口感接近"
+}
+],
+"oie, domestique, chair et peau, cuite, rôtie": [
+{
+"nom": "家鸭，肉和皮，烤",
+"note": "带皮烤鹅：用带皮烤鸭代替"
+}
+],
+"veau, mélange de coupes de détail parées, maigre seul, cru": [
+{
+"nom": "肉鸡（煎烤用），胸，去皮去骨，仅肉，生",
+"note": "小牛肉（瘦肉切块混合，生）：没有时用鸡肉片或火鸡肉片代替"
+}
+],
+"viande de gibier, bison, maigre seulement, cuit, rôti": [
+{
+"nom": "牛肩肉烤肉块，去骨，USDA Choice 级，生",
+"note": "用瘦牛肉烤肉（如牛肩胛）代替；野牛更瘦，注意火候以免变干。"
+}
+],
+"viande de gibier, lapin domestique, mélange de coupes, cru": [
+{
+"nom": "鸡肉",
+"note": "炖菜和炒菜中鸡肉是兔肉的经典替代品。"
+}
+],
+"porc frais, abats, langue, cru": [
+{
+"nom": "牛舌",
+"note": "牛舌：口感接近，烹调时间相近。"
+}
+],
+"porc frais, abats, rognons, cru": [
+{
+"nom": "小牛腰子",
+"note": "小牛腰子：比猪腰子味道更温和，用法相同。"
+}
+],
+"dinde hachée, 85% maigre, 15% gras, poêlé, émietté": [
+{
+"nom": "牛肉末",
+"note": "大多数菜谱中牛肉末可代替火鸡肉末，味道更浓郁。"
+}
+],
+"boeuf, abats, foie, cuit, braisé": [
+{
+"nom": "小牛肝",
+"note": "小牛肝比牛肝更嫩、味道更温和。"
+}
+],
+"agneau, abats, foie, cuit, braisé": [
+{
+"nom": "小牛肝",
+"note": "小牛肝可代替羊肝，味道更温和。"
+}
+],
+"boeuf, abats, thymus (ris), cuit, braisé": [
+{
+"nom": "小牛胸腺",
+"note": "小牛胸腺是更经典、更细腻的版本；通常用来代替牛胸腺。"
+}
+],
+"agneau, abats, rognons, cuit, braisé": [
+{
+"nom": "小牛腰子",
+"note": "小牛腰子：口感和用法相近，味道比羊腰子温和。"
+}
+],
+"porc, bacon salé, pré-tranché, cuit, poêlé": [
+{
+"nom": "培根",
+"note": "市售培根：味道和口感接近预切片咸培根。"
+}
+],
+"porc, jambon salé, gras seulement, désossé, réchauffé": [
+{
+"nom": "生火腿",
+"note": "生火腿（帕尔马/塞拉诺型）咸香烟熏味接近肥咸火腿。"
+}
+],
+"chapon, viande et peau avec abats et cou, cuit, rôti": [
+{
+"nom": "整鸡",
+"note": "整只农家鸡可代替阉鸡，稍缩短烹调时间（块头较小）。"
+}
+],
+"poule à bouillir, viande et peau, avec abats et cou, cru": [
+{
+"nom": "整鸡",
+"note": "整鸡用于汤和炖菜；肉质比老母鸡稍软。"
+}
+],
+"poulet de cornouailles, viande et peau, cuit, rôti": [
+{
+"nom": "整鸡",
+"note": "小只整农家鸡可代替康沃尔小鸡；调整份量和烹调时间。"
+}
+],
+"veau, jarret (avant et arrière), maigre seulement, cuit, braisé": [
+{
+"nom": "猪肘",
+"note": "猪肘是小牛腱（意式烩牛膝）的经济替代品。"
+}
+],
+"viande de gibier, wapiti, longe, maigre seulement, cuit, grillé": [
+{
+"nom": "牛里脊（牛排），生",
+"note": "没有鹿肉时用瘦牛排（里脊或外脊）代替。"
+}
+],
+"veau, longe, côtelette, maigre seulement, cuit, grillé": [
+{
+"nom": "猪排",
+"note": "猪排是烤小牛排常用且经济的替代品。"
+}
+],
+"veau, épaule (jarret), maigre et gras séparables, cuit, braisé": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Choice级，生",
+"note": "小牛肉常难买到：用牛肩肉（焖/炖）代替，长时间烹调后口感相同"
+}
+],
+"veau, épaule (jarret), maigre et gras séparables, cuit, rôti": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Choice级，生",
+"note": "替代品：牛肩肉，烹调方式相近（烤/焖）"
+}
+],
+"veau, épaule (palette), maigre et gras séparables, cuit, braisé": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Choice级，生",
+"note": "焖小牛肩：用焖牛肩肉代替"
+}
+],
+"veau, épaule (palette), maigre et gras séparables, cuit, rôti": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Choice级，生",
+"note": "烤小牛肩：用牛肩肉或猪肩肉代替"
+}
+],
+"veau, jarret avant, osso buco, maigre seulement, cuit, braisé": [
+{
+"nom": "牛腱，熟，焖",
+"note": "意式烩小牛膝：用焖牛腱代替，烹调时间相近"
+}
+],
+"veau, épaule, côtelette de palette, maigre seulement, cuite, grillée": [
+{
+"nom": "鸡肉片，熟",
+"note": "烤小牛排：鸡胸是常用且经济的替代品"
+}
+],
+"veau, jarret avant, osso buco, maigre et gras séparables, cuit, braisé": [
+{
+"nom": "牛腱，熟，焖",
+"note": "意式烩小牛膝（瘦肉和肥肉）：用焖牛腱代替"
+}
+],
+"veau, épaule, côtelette de palette, maigre et gras séparables, cuite, grillée": [
+{
+"nom": "鸡肉片，熟",
+"note": "烤小牛排：常用鸡胸代替"
+}
+],
+"veau, cuisse (tende de tranche), maigre seulement, cuit, poêlé, pané": [
+{
+"nom": "鸡肉片，裹粉，熟",
+"note": "裹粉小牛肉排：经典替代品是裹粉鸡排（米兰式）"
+}
+],
+"veau, cuisse (tende de tranche), maigre et gras séparables, cuit, poêlé, pané": [
+{
+"nom": "鸡肉片，裹粉，熟",
+"note": "裹粉小牛肉排：用裹粉鸡排代替"
+}
+],
+"veau, cuisse (tende de tranche), maigre seulement, cuit, poêlé, non pané": [
+{
+"nom": "鸡肉片，熟",
+"note": "煎小牛肉片：用鸡肉片代替"
+}
+],
+"veau, épaule entière (jarret et palette), maigre seulement, cuite, braisée": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Choice级，生",
+"note": "焖小牛整肩：用焖牛肩肉代替"
+}
+],
+"viande de gibier, bison, tende de tranche, maigre seulement, bifteck de 2,5 cm, cru": [
+{
+"nom": "牛后腿眼肉，去骨，USDA Choice 级，生",
+"note": "野牛后腿内侧少见：用牛后腿眼肉代替"
+}
+],
+"viande de gibier, bison, macreuse, palette d'épaule, maigre seulement, crue": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Select级，生",
+"note": "野牛肩肉：用炖用牛肩肉代替"
+}
+],
+"viande de gibier, wapiti, filet, maigre seulement, cuit, grillé": [
+{
+"nom": "牛里脊（牛排），生",
+"note": "马鹿里脊（野味）少见：用牛里脊代替，味道更温和"
+}
+],
+"viande de gibier, cerf, filet, maigre seulement, cuit, grillé": [
+{
+"nom": "牛里脊（牛排），生",
+"note": "鹿里脊（野味）少见：用牛里脊代替"
+}
+],
+"viande de gibier, cerf, palette d'épaule, maigre seulement, cuit, braisé": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Choice级，生",
+"note": "焖鹿肩胛：用焖牛肩肉代替"
+}
+],
+"viande de gibier, bison, entrecôte, maigre seulement, parée à 0 cm de gras, crue": [
+{
+"nom": "牛肋眼，去骨，USDA Choice 级，生",
+"note": "野牛肋眼少见：用牛肋眼代替"
+}
+],
+"viande de gibier, bison, contre-filet (top sirloin), maigre seulement, paré à 0 cm de gras, cru": [
+{
+"nom": "牛外脊（纽约客牛排），生",
+"note": "野牛外脊少见：用牛外脊代替"
+}
+],
+"viande de gibier, lapin domestique, mélange de morceaux, cuit, mijoté": [
+{
+"nom": "鸡肉",
+"note": "炖兔肉少见/较贵：用鸡肉（腿/混合）代替，烹调时间相近"
+}
+],
+"viande de gibier, lapin domestique, mélange de morceaux, cuit, rôti": [
+{
+"nom": "鸡肉",
+"note": "烤兔肉少见/较贵：用烤鸡代替"
+}
+],
+"boeuf, steaks pour sandwich, effiloché, haché, reconstitué et tranché finement, cru": [
+{
+"nom": "牛肋眼，去骨，Choice级，生",
+"note": "三明治用手撕牛肉（芝士牛排型）：用薄切牛肋眼或外脊代替"
+}
+],
+"rôti de dinde, désossé, surgelé, assaisonné, viande blanche et brune, cru": [
+{
+"nom": "火鸡胸，仅肉",
+"note": "调味去骨冷冻火鸡烤肉卷：没有时用原味火鸡胸代替"
+}
+],
+"dinde, viande blanche ou brune, fumée, cuite, avec peau, désossée": [
+{
+"nom": "熟火腿片",
+"note": "烟熏火鸡切片（熟食）：常用熟火腿片代替"
+}
+],
+"viande de gibier, bison, palette d'épaule, partie maigre uniquement, gras résiduel 0 po, cru": [
+{
+"nom": "炖用牛肩肉，瘦肉和肥肉，USDA Choice级，生",
+"note": "野牛不常见：炖菜时用焖用牛肉（牛肩肉）代替，味道更温和、野味更淡"
+}
+],
+"viande de gibier, bison, entrecôte, partie maigre uniquement, steak de 1 po, cuit, grillé": [
+{
+"nom": "牛肋眼，去骨，仅瘦肉，无可见脂肪，USDA Choice级，烤",
+"note": "野牛排少见：用牛排（肋眼）代替，烤法相同"
+}
+],
+"viande de gibier, bison, tende de tranche, partie maigre uniquement, steak de 1 po, cuit, grillé": [
+{
+"nom": "牛后腿内侧，仅瘦肉，修整至0.3厘米脂肪，USDA Choice级，油煎",
+"note": "野牛排（后腿内侧）少见：用牛肉相同部位代替，烹调方式相近"
+}
+],
+"viande de gibier, bison, macreuse, palette d'épaule, partie maigre uniquement, cuit, braisé": [
+{
+"nom": "焖用牛肩肉，瘦肉和肥肉，USDA Choice级，焖",
+"note": "焖野牛肉不常见：用焖牛肩肉代替，口感和用途相同（勃艮第炖牛肉、手撕肉）"
+}
+],
+"viande de gibier, cerf, longe, partie maigre uniquement, steak de 1 po, cuit, grillé": [
+{
+"nom": "牛肋眼，去骨，仅瘦肉，无可见脂肪，USDA Choice级，烤",
+"note": "鹿肉难买到：用牛排代替，烤法相近"
+}
+],
+"viande de gibier, cerf, tende de tranche, partie maigre uniquement, steak de 1 po, cuit, grillé": [
+{
+"nom": "牛后腿内侧，仅瘦肉，修整至0.3厘米脂肪，USDA Choice级，油煎",
+"note": "鹿肉少见：用相同部位的烤牛肉代替"
+}
+],
+"boeuf, australien, importé, wagyu, gras intermusculaire, indice de marbrure australien 9, cru": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "和牛大理石花纹丰富且昂贵：没有时用普通牛肉末85/15代替"
+}
+],
+"boeuf, australien, importé, wagyu, gras intermusculaire, indice de marbrure australien 4/5, cru": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "和牛昂贵且少见：用普通牛肉末代替"
+}
+],
+"boeuf, australien, importé, wagyu, gras externe, indice de marbrure australien 9, cru": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "和牛（外层脂肪）少见：用普通牛肉代替"
+}
+],
+"boeuf, australien, importé, wagyu, gras externe, indice de marbrure australien 4/5, cru": [
+{
+"nom": "牛肉末，85%瘦/15%肥，生",
+"note": "和牛昂贵：没有时用普通牛肉代替"
+}
+],
+"pepperoni de dinde tranché hormel pillow pak": [
+{
+"nom": "意式辣香肠（牛肉和猪肉），切片",
+"note": "找不到火鸡意式辣香肠：用普通牛肉/猪肉意式辣香肠代替，同样切片使用"
+}
+],
+"porc, bacon salé, cuit, grillé, poêlé ou rôti, à teneur réduite en sodium": [
+{
+"nom": "培根",
+"note": "减钠培根不常见：用普通培根代替（调整配方中的盐）"
+}
+],
+"pâte à tartiner au poulet": [
+{
+"nom": "火腿沙拉涂抹酱",
+"note": "没有鸡肉涂抹酱：用火腿或火鸡沙拉涂抹酱代替，同样用于三明治"
+}
+],
+"salade de volaille à tartiner pour sandwich": [
+{
+"nom": "鸡肉涂抹酱",
+"note": "没有禽肉沙拉涂抹酱：用鸡肉或火鸡涂抹酱代替，用法相同"
+}
+],
+"salade de jambon à tartiner": [
+{
+"nom": "鸡肉涂抹酱",
+"note": "没有火腿沙拉涂抹酱：用其他肉类涂抹酱（鸡肉、火鸡）代替，同样用于三明治"
+}
+],
+"viande de gibier, bison, haut de surlonge, maigre séparable, steak de 2,5 cm, cuit, grillé": [
+{
+"nom": "牛上腰牛排，仅瘦肉，修整至1/8英寸脂肪，USDA Choice级，生",
+"note": "野牛较少见：用牛排（上腰）等量代替，烤法相近。"
+}
+],
+"jambon, haché": [
+{
+"nom": "熟火腿",
+"note": "用切丁或切碎的熟火腿代替"
+}
+],
+"bologne, porc": [
+{
+"nom": "经典博洛尼亚香肠",
+"note": "博洛尼亚香肠（美式熟食）接近经典摩泰台拉香肠"
+}
+],
+"bologne, dinde": [
+{
+"nom": "经典博洛尼亚香肠",
+"note": "火鸡款，可用经典摩泰台拉香肠（猪/牛博洛尼亚）代替"
+}
+],
+"pastrami, dinde": [
+{
+"nom": "熏牛肉（pastrami），牛肉，98%无脂",
+"note": "火鸡款，可用牛肉熏牛肉（pastrami）代替"
+}
+],
+"saucisse de francfort, dinde": [
+{
+"nom": "猪肉法兰克福香肠",
+"note": "火鸡款，可用经典猪肉法兰克福香肠代替"
+}
+],
+"saucisse de francfort, poulet": [
+{
+"nom": "猪肉法兰克福香肠",
+"note": "鸡肉款，可用经典猪肉法兰克福香肠代替"
+}
+],
+"saucisse de francfort, faible teneur en sodium": [
+{
+"nom": "猪肉法兰克福香肠",
+"note": "低钠款，可用经典法兰克福香肠代替"
+}
+],
+"saucisse polonaise (kielbasa), porc": [
+{
+"nom": "烟熏香肠串，猪肉",
+"note": "找不到波兰香肠：用烟熏香肠串代替"
+}
+],
+"beerwurst (saucisse à la bière), porc et boeuf": [
+{
+"nom": "烟熏香肠串，猪肉和牛肉",
+"note": "法国难买到啤酒香肠：用猪牛肉烟熏香肠代替"
+}
+],
+"pain de boeuf salé (corned-beef), en gelée": [
+{
+"nom": "腌牛肉，咸牛肉（corned beef），胸肉，熟",
+"note": "用普通熟咸牛肉代替"
+}
+],
+"oscar mayer, salami (dur)": [
+{
+"nom": "风干萨拉米，切片",
+"note": "美国品牌：用普通干萨拉米切片代替"
+}
+],
+"oscar mayer, bologne (boeuf)": [
+{
+"nom": "牛肉博洛尼亚香肠",
+"note": "美国品牌：用牛肉摩泰台拉（博洛尼亚）代替"
+}
+],
+"oscar mayer, saucisses de francfort (boeuf)": [
+{
+"nom": "法兰克福香肠（热狗），牛肉，加热",
+"note": "美国品牌：用普通牛肉法兰克福香肠（热狗）代替"
+}
+],
+"braunschweiger (saucisse de foie), porc": [
+{
+"nom": "肝酱（涂抹用）",
+"note": "猪肝香肠（Braunschweiger）接近涂抹用肝酱"
+}
+],
+"oscar mayer, saucisse de foie braunschweiger (tranchée)": [
+{
+"nom": "肝酱（涂抹用）",
+"note": "美国品牌：用涂抹用肝酱代替"
+}
+],
+"oscar mayer, poitrine de poulet (glacée au miel)": [
+{
+"nom": "鸡胸肉，烤箱烤制，无脂，切片",
+"note": "美国品牌：用原味鸡胸肉片（无蜂蜜釉）代替"
+}
+],
+"oscar mayer, jambon (haché, avec jus naturel)": [
+{
+"nom": "熟火腿",
+"note": "美国品牌：用碎熟火腿代替"
+}
+],
+"pâté, saveur truffe": [
+{
+"nom": "肝酱（涂抹用）",
+"note": "松露风味肉酱：可用原味肝酱代替"
+}
+],
+"bouillon de poisson": [
+{
+"nom": "蔬菜高汤",
+"note": "没有鱼高汤时用蔬菜高汤（海鲜味较淡）"
+}
+],
+"veau, cuisse, tranche ronde (top round), sans chapeau, escalope, désossée, cuite, grillée": [
+{
+"nom": "裹粉鸡排",
+"note": "小牛肉片，可用鸡肉片或火鸡肉片代替"
+}
+],
+"quartiers de pomme de terre, surgelés (inclut des aliments du programme de distribution alimentaire de l'usda)": [
+{
+"nom": "黄心土豆薯条，冷冻，未加工",
+"note": "冷冻土豆角，可用冷冻薯条代替"
+}
+],
+"boeuf, macreuse, rôti, maigre et gras, sans gras visible, usda select, cuit, rôti": [
+{
+"nom": "牛肩肉",
+"note": "牛肩肉和牛肩胛是几乎相同的焖煮部位，可互换（勃艮第炖牛肉、法式炖肉）"
+}
+],
+"boeuf, macreuse, bifteck, maigre seulement, paré, gras ≤ 0,6 cm, toutes catégories, cuit, braisé": [
+{
+"nom": "牛肩肉",
+"note": "与牛肩胛相当的部位，适合焖/炖"
+}
+],
+"boeuf, filet, bifteck, maigre seulement, paré, gras ≤ 0,3 cm, usda choice, cuit, grillé": [
+{
+"nom": "西冷牛排",
+"note": "没有里脊时用外脊（更便宜，稍不那么嫩，注意火候）"
+}
+],
+"boeuf, longe, filet, rôti, désossé, maigre seulement, sans gras visible, usda choice, cru": [
+{
+"nom": "西冷牛排",
+"note": "烤肉时可代替里脊，更经济但不那么嫩"
+}
+],
+"boeuf, bavette de poitrine, désossée, maigre seulement, sans gras visible, usda choice, cru": [
+{
+"nom": "牛横膈膜肉",
+"note": "快煎时牛腹肉和悬挂嫩肉可互相代替"
+}
+],
+"boeuf, bavette de flanchet, désossée, maigre seulement, sans gras visible, usda select, cru": [
+{
+"nom": "牛横膈膜肉",
+"note": "快煎时牛腩排可用悬挂嫩肉代替"
+}
+],
+"boeuf, surlonge, bifteck, maigre seulement, sans gras visible, usda choice, cuit, grillé": [
+{
+"nom": "牛臀肉",
+"note": "西冷相当于臀肉（rumsteck），烤制时可互换"
+}
+],
+"boeuf, surlonge, bifteck, maigre et gras, sans gras visible, usda select, cuit, grillé": [
+{
+"nom": "牛臀肉",
+"note": "可用臀肉（rumsteck）代替，相当的部位"
+}
+],
+"porc, frais, longe, côtelettes de côte du centre, avec os, maigre et gras, cuit, frit à la poêle": [
+{
+"nom": "猪颈肉",
+"note": "没有猪里脊排时用猪肩颈肉（更肥，烹调时间稍长）"
+}
+],
+"porc, frais, longe, côtelettes de premier filet, désossé, maigre seulement, additionné de solution, cru": [
+{
+"nom": "猪颈肉",
+"note": "用猪肩颈肉代替，口感更肥嫩"
+}
+],
+"porc, frais, longe, filet, maigre et gras, additionné de solution, cuit, rôti": [
+{
+"nom": "猪里脊",
+"note": "相当于原味猪小里脊（未注入调味液）"
+}
+],
+"poulet, poulet à griller ou à frire, poitrine, sans peau, désossée, chair seulement, additionné de solution, cru": [
+{
+"nom": "鸡胸肉",
+"note": "可用原味鸡胸代替；减少配方中添加的盐"
+}
+],
+"boeuf, poitrine entière, maigre seulement, sans gras visible, toutes catégories, cuit, braisé": [
+{
+"nom": "牛肩胛肉（焖用）",
+"note": "没有牛胸肉时，法式炖肉或焖菜可用牛肩胛同样焖制"
+}
+],
+"bacon de dinde, cuit au micro-ondes": [
+{
+"nom": "培根",
+"note": "普通猪肉培根可代替火鸡培根（味道更浓，更肥）"
+}
+],
+"bacon de dinde, faible en sodium": [
+{
+"nom": "培根",
+"note": "普通猪肉培根可代替火鸡培根（味道更浓，更肥）"
+}
+],
+"bacon de dinde, non préparé": [
+{
+"nom": "培根",
+"note": "普通猪肉培根可代替火鸡培根（味道更浓，更肥）"
+}
+],
+"beurre d'arachide, onctueux (inclut les aliments du programme de distribution alimentaire de l'usda)": [
+{
+"nom": "杏仁酱，顺滑型",
+"note": "杏仁酱代替花生酱味道更柔和（花生过敏）；注意它含坚果。"
+}
+],
+"jambon haché, en conserve": [
+{
+"nom": "火腿，切片，餐饮装",
+"note": "三明治中用新鲜火腿片代替罐装碎火腿，用法相似"
+}
+],
+"sauce worcestershire": [
+{
+"nom": "酱油＋少许香醋",
+"note": "腌汁和酱汁中常用来代替伍斯特酱的混合物"
+}
+],
+"saucisson de bologne, poulet, porc, boeuf": [
+{
+"nom": "经典博洛尼亚香肠",
+"note": "经典摩泰台拉（博洛尼亚）是切片熟食的直接对应品。"
+}
+],
+"saucisson de bologne, poulet, dinde, porc": [
+{
+"nom": "经典博洛尼亚香肠",
+"note": "经典摩泰台拉（博洛尼亚）是切片熟食的直接对应品。"
+}
+],
+"boeuf, salé, corned-beef, en conserve": [
+{
+"nom": "腌牛肉，咸牛肉（corned beef），胸肉，熟",
+"note": "罐装咸牛肉可用自制熟腌牛胸肉代替。"
+}
+],
+"boeuf, salé, viande à sandwich, en gelée": [
+{
+"nom": "腌牛肉，咸牛肉（corned beef），胸肉，熟",
+"note": "肉冻三明治肉可用熟咸牛肉代替，同样用作熟食。"
+}
+],
+"dinde, chair blanche, rôtie à la broche, tranche de charcuterie": [
+{
+"nom": "熟火腿",
+"note": "三明治中熟火腿是火鸡片的常用替代品。"
+}
+],
+"pâté, foie d'oie, fumé, en conserve": [
+{
+"nom": "肝酱，未指明，罐装",
+"note": "未指明的肝酱是烟熏鹅肝酱更经济的替代品。"
+}
+],
+"beurre de cacahuète, lisse, salé": [
+{
+"nom": "葵花籽酱，加盐",
+"note": "花生过敏时，用葵花籽酱等量代替。"
+}
+],
+"beurre de graines de tournesol, salé": [
+{
+"nom": "花生酱，顺滑，加盐",
+"note": "可用花生酱等量代替（过敏者除外）。"
+}
+],
+"poudre de protéines à base de whey": [
+{
+"nom": "大豆分离蛋白",
+"note": "无乳糖/纯素版本：用大豆分离蛋白代替乳清蛋白。"
+}
+],
+"isolat de protéines de whey en poudre": [
+{
+"nom": "大豆分离蛋白",
+"note": "无乳糖/纯素版本：用大豆分离蛋白代替分离乳清蛋白。"
+}
+],
+"poudre de protéines à base de soja": [
+{
+"nom": "乳清蛋白粉",
+"note": "若不存在大豆不耐受问题，可用乳清蛋白粉代替。"
+}
+],
+"sauce de poisson (nuoc-mâm), prête à servir": [
+{
+"nom": "酱油",
+"note": "素食版本：用酱油代替鱼露。"
+}
+],
+"sauce à steak, à base de tomate": [
+{
+"nom": "伍斯特酱",
+"note": "番茄基牛排酱可用伍斯特酱加少许番茄酱稀释代替。"
+}
+],
+"sauce piquante sriracha": [
+{
+"nom": "塔巴斯科辣椒酱",
+"note": "是拉差辣椒酱可用塔巴斯科或其他瓶装辣酱代替（更辣，调整用量）。"
+}
+],
+"sauce piquante, prête à servir": [
+{
+"nom": "塔巴斯科辣椒酱",
+"note": "即食辣酱可用塔巴斯科辣酱代替。"
+}
+],
+"riz brun à grain long, cru": [
+{
+"nom": "长粒白米，普通，生，强化",
+"note": "糙米可用长粒白米代替（烹调时间更短）。"
+}
+],
+"riz brun à grain moyen, cru": [
+{
+"nom": "长粒白米，普通，生，强化",
+"note": "糙米可用长粒白米代替（烹调时间更短）。"
+}
+],
+"riz brun à grain long, cuit": [
+{
+"nom": "长粒白米，普通，强化，熟",
+"note": "熟糙米可用熟长粒白米代替。"
+}
+],
+"riz brun à grain moyen, cuit": [
+{
+"nom": "长粒白米，普通，强化，熟",
+"note": "熟糙米可用熟长粒白米代替。"
+}
+],
+"pâtes complètes, sèches": [
+{
+"nom": "意大利细面，干，强化",
+"note": "没有全麦意面时可用普通意面（意大利面）代替。"
+}
+],
+"pâtes complètes, cuites": [
+{
+"nom": "意面，熟，强化，无添加盐",
+"note": "熟全麦意面可用熟普通意面代替。"
+}
+],
+"haricots pinto, graines mûres, crus": [
+{
+"nom": "红芸豆，干（含水量 0%）",
+"note": "大多数菜谱（辣豆汤、炖菜）中斑豆可用红芸豆代替。"
+}
+],
+"haricots great northern, graines mûres, crus": [
+{
+"nom": "海军豆，干（含水量 0%）",
+"note": "大北豆可用海军豆（白豆）或白腰豆代替。"
+}
+],
+"cerises acidulées, séchées, sucrées": [
+{
+"nom": "蔓越莓干，加糖",
+"note": "酸樱桃干可用蔓越莓干等量代替。"
+}
+],
+"cerises acides rouges, surgelées, non sucrées": [
+{
+"nom": "蔓越莓，冷冻，无糖",
+"note": "冷冻酸樱桃可用无糖冷冻蔓越莓代替。"
+}
+],
+"trempette aux haricots, saveur originale": [
+{
+"nom": "鹰嘴豆泥",
+"note": "开胃或涂抹时豆子蘸酱可用鹰嘴豆泥代替。"
+}
+],
+"bouillon de légumes swanson": [
+{
+"nom": "鸡高汤，即食",
+"note": "若菜肴不需要素食，市售蔬菜高汤可用即食鸡高汤代替。"
+}
+],
+"sauce barbecue, open pit, originale": [
+{
+"nom": "烧烤酱",
+"note": "特定品牌，用普通烧烤酱代替"
+}
+],
+"sauce barbecue, bull's-eye, originale": [
+{
+"nom": "烧烤酱",
+"note": "特定品牌，用普通烧烤酱代替"
+}
+],
+"sauce barbecue, kc masterpiece, originale": [
+{
+"nom": "烧烤酱",
+"note": "特定品牌，用普通烧烤酱代替"
+}
+],
+"sauce barbecue, sweet baby ray's, originale": [
+{
+"nom": "烧烤酱",
+"note": "特定品牌，用普通烧烤酱代替"
+}
+],
+"sauce piquante, sriracha, tuong ot sriracha": [
+{
+"nom": "是拉差辣椒酱（sriracha）",
+"note": "特定品牌，用普通是拉差辣椒酱代替"
+}
+],
+"sauce piquante, sriracha, cha! by texas pete": [
+{
+"nom": "是拉差辣椒酱（sriracha）",
+"note": "特定品牌，用普通是拉差辣椒酱代替"
+}
+],
+"sauce piquante, tabasco, prête à servir": [
+{
+"nom": "墨西哥辣酱（picante），即食",
+"note": "塔巴斯科，可用任何即食辣酱代替"
+}
+],
+"soupe, fromage, en conserve, préparée à volume égal de lait": [
+{
+"nom": "奶酪酱，即食",
+"note": "罐装奶酪汤，可用即食奶酪酱代替"
+}
+],
+"soupe, fromage, en conserve, préparée à volume égal d'eau": [
+{
+"nom": "奶酪酱，即食",
+"note": "罐装奶酪汤，可用即食奶酪酱代替"
+}
+],
+"trempette, tostitos, salsa con queso, piquant moyen": [
+{
+"nom": "奶酪酱，即食",
+"note": "辣味奶酪蘸酱，可用原味奶酪酱代替（调整辣度）"
+}
+],
+"sauce teriyaki, prête à servir, teneur réduite en sodium": [
+{
+"nom": "照烧酱，即食",
+"note": "低钠款，可用普通照烧酱代替"
+}
+],
+"boisson, zevia, cola": [
+{
+"nom": "可乐汽水，减糖，含咖啡因和甜味剂",
+"note": "品牌无糖可乐，可用普通轻怡可乐代替"
+}
+],
+"boisson énergisante, amp": [
+{
+"nom": "能量饮料，碳酸水和高果糖玉米糖浆",
+"note": "品牌能量饮料，可用普通能量饮料代替"
+}
+],
+"boisson énergisante, rockstar": [
+{
+"nom": "能量饮料，碳酸水和高果糖玉米糖浆",
+"note": "品牌能量饮料，可用普通能量饮料代替"
+}
+],
+"boisson énergisante, red bull": [
+{
+"nom": "能量饮料，碳酸水和高果糖玉米糖浆",
+"note": "品牌能量饮料，可用普通能量饮料代替"
+}
+],
+"boisson énergisante, full throttle": [
+{
+"nom": "能量饮料，碳酸水和高果糖玉米糖浆",
+"note": "品牌能量饮料，可用普通能量饮料代替"
+}
+],
+"boisson énergisante, monster, faible en glucides": [
+{
+"nom": "能量饮料，碳酸水和高果糖玉米糖浆",
+"note": "品牌能量饮料，可用普通能量饮料代替"
+}
+],
+"soupe, crème de poulet, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装奶油鸡汤，可用自制贝夏梅酱加鸡高汤代替"
+}
+],
+"soupe, crème de champignons, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装奶油蘑菇汤，可用自制贝夏梅酱加蘑菇代替"
+}
+],
+"soupe, crème de céleri, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装奶油芹菜汤，可用自制贝夏梅酱加芹菜代替"
+}
+],
+"soupe, crème de pomme de terre, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装奶油土豆汤，可用自制贝夏梅酱代替"
+}
+],
+"soupe, crème de crevette, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装奶油虾汤，可用自制贝夏梅酱加虾汤代替"
+}
+],
+"soupe, crème d'oignon, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装奶油洋葱汤，可用自制贝夏梅酱加洋葱代替"
+}
+],
+"soupe, crème d'asperge, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装奶油芦笋汤，可用自制贝夏梅酱代替"
+}
+],
+"soupe, bisque de tomate, en conserve, condensée": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "罐装番茄浓汤，可用番茄酱汁加奶油打匀代替"
+}
+],
+"soupe, crème de crevette, en conserve, préparée avec un volume égal de lait demi-écrémé (2%)": [
+{
+"nom": "奶油蘑菇汤，罐装，浓缩",
+"note": "罐装奶油蘑菇汤，砂锅菜谱中没有虾汤时的常用替代品"
+}
+],
+"soupe, crème de champignons, en conserve, préparée avec un volume égal de lait demi-écrémé (2%)": [
+{
+"nom": "奶油鸡汤，罐装，浓缩",
+"note": "奶油鸡汤，在大多数砂锅菜谱中可与奶油蘑菇汤互换"
+}
+],
+"soupe à la tomate, mélange déshydraté, préparée à l'eau": [
+{
+"nom": "番茄汤，罐装，浓缩",
+"note": "罐装浓缩番茄汤，可代替加水冲调的脱水预拌料"
+}
+],
+"maïs sucré, jaune, surgelé, grains égrenés, non préparé": [
+{
+"nom": "黄甜玉米，罐装，无添加盐，固形物和汁",
+"note": "沥干的罐装玉米，冷冻玉米的常用替代品"
+}
+],
+"maïs sucré, jaune, en conserve, sans sel ajouté, solides et liquide": [
+{
+"nom": "黄甜玉米，冷冻，脱粒，未加工",
+"note": "冷冻玉米，罐装玉米的常用替代品"
+}
+],
+"sauce à l'arachide, à base de beurre d'arachide, d'eau et de sauce soja": [
+{
+"nom": "花生酱汁，椰子、水、糖和花生制",
+"note": "另一种花生酱汁底料（椰子），可用于相同的沙爹类菜谱"
+}
+],
+"sauce à l'arachide, à base de noix de coco, d'eau, de sucre et d'arachides": [
+{
+"nom": "花生酱汁，花生酱、水和酱油制",
+"note": "另一种花生酱汁底料（花生酱），可用于相同的沙爹类菜谱"
+}
+],
+"sauce, piments forts, chili, rouge mûr, en conserve": [
+{
+"nom": "辣椒酱，青辣椒（未成熟），罐装",
+"note": "青辣椒酱，可根据所需颜色/辣度代替红辣椒酱"
+}
+],
+"sauce chili, piments forts, verts (immatures), en conserve": [
+{
+"nom": "辣椒酱，红辣椒，成熟红色，罐装",
+"note": "红辣椒酱，可根据所需颜色/辣度代替青辣椒酱"
+}
+],
+"saucisse, poulet, boeuf, porc, sans peau, fumée": [
+{
+"nom": "香肠，火鸡、猪肉和牛肉，低脂，烟熏",
+"note": "低脂烟熏火鸡香肠，是普通烟熏香肠的清淡替代品"
+}
+],
+"boisson alcoolisée, bière légère, bud light": [
+{
+"nom": "含酒精饮料，淡啤酒",
+"note": "菜谱中可用普通淡啤酒代替Bud Light品牌"
+}
+],
+"boisson alcoolisée, bière légère, budweiser select": [
+{
+"nom": "含酒精饮料，淡啤酒",
+"note": "菜谱中可用普通淡啤酒代替Budweiser Select品牌"
+}
+],
+"boisson alcoolisée, bière ordinaire, budweiser": [
+{
+"nom": "含酒精饮料，普通啤酒，所有类型",
+"note": "菜谱中可用普通啤酒代替Budweiser品牌"
+}
+],
+"vin de table, rouge, syrah": [
+{
+"nom": "红葡萄酒，仙粉黛（Zinfandel）",
+"note": "浓郁红葡萄酒（西拉），焖菜和酱汁中可用仙粉黛代替"
+}
+],
+"vin de table, rouge, merlot": [
+{
+"nom": "红葡萄酒，赤霞珠（Cabernet Sauvignon）",
+"note": "梅洛和赤霞珠：烹饪中可互换的单宁型红葡萄酒"
+}
+],
+"vin de table, rouge, claret": [
+{
+"nom": "红葡萄酒，赤霞珠（Cabernet Sauvignon）",
+"note": "波尔多淡红（混酿）烹饪中接近赤霞珠"
+}
+],
+"vin de table, rouge, pinot noir": [
+{
+"nom": "红葡萄酒，梅洛（Merlot）",
+"note": "黑皮诺和梅洛：较清淡的红葡萄酒，可互相代替"
+}
+],
+"vin de table, rouge, cabernet franc": [
+{
+"nom": "红葡萄酒，梅洛（Merlot）",
+"note": "品丽珠接近梅洛，烹饪中可代替"
+}
+],
+"vin de table, blanc, fumé blanc": [
+{
+"nom": "白葡萄酒，长相思（Sauvignon Blanc）",
+"note": "白富美（Fumé Blanc）是长相思（Sauvignon Blanc）的另一商品名"
+}
+],
+"vin de table, blanc, chardonnay": [
+{
+"nom": "白葡萄酒，白皮诺（Pinot Blanc）",
+"note": "霞多丽和白皮诺：可互相代替的干白葡萄酒"
+}
+],
+"vin de table, blanc, pinot gris (grigio)": [
+{
+"nom": "白葡萄酒，霞多丽（Chardonnay）",
+"note": "灰皮诺和霞多丽：烹饪中可互换的干白葡萄酒"
+}
+],
+"vin de table, blanc, chenin blanc": [
+{
+"nom": "白葡萄酒，长相思（Sauvignon Blanc）",
+"note": "白诗南和长相思：相近的干白葡萄酒"
+}
+],
+"vin de table, blanc, gewurztraminer": [
+{
+"nom": "白葡萄酒，雷司令（Riesling）",
+"note": "琼瑶浆和雷司令：可互相代替的芳香型白葡萄酒"
+}
+],
+"soupe, chaudrée de palourdes façon manhattan, en conserve, avec morceaux, prête à servir": [
+{
+"nom": "新英格兰蛤蜊浓汤（chowder），减钠，罐装，即食",
+"note": "曼哈顿蛤蜊浓汤（番茄）和新英格兰蛤蜊浓汤（奶油）：可按喜好互换"
+}
+],
+"sauce pesto au basilic buitoni, prête à servir, réfrigérée": [
+{
+"nom": "MEZZETTA罗勒青酱，NAPA VALLEY BISTRO，即食",
+"note": "两个品牌的罗勒青酱，效果相当"
+}
+],
+"céréales wheatena, sèches": [
+{
+"nom": "CREAM OF WHEAT麦糊谷物，速食，干",
+"note": "小麦热谷物（Wheatena）和Cream of Wheat：可互相代替"
+}
+],
+"céréales cream of rice, sèches": [
+{
+"nom": "CREAM OF WHEAT麦糊谷物，速食，干",
+"note": "Cream of Rice和Cream of Wheat：可互相代替的热谷物"
+}
+],
+"nuggets ou croquette panée de poulet (contenant du soja), préemballé": [
+{
+"nom": "裹粉鸡块，预包装",
+"note": "同一产品不额外加大豆；用量和烹调方式相同。"
+}
+],
+"nuggets ou croquette panée de poulet, préemballé": [
+{
+"nom": "裹粉禽肉块，预包装",
+"note": "用禽肉块代替纯鸡肉块，口感和烹调非常接近。"
+}
+],
+"escalope panée, viennoise ou milanaise, veau, cuite": [
+{
+"nom": "裹粉炸肉排（维也纳或米兰式），鸡肉，熟",
+"note": "用裹粉鸡肉代替小牛肉；用量相同，烹调方式相同。"
+}
+],
+"escalope panée, viennoise ou milanaise, dinde, cuite": [
+{
+"nom": "裹粉炸肉排（维也纳或米兰式），鸡肉，熟",
+"note": "裹粉火鸡和鸡肉可等量互换。"
+}
+],
+"bouillon de boeuf, déshydraté reconstitué": [
+{
+"nom": "禽肉高汤，脱水冲调",
+"note": "用禽肉高汤代替牛肉高汤，味道稍淡，但底味相当。"
+}
+],
+"bouillon de volaille, déshydraté reconstitué": [
+{
+"nom": "蔬菜高汤，脱水冲调",
+"note": "用蔬菜高汤做更清淡（或素食）的版本，用量相同。"
+}
+],
+"couscous au mouton": [
+{
+"nom": "肉古斯米，预包装",
+"note": "用普通肉古斯米代替羊肉，蔬菜和粗粒小麦相同。"
+}
+],
+"couscous au poulet": [
+{
+"nom": "肉或鸡肉古斯米，减脂，预包装",
+"note": "减脂的肉或鸡肉版本，做法和用量相同。"
+}
+],
+"paupiette de veau": [
+{
+"nom": "禽肉卷（paupiette）",
+"note": "用禽肉卷代替小牛肉卷，做法和烹调相同。"
+}
+],
+"tajine de mouton, préemballé": [
+{
+"nom": "鸡肉塔吉锅，预包装",
+"note": "用鸡肉塔吉锅代替羊肉，香料和蔬菜相同，烹调时间稍短。"
+}
+],
+"cassoulet au porc, appertisé": [
+{
+"nom": "卡酥来砂锅（cassoulet），罐装",
+"note": "用普通罐装卡酥来代替猪肉版，豆子底料相同。"
+}
+],
+"cassoulet au canard ou oie, appertisé": [
+{
+"nom": "猪肉卡酥来砂锅，罐装",
+"note": "用猪肉卡酥来代替鸭/鹅版；底料相同，味道较淡。"
+}
+],
+"soupe à la tomate, préemballée à réchauffer": [
+{
+"nom": "番茄汤，脱水冲调",
+"note": "脱水冲调版，味道相同，按包装说明稀释。"
+}
+],
+"soupe à l'oignon, préemballée à réchauffer": [
+{
+"nom": "洋葱汤，脱水冲调",
+"note": "冲调用脱水汤包，效果非常接近新鲜版。"
+}
+],
+"soupe aux champignons, préemballée à réchauffer": [
+{
+"nom": "蘑菇汤，脱水冲调",
+"note": "脱水冲调版，味道非常接近。"
+}
+],
+"soupe aux légumes variés, préemballée à réchauffer": [
+{
+"nom": "什锦蔬菜汤，脱水冲调",
+"note": "脱水冲调版，蔬菜种类相同，按包装说明稀释。"
+}
+],
+"soupe aux poireaux et pommes de terre, préemballée à réchauffer": [
+{
+"nom": "韭葱土豆汤，脱水冲调",
+"note": "冲调用脱水汤包，同为韭葱土豆配方。"
+}
+],
+"soupe à la volaille et aux légumes, préemballée à réchauffer": [
+{
+"nom": "禽肉蔬菜汤，脱水冲调",
+"note": "脱水冲调版，同为禽肉蔬菜底料。"
+}
+],
+"soupe minestrone, préemballée à réchauffer": [
+{
+"nom": "意式蔬菜汤（minestrone），脱水冲调",
+"note": "冲调用脱水意式蔬菜汤，配方相同。"
+}
+],
+"soupe au potiron, préemballée à réchauffer": [
+{
+"nom": "南瓜汤，脱水冲调",
+"note": "冲调用脱水南瓜汤，味道非常接近。"
+}
+],
+"poisson blanc à la florentine (sauce aux épinards), préemballé": [
+{
+"nom": "熟白鱼（平均值）",
+"note": "原味熟白鱼，需要时淋上自制酱汁；底料相同。"
+}
+],
+"poisson blanc à la provençale ou niçoise (sauce tomate), préemballé": [
+{
+"nom": "熟白鱼（平均值）",
+"note": "原味熟白鱼，需要时配自制番茄酱。"
+}
+],
+"poisson blanc à la sauce moutarde, préemballé": [
+{
+"nom": "熟白鱼（平均值）",
+"note": "原味熟白鱼；需要时加少许芥末。"
+}
+],
+"poisson blanc à la bordelaise (chapelure, huile…), préemballé": [
+{
+"nom": "熟白鱼（平均值）",
+"note": "原味熟白鱼，不含波尔多式的面包屑/油。"
+}
+],
+"salade de céleri rémoulade, préemballée": [
+{
+"nom": "蛋黄酱拌根芹胡萝卜沙拉，预包装",
+"note": "用根芹胡萝卜沙拉代替单纯根芹沙拉，口感和酱汁几乎相同。"
+}
+],
+"salade de pommes de terre, faite maison": [
+{
+"nom": "皮埃蒙特土豆沙拉，预包装",
+"note": "用皮埃蒙特土豆沙拉代替自制土豆沙拉，同为土豆蛋黄酱底料。"
+}
+],
+"salade de chou rouge, avec sauce, préemballée": [
+{
+"nom": "卷心菜胡萝卜沙拉（凉拌卷心菜），带酱汁，预包装",
+"note": "用凉拌卷心菜（白卷心菜/胡萝卜）代替紫甘蓝，同为卷心菜沙拉。"
+}
+],
+"taboulé ou salade de semoule aux légumes, préemballé": [
+{
+"nom": "鸡肉塔布勒或古斯米沙拉，预包装",
+"note": "用鸡肉塔布勒代替蔬菜塔布勒；需要素食版时去掉鸡肉。"
+}
+],
+"falafel ou boulette de pois-chiche et/ou fève, vente à emporter": [
+{
+"nom": "炸鹰嘴豆丸子（法拉费），鹰嘴豆和/或蚕豆，预包装",
+"note": "同一产品，预包装版而非外卖版。"
+}
+],
+"ravioli au boeuf, sauce tomate, appertisé": [
+{
+"nom": "番茄酱蔬菜意式饺，罐装",
+"note": "同一菜品的素食版（罐装番茄酱意式饺）。"
+}
+],
+"lasagnes ou canellonis à la viande (bolognaise), préemballés": [
+{
+"nom": "蔬菜千层面或卷管面，预包装，熟",
+"note": "不含肉的素食版，同为预包装。"
+}
+],
+"aligot (purée de pomme de terre à la tomme fraîche), préemballé": [
+{
+"nom": "土豆泥（平均值）",
+"note": "用普通土豆泥代替，不加新鲜托姆奶酪。"
+}
+],
+"tartiflette (pommes de terre, reblochon, lardons…), préemballée": [
+{
+"nom": "多菲内焗土豆（gratin dauphinois），预包装",
+"note": "类似的焗土豆，不加瑞布罗申奶酪和培根丁。"
+}
+],
+"blé dur précuit, cuisiné, en sachet micro-ondable": [
+{
+"nom": "硬粒小麦（整粒），预煮，熟，无添加盐",
+"note": "同一种谷物，自己煮而不用微波袋装。"
+}
+],
+"couscous de légumes, préemballé": [
+{
+"nom": "古斯米（粗粒小麦粉），熟，无添加盐",
+"note": "原味古斯米，自己加蔬菜调配。"
+}
+],
+"pané soja, blé et fromage, type cordon bleu, préemballé": [
+{
+"nom": "蓝带肉排",
+"note": "普通肉制蓝带，同为裹粉做法。"
+}
+],
+"nuggets ou croquette panée de blé (sans soja), préemballé": [
+{
+"nom": "裹粉鸡块，预包装",
+"note": "普通鸡块，用量相同。"
+}
+],
+"nuggets ou croquette panée de soja et blé (convient aux véganes ou végétaliens), préemballé": [
+{
+"nom": "裹粉小麦块（不含大豆），预包装",
+"note": "不含大豆的替代品，同为裹粉形式。"
+}
+],
+"croque-monsieur, jambon, fromage et beurre, fait maison": [
+{
+"nom": "法式火腿奶酪三明治（croque-monsieur），预包装",
+"note": "用量相同，预包装版火腿奶酪三明治。"
+}
+],
+"croque-monsieur, préemballé": [
+{
+"nom": "法式火腿奶酪三明治（croque-monsieur），火腿、奶酪和黄油，自制",
+"note": "用量相同，自制版。"
+}
+],
+"croque-madame, fait maison": [
+{
+"nom": "法式火腿奶酪三明治（croque-monsieur），火腿、奶酪和黄油，自制",
+"note": "去掉鸡蛋即为经典火腿奶酪三明治。"
+}
+],
+"sandwich baguette, thon crudités mayonnaise, fait maison": [
+{
+"nom": "法棍三明治，金枪鱼生蔬蛋黄酱，外卖",
+"note": "同款三明治，外卖版。"
+}
+],
+"sandwich baguette, poulet crudités mayonnaise, fait maison": [
+{
+"nom": "法棍三明治，鸡肉生蔬蛋黄酱，外卖",
+"note": "同款三明治，外卖版。"
+}
+],
+"sandwich baguette, jambon beurre, fait maison": [
+{
+"nom": "法棍三明治，火腿黄油，外卖",
+"note": "同款三明治，外卖版。"
+}
+],
+"sandwich baguette, camembert beurre, fait maison": [
+{
+"nom": "法棍三明治，卡门贝尔奶酪黄油，外卖",
+"note": "同款三明治，外卖版。"
+}
+],
+"sandwich baguette, saucisson beurre, fait maison": [
+{
+"nom": "法棍三明治，干香肠黄油，外卖",
+"note": "同款三明治，外卖版。"
+}
+],
+"sandwich baguette, jambon emmental, préemballé": [
+{
+"nom": "法棍三明治，火腿埃门塔尔奶酪，外卖",
+"note": "同款三明治，外卖版。"
+}
+],
+"samossa ou samoussa ou brick garni, préemballé, cuit": [
+{
+"nom": "萨摩萨（samosa）或有馅酥皮卷（brick），自制，熟",
+"note": "同类做法，自制而非预包装。"
+}
+],
+"beignet de viande, volaille ou poisson, fait maison, cuit": [
+{
+"nom": "炸蔬菜",
+"note": "炸饼的素食版，不含肉或鱼。"
+}
+],
+"nouilles aux crevettes, préemballées, sautées/poêlées": [
+{
+"nom": "亚洲炒面（牛肉、鸡肉、蔬菜等），非速食",
+"note": "用肉/蔬菜配料代替虾，同为炒面底料。"
+}
+],
+"nouilles asiatiques instantanées, aromatisées, cuites": [
+{
+"nom": "亚洲炒面（牛肉、鸡肉、蔬菜等），非速食",
+"note": "非速食亚洲面条，自己烹调而不用速食版。"
+}
+],
+"pizza jambon fromage, préemballée": [
+{
+"nom": "奶酪披萨或玛格丽特披萨，预包装",
+"note": "去掉火腿即为奶酪/玛格丽特披萨。"
+}
+],
+"bouchées ou émincé végétal au soja et blé (convient aux véganes ou végétaliens), préemballé": [
+{
+"nom": "大豆小麦肉块或肉丝（不适合纯素者），预包装",
+"note": "同一产品，不保证不含动物成分的版本。"
+}
+],
+"bouchées ou émincé au soja et blé (ne convient pas aux véganes ou végétaliens), préemballé": [
+{
+"nom": "大豆小麦素肉块或素肉丝（适合纯素者），预包装",
+"note": "同一产品，适合纯素者的版本。"
+}
+],
+"nuggets ou croquette panée de soja et blé (ne convient pas aux véganes ou végétaliens), préemballé": [
+{
+"nom": "裹粉大豆小麦块（适合纯素者），预包装",
+"note": "同一产品，适合纯素者的版本。"
+}
+],
+"galette ou pavé au blé et soja (convient aux véganes ou végétaliens), préemballé": [
+{
+"nom": "小麦大豆饼（不适合纯素者），预包装",
+"note": "同一产品，不保证不含动物成分的版本。"
+}
+],
+"galette ou pavé au blé et soja (ne convient pas aux véganes ou végétaliens), préemballé": [
+{
+"nom": "小麦大豆饼（适合纯素者），预包装",
+"note": "同一产品，适合纯素者的版本。"
+}
+],
+"haricot vert, surgelé, cru": [
+{
+"nom": "四季豆",
+"note": "用新鲜四季豆等量代替，调整烹调时间。"
+}
+],
+"chou-fleur, surgelé, cru": [
+{
+"nom": "花椰菜，生",
+"note": "用新鲜花椰菜等量代替。"
+}
+],
+"petits pois, surgelés, crus": [
+{
+"nom": "豌豆",
+"note": "用新鲜去荚豌豆等量代替。"
+}
+],
+"carotte, surgelée, crue": [
+{
+"nom": "胡萝卜",
+"note": "用新鲜胡萝卜等量代替。"
+}
+],
+"brocoli, surgelé, cru": [
+{
+"nom": "西兰花，生",
+"note": "用新鲜西兰花等量代替。"
+}
+],
+"epinard, haché ou purée ou en branches, surgelé, cru": [
+{
+"nom": "生菠菜",
+"note": "用新鲜生菠菜代替，重量约加倍，因为煮后会大幅缩水。"
+}
+],
+"petits pois et carottes, surgelés, crus": [
+{
+"nom": "豌豆配胡萝卜，罐装，沥干",
+"note": "用罐装豌豆胡萝卜代替，充分沥干。"
+}
+],
+"champignon de paris ou champignon de couche, surgelé, cru": [
+{
+"nom": "白蘑菇（巴黎蘑菇），罐装，沥干",
+"note": "用罐装白蘑菇代替，充分沥干。"
+}
+],
+"haricot beurre, surgelé, cru": [
+{
+"nom": "黄荚菜豆，罐装，沥干",
+"note": "用罐装黄荚菜豆代替，充分沥干。"
+}
+],
+"artichaut, fond, surgelé, cru": [
+{
+"nom": "洋蓟底，罐装，沥干",
+"note": "用罐装洋蓟底代替，充分沥干。"
+}
+],
+"salsifis, surgelé, cru": [
+{
+"nom": "婆罗门参，罐装，沥干",
+"note": "用罐装婆罗门参代替，充分沥干。"
+}
+],
+"légumes, mélange surgelé, crus": [
+{
+"nom": "什锦蔬菜丁，罐装，沥干",
+"note": "用罐装什锦蔬菜丁代替，充分沥干。"
+}
+],
+"tomate, concentré, appertisé": [
+{
+"nom": "番茄双倍浓缩酱，罐装",
+"note": "双倍浓缩番茄酱用量约减半，加少许水稀释。"
+}
+],
+"tomate, double concentré, appertisé": [
+{
+"nom": "番茄浓缩酱，罐装",
+"note": "普通浓缩番茄酱用量约加倍，减少加水量。"
+}
+],
+"tomate, pelée, appertisée, égouttée": [
+{
+"nom": "番茄果肉，罐装",
+"note": "用量相同，效果非常接近（罐装去皮番茄或番茄块）。"
+}
+],
+"bambou, pousse, crue": [
+{
+"nom": "竹笋（嫩芽），罐装，沥干",
+"note": "用罐装竹笋等量代替，充分沥干。"
+}
+],
+"graine germée de haricot mungo ou pousse de \"soja\", crue": [
+{
+"nom": "绿豆芽（俗称“豆芽”），罐装，沥干",
+"note": "用罐装黄豆芽代替，充分沥干。"
+}
+],
+"potimarron, chair sans peau, cru": [
+{
+"nom": "奶油南瓜，去皮果肉，生",
+"note": "用奶油南瓜等量代替，味道稍不那么甜。"
+}
+],
+"fondue de poireau, préemballée": [
+{
+"nom": "韭葱，熟",
+"note": "用熟韭葱丝等量代替。"
+}
+],
+"champignon, cèpe, cru": [
+{
+"nom": "白蘑菇，生",
+"note": "用新鲜白蘑菇代替，香气较淡，但是经济实惠的替代品。"
+}
+],
+"champignon, chanterelle ou girolle, crue": [
+{
+"nom": "蘑菇，平菇，生",
+"note": "用新鲜平菇等量代替，味道更温和。"
+}
+],
+"salsifis noir, ou scorsonère d'espagne, cru": [
+{
+"nom": "婆罗门参",
+"note": "用（白）婆罗门参等量代替，做法相同。"
+}
+],
+"maïs doux, surgelé, cru": [
+{
+"nom": "黄甜玉米，生",
+"note": "用新鲜甜玉米粒等量代替。"
+}
+],
+"champignon noir, séché": [
+{
+"nom": "香菇，干",
+"note": "泡发后等量使用；口感更紧实，味道比黑木耳淡。"
+}
+],
+"tomate, séchée, à l'huile": [
+{
+"nom": "番茄干",
+"note": "加少许橄榄油弥补没有腌汁。"
+}
+],
+"oignon, séché": [
+{
+"nom": "洋葱",
+"note": "新鲜洋葱丝用量约为干洋葱的3倍。"
+}
+],
+"carotte, déshydratée": [
+{
+"nom": "胡萝卜，水煮（平均值）",
+"note": "泡发后煮熟，或直接用等量熟新鲜胡萝卜代替。"
+}
+],
+"chou chinois pak choï ou pak choy (feuilles vertes ressemblant à des blettes), cuit": [
+{
+"nom": "小白菜（青梗菜）茎和叶，蒸，留尼汪采样（Brassica rapa subsp. chinensis）",
+"note": "同一种蔬菜（小白菜/青梗菜），用量相同。"
+}
+],
+"chayote ou christophine ou chouchou à peau blanche, chair sans peau, sans noyau, cuite à la vapeur, prélevée à la martinique": [
+{
+"nom": "佛手瓜，去皮去核果肉，蒸，留尼汪采样（Sechium edule）",
+"note": "同一种蔬菜（佛手瓜），用量相同。"
+}
+],
+"gombo, entier, cuit à la vapeur, prélevé à la martinique": [
+{
+"nom": "秋葵，果实，熟",
+"note": "同一种蔬菜，用量相同。"
+}
+],
+"patate douce, cuite": [
+{
+"nom": "土豆，熟（平均值）",
+"note": "口感接近，味道更甜；用量相同。"
+}
+],
+"manioc, racine cuite": [
+{
+"nom": "土豆，熟（平均值）",
+"note": "口感更粉；用量相同，调整烹调。"
+}
+],
+"igname, épluchée, bouillie/cuite à l'eau": [
+{
+"nom": "土豆，水煮",
+"note": "用量相同，味道更中性。"
+}
+],
+"taro, tubercule, cuit": [
+{
+"nom": "土豆，熟（平均值）",
+"note": "用量相同，芋头口感稍黏。"
+}
+],
+"haricot coco, bouilli/cuit à l'eau": [
+{
+"nom": "白芸豆，水煮",
+"note": "非常相近的白芸豆，用量相同。"
+}
+],
+"pois cassé, bouilli/cuit à l'eau": [
+{
+"nom": "小扁豆，水煮（平均值）",
+"note": "用于浓汤/菜泥，用量相同。"
+}
+],
+"lentille verte, sèche": [
+{
+"nom": "金扁豆，干",
+"note": "烹调和口感非常接近，用量相同。"
+}
+],
+"lentille blonde, sèche": [
+{
+"nom": "绿扁豆，干",
+"note": "烹调和口感非常接近，用量相同。"
+}
+],
+"pêche blanche, chair sans peau, sans noyau, crue": [
+{
+"nom": "黄桃，去皮去核果肉，生",
+"note": "用量相同，酸味稍淡。"
+}
+],
+"pêche jaune, chair sans peau, sans noyau, crue": [
+{
+"nom": "白桃，去皮去核果肉，生",
+"note": "用量相同，酸味稍重。"
+}
+],
+"nectarine ou brugnon, jaune, chair et peau, sans noyau, crue": [
+{
+"nom": "白肉油桃，果肉和皮，去核，生",
+"note": "用量相同，稍不那么甜。"
+}
+],
+"nectarine ou brugnon, blanche, chair et peau, sans noyau, crue": [
+{
+"nom": "黄肉油桃，果肉和皮，去核，生",
+"note": "用量相同，稍甜。"
+}
+],
+"prune mirabelle, sans noyau, crue": [
+{
+"nom": "青李（Reine-Claude），去核，生",
+"note": "用量相同，青李稍甜。"
+}
+],
+"prune reine-claude, sans noyau, crue": [
+{
+"nom": "黄香李（mirabelle），去核，生",
+"note": "用量相同，黄香李稍酸。"
+}
+],
+"mûre (de ronce), crue": [
+{
+"nom": "黑莓（悬钩子），冷冻，生",
+"note": "同一种水果（新鲜/冷冻），用量相同。"
+}
+],
+"mûre (de ronce), surgelée, crue": [
+{
+"nom": "黑莓（悬钩子），生",
+"note": "同一种水果（新鲜/冷冻），用量相同。"
+}
+],
+"pomme golden, chair sans peau, crue": [
+{
+"nom": "嘎啦苹果，去皮果肉，生",
+"note": "用量相同，嘎啦更甜、酸味较淡。"
+}
+],
+"pomme gala, chair sans peau, crue": [
+{
+"nom": "金冠苹果，去皮果肉，生",
+"note": "用量相同，金冠苹果更耐烹煮。"
+}
+],
+"pomelo (dit pamplemousse) jaune, chair sans peau, sans pépins, cru": [
+{
+"nom": "粉红葡萄柚，去皮去籽果肉，生",
+"note": "用量相同，粉红葡萄柚稍甜。"
+}
+],
+"pomelo (dit pamplemousse) rose, chair sans peau, sans pépins, cru": [
+{
+"nom": "黄葡萄柚，去皮去籽果肉，生",
+"note": "用量相同，黄葡萄柚稍酸。"
+}
+],
+"melon cantaloup (par ex.: charentais), chair sans peau, sans pépins, cru": [
+{
+"nom": "蜜瓜（白兰瓜），去皮去籽果肉，生",
+"note": "用量相同，果肉香气稍淡。"
+}
+],
+"melon miel ou melon honeydew, chair sans peau, sans pépins, cru": [
+{
+"nom": "哈密瓜（如夏朗德甜瓜），去皮去籽果肉，生",
+"note": "用量相同，果肉香气稍浓。"
+}
+],
+"griotte, crue": [
+{
+"nom": "樱桃，果肉和皮，去核，生",
+"note": "樱桃更甜：稍减少配方中添加的糖。"
+}
+],
+"compote de pomme, préemballée": [
+{
+"nom": "苹果泥，“无添加糖”型，常温区",
+"note": "无添加糖苹果泥，不那么甜但口感相同，用量相同。"
+}
+],
+"compote de pomme, allégée en sucres, rayon ambiant": [
+{
+"nom": "苹果泥（compote），预包装",
+"note": "普通苹果泥，稍甜，用量相同。"
+}
+],
+"compote de pêche, préemballée": [
+{
+"nom": "苹果泥（compote），预包装",
+"note": "苹果泥，味道更中性，烘焙中用量相同。"
+}
+],
+"compote d'abricot, préemballée": [
+{
+"nom": "苹果泥（compote），预包装",
+"note": "苹果泥，味道更中性，用量相同。"
+}
+],
+"abricot au sirop (sans précision sur léger ou classique), appertisé, égoutté (aliment moyen)": [
+{
+"nom": "淡糖水杏，罐装，沥干",
+"note": "淡糖浆版，不那么甜，用量相同。"
+}
+],
+"abricot au sirop, appertisé, non égoutté": [
+{
+"nom": "淡糖水杏，罐装，未沥干",
+"note": "淡糖浆版，不那么甜，用量相同。"
+}
+],
+"macédoine ou cocktail ou salade de fruits, au sirop (sans précision sur léger ou classique), appertisé, égouttée (aliment moyen)": [
+{
+"nom": "淡糖水什锦水果，罐装，沥干",
+"note": "淡糖浆版，不那么甜，用量相同。"
+}
+],
+"macédoine ou cocktail ou salade de fruits, au sirop, appertisé, non égoutté": [
+{
+"nom": "淡糖水什锦水果，罐装，未沥干",
+"note": "淡糖浆版，不那么甜，用量相同。"
+}
+],
+"ananas au sirop léger, appertisé, égoutté": [
+{
+"nom": "菠萝汁浸菠萝，罐装，沥干",
+"note": "果汁浸菠萝，不那么甜，使用前充分沥干。"
+}
+],
+"pêche, sans noyau, au sirop léger, appertisée, égouttée": [
+{
+"nom": "淡糖水梨，罐装，沥干",
+"note": "淡糖水梨，口感和甜度接近，用量相同。"
+}
+],
+"raisin sec": [
+{
+"nom": "蔓越莓，干，加糖",
+"note": "蔓越莓干，更酸，蛋糕或沙拉中用量相同。"
+}
+],
+"pistache, grillée, salée": [
+{
+"nom": "开心果，烤，无添加盐",
+"note": "无添加盐版，减少盐分，用量相同，按口味补盐。"
+}
+],
+"noix de cajou, grillée, salée": [
+{
+"nom": "腰果，烤，无添加盐",
+"note": "无添加盐版，用量相同，按口味补盐。"
+}
+],
+"cacahuète, grillée à sec, salée": [
+{
+"nom": "花生，烤，无添加盐",
+"note": "无添加盐版，用量相同，按口味补盐。"
+}
+],
+"amande, grillée, salée": [
+{
+"nom": "榛子，烤，加盐",
+"note": "开胃小食或烘焙中的不错替代品，用量相同。"
+}
+],
+"sésame, graine": [
+{
+"nom": "芝麻，去皮",
+"note": "去皮籽，更易消化，用量相同。"
+}
+],
+"lin, graine": [
+{
+"nom": "奇亚籽（籽粒），干",
+"note": "烘焙/粥中同样用作黏合剂（加水成胶），用量相同。"
+}
+],
+"tahin ou purée de sésame": [
+{
+"nom": "花生酱",
+"note": "酱汁和烘焙中口感接近，味道更甜、更浓。"
+}
+],
+"châtaigne, bouillie/cuite à l'eau": [
+{
+"nom": "栗子，烤",
+"note": "烘烤味更重，用量相同，口感稍干。"
+}
+],
+"riz blanc, cuit, sans sel ajouté": [
+{
+"nom": "印度香米（basmati）饭，无添加盐",
+"note": "印度香米，米粒可互换，用量相同。"
+}
+],
+"riz thaï, cuit, sans sel ajouté": [
+{
+"nom": "印度香米（basmati）饭，无添加盐",
+"note": "印度香米，同为长粒，用量相同。"
+}
+],
+"riz thaï ou basmati, cru": [
+{
+"nom": "白米，生",
+"note": "普通白米，用量相同，烹调相近。"
+}
+],
+"pâtes sèches, standard, cuites, sans sel ajouté": [
+{
+"nom": "全麦干意面，熟，无添加盐",
+"note": "全谷版，膳食纤维更多，用量相同。"
+},
+{
+"nom": "无麸质干意面，熟，无添加盐",
+"note": "无麸质意面适合特殊饮食，用量相同，烹调相近。"
+}
+],
+"pâtes sèches, standard, crues": [
+{
+"nom": "全麦干意面，生",
+"note": "全谷版，膳食纤维更多，用量相同。"
+}
+],
+"semoule ou graine de couscous, cuite, sans sel ajouté": [
+{
+"nom": "布格麦，熟，无添加盐",
+"note": "熟布格麦，口感稍紧实，沙拉或配菜中用法相同。"
+}
+],
+"graine de couscous (semoule de blé dur précuite), à cuire": [
+{
+"nom": "布格麦，生",
+"note": "生布格麦，烹调相近，用法相同。"
+}
+],
+"vermicelle de riz, cuite, sans sel ajouté": [
+{
+"nom": "绿豆粉丝，熟，无添加盐",
+"note": "绿豆粉丝，口感接近，用量相同。"
+}
+],
+"vermicelles de riz sèches, crues": [
+{
+"nom": "绿豆粉丝，干，生",
+"note": "绿豆粉丝，口感接近，用量相同。"
+}
+],
+"gnocchi à la pomme de terre, à cuire": [
+{
+"nom": "粗粒小麦粉团子（gnocchi），待烹调",
+"note": "粗粒小麦粉团子，口感稍紧实，用量相同。"
+}
+],
+"pâtes sèches, sans gluten, cuites, sans sel ajouté": [
+{
+"nom": "干意面，普通，熟，无添加盐",
+"note": "无需无麸质时用普通意面，用量和烹调相同。"
+}
+],
+"amidon de maïs ou fécule de maïs": [
+{
+"nom": "土豆淀粉",
+"note": "用量相同，黏合力非常接近。"
+}
+],
+"amidon de riz": [
+{
+"nom": "玉米淀粉（玉米粉）",
+"note": "用量相同，增稠效果相近。"
+}
+],
+"farine d'épeautre (grand épeautre)": [
+{
+"nom": "T55 小麦粉",
+"note": "用量相同，味道稍中性。"
+}
+],
+"farine de blé tendre ou froment t110": [
+{
+"nom": "T65 小麦粉",
+"note": "用量相同，效果不那么粗犷。"
+}
+],
+"farine de blé tendre ou froment t80": [
+{
+"nom": "T65 小麦粉",
+"note": "用量相同，面包心稍轻盈。"
+}
+],
+"pâte feuilletée, matière grasse végétale, crue": [
+{
+"nom": "千层酥皮面团，纯黄油，预包装，生",
+"note": "用量相同，味道更浓（纯黄油）。"
+}
+],
+"pâte feuilletée, pur beurre, préemballée, crue": [
+{
+"nom": "千层酥皮面团，植物油脂，生",
+"note": "用量相同，不含黄油的版本（不耐受时有用）。"
+}
+],
+"pâte brisée, matière grasse végétale, préemballée, crue": [
+{
+"nom": "油酥面团，纯黄油，预包装，生",
+"note": "用量相同，面团更酥脆，味道更浓。"
+}
+],
+"pâte brisée, pur beurre, préemballée, crue": [
+{
+"nom": "油酥面团，植物油脂，预包装，生",
+"note": "用量相同，不含黄油的替代品。"
+}
+],
+"pâte sablée, préemballée, crue": [
+{
+"nom": "甜酥面团，纯黄油，预包装，生",
+"note": "用量相同，味道更浓郁（纯黄油）。"
+}
+],
+"feuille de brick ou khatfa, préemballée": [
+{
+"nom": "千层酥皮（phyllo/filo），生",
+"note": "约叠2张千层酥皮代替1张布里克薄饼。"
+}
+],
+"pâte phyllo ou pâte filo, crue": [
+{
+"nom": "布里克薄饼（brick/khatfa），预包装",
+"note": "1张布里克薄饼约代替2张千层酥皮。"
+}
+],
+"tortilla souple (à garnir), à base de maïs": [
+{
+"nom": "软墨西哥薄饼（夹馅用），小麦制",
+"note": "用量相同，口感更软，味道更中性。"
+}
+],
+"tortilla souple (à garnir), à base de blé": [
+{
+"nom": "软墨西哥薄饼（夹馅用），玉米制",
+"note": "用量相同，无麸质选择。"
+}
+],
+"pain bagel": [
+{
+"nom": "汉堡或热狗面包，预包装",
+"note": "夹馅三明治用法相同，长条形。"
+}
+],
+"veau, côte grillée/poêlée": [
+{
+"nom": "猪排，烤或煎",
+"note": "烹调方式相同，味道更浓。"
+}
+],
+"veau, escalope cuite": [
+{
+"nom": "鸡胸柳，去皮，烤或煎",
+"note": "用量相同，肉更瘦。"
+}
+],
+"poulet, filet sans peau grillé/poêlé": [
+{
+"nom": "火鸡肉片，烤或煎",
+"note": "用量相同，味道和口感非常接近。"
+}
+],
+"poulet, cuisse, viande et peau rôtie/cuite au four": [
+{
+"nom": "火鸡肉，烤",
+"note": "用量相同，肉稍干，烹调时注意火候。"
+}
+],
+"poulet, filet sans peau grillé/poêlé, bio": [
+{
+"nom": "鸡胸柳，去皮，烤或煎",
+"note": "同一产品，非有机版。"
+}
+],
+"boeuf, steak ou bifteck grillé/poêlé": [
+{
+"nom": "牛臀肉（rumsteck），烤或煎",
+"note": "烹调方式相同，部位稍嫩。"
+}
+],
+"porc, filet maigre, en rôti, cuit": [
+{
+"nom": "猪小里脊，熟",
+"note": "同类部位，烹调方式相近。"
+}
+],
+"boeuf, entrecôte, partie maigre grillée/poêlée": [
+{
+"nom": "牛排，烤或煎",
+"note": "烹调方式相同，效果接近。"
+}
+],
+"veau, escalope crue": [
+{
+"nom": "火鸡肉片，生",
+"note": "火鸡肉片，做法相同，味道稍中性。"
+}
+],
+"dinde, escalope crue": [
+{
+"nom": "小牛肉片，生",
+"note": "小牛肉片，用量相同，口感接近。"
+}
+],
+"poulet, viande crue": [
+{
+"nom": "火鸡，仅肉，生",
+"note": "火鸡肉，用量相同，味道非常接近。"
+}
+],
+"dinde, viande crue": [
+{
+"nom": "鸡肉，仅肉，生",
+"note": "鸡肉，用量相同，味道非常接近。"
+}
+],
+"pintade, viande crue": [
+{
+"nom": "农家散养鸡，肉和皮，生",
+"note": "农家鸡，用量相同，味道较淡。"
+}
+],
+"oie, viande crue": [
+{
+"nom": "鸭肉，仅肉，生",
+"note": "鸭肉，用量相同，味道接近（多脂禽肉）。"
+}
+],
+"faisan, viande crue": [
+{
+"nom": "农家散养鸡，肉和皮，生",
+"note": "农家鸡，用量相同，没有野味。"
+}
+],
+"cheval, steak ou bifteck cru": [
+{
+"nom": "牛排，生",
+"note": "牛排，用量相同，效果接近。"
+}
+],
+"cheval, tende de tranche crue": [
+{
+"nom": "牛后腿内侧（tende de tranche），生",
+"note": "牛后腿内侧，用量相同，效果接近。"
+}
+],
+"cheval, faux-filet cru": [
+{
+"nom": "牛外脊（faux-filet），生",
+"note": "牛外脊，用量相同，效果接近。"
+}
+],
+"cheval, entrecôte crue": [
+{
+"nom": "牛肋眼（entrecôte），生",
+"note": "牛肋眼，用量相同，效果接近。"
+}
+],
+"chevreau, viande crue": [
+{
+"nom": "羔羊后腿，生",
+"note": "羊后腿，用量相同，味道接近。"
+}
+],
+"autruche, viande crue": [
+{
+"nom": "牛里脊（filet），生",
+"note": "牛里脊，瘦红肉，用量相同。"
+}
+],
+"cerf, viande crue": [
+{
+"nom": "牛里脊（filet），生",
+"note": "瘦牛肉（里脊），用量相同，没有野味。"
+}
+],
+"lièvre, viande crue": [
+{
+"nom": "野味，家兔，混合切块，生",
+"note": "兔肉，用量相同，味道更温和。"
+}
+],
+"foie, veau, cru": [
+{
+"nom": "小母牛肝，生",
+"note": "小母牛肝，用量相同，味道非常接近。"
+}
+],
+"foie, génisse, cru": [
+{
+"nom": "生小牛肝",
+"note": "小牛肝，用量相同，味道非常接近。"
+}
+],
+"coeur, boeuf, cru": [
+{
+"nom": "生小牛心",
+"note": "小牛心，用量相同，口感稍嫩。"
+}
+],
+"cervelle, agneau, crue": [
+{
+"nom": "生小牛脑",
+"note": "小牛脑，用量相同，口感相同。"
+}
+],
+"boeuf, steak haché 5% mg cru": [
+{
+"nom": "牛肉饼，脂肪10%，生",
+"note": "牛肉饼（脂肪10%），稍肥。"
+}
+],
+"boeuf, steak haché 20% mg cru": [
+{
+"nom": "牛肉饼，脂肪15%，生",
+"note": "牛肉饼（脂肪15%），稍瘦。"
+}
+],
+"veau, steak haché 20% mg cru": [
+{
+"nom": "小牛肉饼，脂肪15%，生",
+"note": "小牛肉饼（脂肪15%），稍瘦。"
+}
+],
+"porc, échine crue": [
+{
+"nom": "猪肩肉，生",
+"note": "猪肩肉，用量相同，大理石纹稍少。"
+}
+],
+"agneau, gigot cru": [
+{
+"nom": "羔羊肩，生",
+"note": "羊肩肉，用量相同，稍肥。"
+}
+],
+"boeuf, à bourguignon ou pot-au-feu, cru": [
+{
+"nom": "牛肩胛（paleron），生",
+"note": "牛肩胛，同样用于长时间焖煮。"
+}
+],
+"boeuf, paleron cru": [
+{
+"nom": "牛颈肉，生",
+"note": "牛颈肉，同样用于长时间焖煮。"
+}
+],
+"poulet, pilon cru": [
+{
+"nom": "鸡腿，仅肉，生",
+"note": "去骨鸡腿，用量相同，调整烹调时间。"
+}
+],
+"dinde, cuisse, viande crue": [
+{
+"nom": "鸡腿，仅肉，生",
+"note": "鸡腿，用量相同，味道接近。"
+}
+],
+"agneau, gigot rôti/cuit au four": [
+{
+"nom": "羔羊肩，烤",
+"note": "烤羊肩，用法相同，稍肥、更软嫩。"
+}
+],
+"foie, poulet, cuit": [
+{
+"nom": "火鸡肝，熟",
+"note": "熟火鸡肝，用量相同，味道非常接近。"
+}
+],
+"coeur, poulet, cuit": [
+{
+"nom": "火鸡心，熟",
+"note": "熟火鸡心，用量相同，味道非常接近。"
+}
+],
+"foie, poulet, cru": [
+{
+"nom": "火鸡肝，生",
+"note": "火鸡肝，口感和味道非常接近。"
+}
+],
+"foie, dinde, cru": [
+{
+"nom": "鸡肝，生",
+"note": "鸡肝，很容易替代，味道稍浓。"
+}
+],
+"ris, veau, cru": [
+{
+"nom": "羊胸腺，生",
+"note": "羊胸腺，做法相同，块头更小。"
+}
+],
+"ris, agneau, cru": [
+{
+"nom": "生小牛胸腺",
+"note": "小牛胸腺，更常见，做法相同。"
+}
+],
+"rognon, veau, cru": [
+{
+"nom": "生羊腰子",
+"note": "羊腰子，烹调方式相同，味道稍重。"
+}
+],
+"rognon, agneau, cru": [
+{
+"nom": "生小牛腰子",
+"note": "小牛腰子，更温和，做法相同。"
+}
+],
+"langue, veau, crue": [
+{
+"nom": "生牛舌",
+"note": "牛舌，更大但做法相同（先煮后焖）。"
+}
+],
+"langue, boeuf, crue": [
+{
+"nom": "生小牛舌",
+"note": "小牛舌，更小更嫩，做法相同。"
+}
+],
+"filet de bacon": [
+{
+"nom": "烟熏培根丁，生",
+"note": "烟熏培根丁，烹饪用法相同（煎锅菜、乳蛋饼、沙拉）。"
+}
+],
+"pancetta ou poitrine roulée sèche": [
+{
+"nom": "原味培根丁，生",
+"note": "原味培根丁，没有意式培根时用来给炖菜增香。"
+}
+],
+"bresaola": [
+{
+"nom": "格劳宾登风干牛肉（viande des Grisons）",
+"note": "格劳宾登风干牛肉，同为薄切风干肉制品。"
+}
+],
+"viande des grisons": [
+{
+"nom": "意式风干牛肉（bresaola）",
+"note": "意式风干牛肉（bresaola），类似的风干牛肉，薄切。"
+}
+],
+"jambon sec de parme": [
+{
+"nom": "巴约讷火腿（Bayonne）",
+"note": "巴约讷火腿，没有帕尔马火腿时用，同属风干火腿。"
+}
+],
+"jambon sec serrano": [
+{
+"nom": "巴约讷火腿（Bayonne）",
+"note": "巴约讷火腿，没有塞拉诺火腿时用，类似的风干生火腿。"
+}
+],
+"jambon de bayonne": [
+{
+"nom": "风干火腿",
+"note": "普通风干火腿，口感和用法相同。"
+}
+],
+"rillettes de canard": [
+{
+"nom": "纯猪肉丝酱（rillettes）",
+"note": "纯猪肉丝酱，没有鸭肉丝酱时用，口感接近。"
+}
+],
+"rillettes d'oie": [
+{
+"nom": "鸭肉丝酱",
+"note": "鸭肉丝酱，更容易买到，味道接近鹅肉。"
+}
+],
+"rillettes pur oie": [
+{
+"nom": "鸭肉丝酱",
+"note": "鸭肉丝酱，没有纯鹅肉丝酱时用。"
+}
+],
+"pâté de foie d'oie": [
+{
+"nom": "禽肝酱",
+"note": "禽肝酱，没有鹅肝时用，更常见。"
+}
+],
+"saucisson sec pur porc": [
+{
+"nom": "萨拉米",
+"note": "萨拉米，类似的风干肉制品，同样切片使用。"
+}
+],
+"salami": [
+{
+"nom": "纯猪肉干香肠",
+"note": "纯猪肉干香肠，同类风干肉制品。"
+}
+],
+"chorizo supérieur, doux ou fort, type saucisse sèche": [
+{
+"nom": "梅尔格斯香肠（merguez），生",
+"note": "生梅尔格斯香肠，没有西班牙辣香肠时用，烧烤时辣味相近。"
+}
+],
+"saucisse de toulouse crue": [
+{
+"nom": "奇波拉塔小香肠（chipolata），生",
+"note": "生奇波拉塔小香肠，同样用于烧烤或煎制。"
+}
+],
+"chipolata crue": [
+{
+"nom": "图卢兹香肠，生",
+"note": "生图卢兹香肠，用法相同，味道稍浓。"
+}
+],
+"merguez crue": [
+{
+"nom": "图卢兹香肠，生",
+"note": "生图卢兹香肠，没有梅尔格斯香肠时用（辣味较淡，调整香料）。"
+}
+],
+"saucisse de strasbourg ou knack, à cuire": [
+{
+"nom": "法兰克福香肠",
+"note": "法兰克福香肠，口感和用法相同（热狗、酸菜）。"
+}
+],
+"saucisse de francfort": [
+{
+"nom": "斯特拉斯堡香肠或克纳克香肠，待煮",
+"note": "斯特拉斯堡香肠/克纳克香肠，同为水煮香肠。"
+}
+],
+"saucisse de volaille type knack": [
+{
+"nom": "斯特拉斯堡香肠或克纳克香肠，待煮",
+"note": "纯猪肉斯特拉斯堡香肠/克纳克香肠，没有禽肉版时用。"
+}
+],
+"mortadelle": [
+{
+"nom": "塞尔维拉香肠（cervelas）",
+"note": "塞尔维拉香肠，切片熟肉制品，同样用于开胃或沙拉。"
+}
+],
+"fromage de tête": [
+{
+"nom": "牛鼻肉",
+"note": "牛鼻肉，另一种头肉冻熟食，常配油醋汁。"
+}
+],
+"museau de boeuf": [
+{
+"nom": "猪头冻（fromage de tête）",
+"note": "猪头肉冻，类似的肉冻做法。"
+}
+],
+"mahi-mahi, chair, cuit": [
+{
+"nom": "鳕鱼，熟，未指明（平均值）",
+"note": "熟鳕鱼，紧实白肉，口感接近。"
+}
+],
+"églefin, cuit à la vapeur": [
+{
+"nom": "鳕鱼，熟，未指明（平均值）",
+"note": "熟鳕鱼，低脂白鱼，味道接近。"
+}
+],
+"carrelet ou plie ou plie commune, cuit à la vapeur": [
+{
+"nom": "黑线鳕，蒸",
+"note": "蒸黑线鳕，类似的低脂白鱼。"
+}
+],
+"cabillaud, rôti/cuit au four": [
+{
+"nom": "黄青鳕",
+"note": "肉质紧实的白鱼，烤鱼柳时常互相替代。"
+}
+],
+"brochet, rôti/cuit au four": [
+{
+"nom": "鲤鱼，烤箱烤",
+"note": "肉质紧实的淡水鱼，烤法相似。"
+}
+],
+"perche ou perche européenne, rôtie/cuite au four": [
+{
+"nom": "鳟鱼，烤箱烤",
+"note": "整条烤小鱼，做法相当。"
+}
+],
+"limande-sole, cuite à la vapeur": [
+{
+"nom": "鳎鱼，蒸",
+"note": "薄身比目鱼类，蒸法相当。"
+}
+],
+"merlan, cuit à la vapeur": [
+{
+"nom": "鳕鱼，蒸",
+"note": "低脂白鱼，蒸制时可互换。"
+}
+],
+"saumon, cuit à la vapeur": [
+{
+"nom": "养殖虹鳟，蒸",
+"note": "粉色多脂鱼，蒸法相近。"
+}
+],
+"morue, salée, bouillie/cuite à l'eau": [
+{
+"nom": "鳕鱼，生",
+"note": "咸鳕鱼和新鲜鳕鱼肉质相同，替代前先给咸鳕鱼脱盐泡发。"
+}
+],
+"merlu, cuit à l'étouffée": [
+{
+"nom": "鳕鱼，蒸",
+"note": "低脂白鱼，小火烹调方式相当。"
+}
+],
+"églefin, grillé/poêlé": [
+{
+"nom": "青鳕（黄鳕），熟",
+"note": "鳕科白鱼，烤法相近。"
+}
+],
+"sardine, grillée/poêlée": [
+{
+"nom": "生西班牙鲭",
+"note": "小型多脂鱼，烤法相近（沙丁鱼/鲭鱼）。"
+}
+],
+"truite saumonée, sautée/poêlée": [
+{
+"nom": "鳟鱼，烤箱烤",
+"note": "鳟鱼类，煎/烤做法相当。"
+}
+],
+"bar rayé ou bar d'amérique, cru": [
+{
+"nom": "欧洲狼鲈（海鲈），生",
+"note": "鲈鱼类，生鱼肉相近，可互换使用。"
+}
+],
+"lieu ou colin d'alaska, cru": [
+{
+"nom": "鳕鱼，生",
+"note": "鳕科白鱼，生鱼肉相近。"
+}
+],
+"flétan de l'atlantique ou flétan, cru": [
+{
+"nom": "生格陵兰大比目鱼",
+"note": "大比目鱼类，鱼肉相近，可互换。"
+}
+],
+"carrelet ou plie ou plie commune, cru": [
+{
+"nom": "黄盖鲽，生",
+"note": "相近的比目鱼类，鱼肉同样细嫩。"
+}
+],
+"saumon, sauvage, cru": [
+{
+"nom": "养殖三文鱼，生",
+"note": "野生三文鱼和养殖三文鱼，生鱼肉相近。"
+}
+],
+"saumon argenté du pacifique (coho), cru": [
+{
+"nom": "野生三文鱼，生",
+"note": "不同品种的三文鱼，生鱼肉相近。"
+}
+],
+"crevette grise, cuite": [
+{
+"nom": "熟虾",
+"note": "不同品种的熟虾，菜谱中常可互换。"
+}
+],
+"langouste, bouillie/cuite à l'eau": [
+{
+"nom": "龙虾，水煮",
+"note": "刺龙虾和龙虾，肉质相近，水煮方式相当。"
+}
+],
+"langoustine, bouillie/cuite à l'eau": [
+{
+"nom": "熟虾",
+"note": "海螯虾和虾，肉质相近，水煮方式相近。"
+}
+],
+"clam, praire ou palourde, bouilli/cuit à l'eau": [
+{
+"nom": "鸟蛤，熟",
+"note": "相近的贝类，水煮做法相当。"
+}
+],
+"bulot ou buccin, cuit": [
+{
+"nom": "滨螺，熟",
+"note": "小型海生腹足类，烹调和用途相当。"
+}
+],
+"calmar ou calamar ou encornet, bouilli/cuit à l'eau": [
+{
+"nom": "章鱼，熟",
+"note": "鱿鱼和章鱼，头足类肉常互相替代。"
+}
+],
+"rillettes de thon, préemballées": [
+{
+"nom": "三文鱼丝酱，预包装",
+"note": "鱼肉丝酱，可根据现有鱼种互换。"
+}
+],
+"tarama, aux oeufs de cabillaud, préemballé": [
+{
+"nom": "鱼子泥（tarama），烟熏三文鱼，预包装",
+"note": "鱼子泥（tarama），不论用哪种鱼子，做法和用途相同。"
+}
+],
+"caviar, semi-conserve": [
+{
+"nom": "圆鳍鱼子，半罐装",
+"note": "圆鳍鱼子＝常用且便宜得多的鱼子酱替代品，同样用作装饰"
+}
+],
+"carrelet ou plie ou plie commune, pané, frit": [
+{
+"nom": "牙鳕，裹粉",
+"note": "裹粉白鱼，口感和用途相近（炸鱼薯条、裹粉煎鱼）"
+}
+],
+"limande-sole, panée, frite": [
+{
+"nom": "牙鳕，裹粉",
+"note": "裹粉白鱼，烹饪中很容易替代"
+}
+],
+"sardine, à l'huile, appertisée, égouttée": [
+{
+"nom": "金枪鱼，水浸罐装，沥干",
+"note": "沙拉和肉酱中水浸金枪鱼罐头可代替油浸沙丁鱼"
+}
+],
+"maquereau, filet sauce tomate, appertisé, égoutté": [
+{
+"nom": "沙丁鱼，茄汁罐装，沥干",
+"note": "茄汁鱼罐头可互换（鲭鱼/沙丁鱼）"
+}
+],
+"maquereau, fumé": [
+{
+"nom": "烟熏三文鱼",
+"note": "烟熏鱼，味道和口感接近，可作为更便宜的替代品"
+}
+],
+"haddock (fumé) ou églefin fumé": [
+{
+"nom": "烟熏三文鱼",
+"note": "沙拉、乳蛋饼、炒蛋中烟熏黑线鳕可代替烟熏三文鱼"
+}
+],
+"saumon, appertisé, égoutté": [
+{
+"nom": "金枪鱼，水浸罐装，沥干",
+"note": "三文鱼罐头和金枪鱼罐头可互换使用（肉丝酱、沙拉）"
+}
+],
+"truite, élevage, fumée": [
+{
+"nom": "烟熏三文鱼",
+"note": "烟熏鳟鱼是烟熏三文鱼经典且更便宜的替代品"
+}
+],
+"oeuf d'oie, cru": [
+{
+"nom": "生鸡蛋",
+"note": "没有时用约4个鸡蛋代替（按体积换算）"
+}
+],
+"oeuf de dinde, cru": [
+{
+"nom": "生鸡蛋",
+"note": "没有时用约1.5个鸡蛋代替（按体积换算）"
+}
+],
+"oeuf, en poudre": [
+{
+"nom": "生鸡蛋",
+"note": "加水冲调的蛋粉可在烘焙中代替新鲜鸡蛋"
+}
+],
+"oeuf, jaune (jaune d'oeuf), en poudre": [
+{
+"nom": "蛋黄，生",
+"note": "冲调的蛋黄粉可代替新鲜蛋黄"
+}
+],
+"oeuf, blanc (blanc d'oeuf), en poudre": [
+{
+"nom": "蛋白，生",
+"note": "冲调的蛋白粉可代替新鲜蛋白"
+}
+],
+"lait de chèvre, entier, uht": [
+{
+"nom": "全脂牛奶（平均值）",
+"note": "没有山羊奶或想让味道更柔和时用全脂牛奶代替"
+}
+],
+"lait de chèvre, entier, cru": [
+{
+"nom": "全脂牛奶（平均值）",
+"note": "没有山羊奶时用全脂牛奶代替"
+}
+],
+"lait de brebis, entier": [
+{
+"nom": "全脂牛奶（平均值）",
+"note": "没有绵羊奶时用全脂牛奶代替"
+}
+],
+"lait de bufflesse, entier": [
+{
+"nom": "全脂牛奶（平均值）",
+"note": "没有水牛奶时用全脂牛奶代替"
+}
+],
+"lait en poudre, entier": [
+{
+"nom": "全脂牛奶（平均值）",
+"note": "加水冲调后可代替新鲜全脂牛奶"
+}
+],
+"lait concentré sans sucres ajoutés, entier": [
+{
+"nom": "全脂牛奶（平均值）",
+"note": "加等量水稀释后可代替全脂牛奶"
+}
+],
+"yaourt à la grecque nature": [
+{
+"nom": "白奶酪（fromage blanc），原味或水果味（平均值）",
+"note": "原味白奶酪可代替希腊酸奶，口感稍不那么绵滑"
+}
+],
+"yaourt à la grecque nature, au lait de brebis": [
+{
+"nom": "希腊式酸奶，原味",
+"note": "没有绵羊奶时用普通希腊式酸奶代替"
+}
+],
+"yaourt au lait de brebis, nature, 3% mg environ": [
+{
+"nom": "酸奶或发酵乳，原味",
+"note": "没有绵羊奶时用原味牛奶酸奶代替"
+}
+],
+"yaourt au lait de chèvre, nature": [
+{
+"nom": "酸奶或发酵乳，原味",
+"note": "没有山羊奶时用原味牛奶酸奶代替"
+}
+],
+"kéfir de lait": [
+{
+"nom": "酸奶或发酵乳，原味",
+"note": "菜谱中牛奶开菲尔可代替原味饮用酸奶"
+}
+],
+"faisselle, 0% mg": [
+{
+"nom": "白奶酪，原味，0%脂肪",
+"note": "沥干的滤篮鲜奶酪口感接近0%脂肪白奶酪"
+}
+],
+"faisselle, 6% mg environ": [
+{
+"nom": "白奶酪，原味，脂肪7-8%",
+"note": "沥干的滤篮鲜奶酪口感接近脂肪含量相当的原味白奶酪"
+}
+],
+"oeufs au lait, rayon frais": [
+{
+"nom": "焦糖布丁（crème caramel），冷藏区",
+"note": "相近的蛋奶甜点，口感和用途与焦糖布丁相似。"
+}
+],
+"panna cotta, avec préparations de fruits ou caramel, rayon frais": [
+{
+"nom": "香草奶油甜点，冷藏区",
+"note": "口感同样绵滑细腻，可代替意式奶冻作奶甜点。"
+}
+],
+"milkshake, de restauration rapide": [
+{
+"nom": "浓奶昔，巧克力",
+"note": "普通奶昔，相当于快餐款。"
+}
+],
+"riz au lait vanille, cannelle ou nature, rayon frais": [
+{
+"nom": "米布丁",
+"note": "基础版米布丁，不加调味。"
+}
+],
+"semoule au lait, rayon frais": [
+{
+"nom": "米布丁",
+"note": "类似的谷物奶甜点（用米代替粗粒小麦）。"
+}
+],
+"crème pâtissière instantanée, reconstituée": [
+{
+"nom": "卡仕达酱",
+"note": "自制卡仕达酱，相当于冲调的速溶版。"
+}
+],
+"dessert au soja, nature, sans sucres ajoutés, non enrichi, fermenté, rayon frais": [
+{
+"nom": "原味酸奶",
+"note": "没有植物基要求时的原味乳制对应品。"
+}
+],
+"dessert végétal sans soja (amande, avoine, chanvre, coco, riz), aromatisé, sucré, non enrichi, rayon frais": [
+{
+"nom": "水果酸奶，无脂",
+"note": "没有植物基要求时的调味乳制替代品。"
+}
+],
+"mousse au chocolat végétale, rayon frais": [
+{
+"nom": "传统巧克力慕斯，冷藏区",
+"note": "经典乳制版，相当于植物基巧克力慕斯。"
+}
+],
+"mélange de fromages râpés (ex : spécial gratins, spécial pâtes, spécial pizzas…)": [
+{
+"nom": "埃曼塔尔奶酪碎",
+"note": "用单一奶酪碎（埃门塔尔）代替焗烤/披萨专用混合奶酪。"
+}
+],
+"fromage à pâte molle et croûte fleurie, double crème environ 30% mg": [
+{
+"nom": "布里奶酪",
+"note": "相近的白霉软质奶酪，布里型。"
+}
+],
+"chaource": [
+{
+"nom": "布里奶酪",
+"note": "接近沙乌尔斯的绵滑软质奶酪。"
+}
+],
+"fromage bleu au lait de vache, non allégé en matière grasse": [
+{
+"nom": "奥弗涅蓝纹奶酪",
+"note": "相当的牛奶蓝纹奶酪。"
+}
+],
+"mimolette jeune (moins de 6 mois d'affinage)": [
+{
+"nom": "高达奶酪",
+"note": "没有米莫勒特时用相近的温和压制奶酪。"
+}
+],
+"raclette (fromage)": [
+{
+"nom": "拉克雷特奶酪",
+"note": "相当的普通拉克雷特奶酪。"
+}
+],
+"fromage fondu en tranchettes": [
+{
+"nom": "再制奶酪",
+"note": "相当的普通再制奶酪（非切片装）。"
+}
+],
+"fromage type feta, au lait de vache 100%": [
+{
+"nom": "菲达奶酪",
+"note": "相当的普通菲达奶酪。"
+}
+],
+"mozzarella au lait de vache": [
+{
+"nom": "马苏里拉奶酪",
+"note": "相当的普通牛奶马苏里拉奶酪。"
+}
+],
+"crème 30% mg, épaisse, rayon frais": [
+{
+"nom": "浓稠法式酸奶油",
+"note": "脂肪含量相同的普通法式浓稠酸奶油。"
+}
+],
+"crème 30% mg, fluide, uht": [
+{
+"nom": "液态法式酸奶油",
+"note": "相当的普通液态奶油。"
+}
+],
+"crème chantilly, sous pression, uht": [
+{
+"nom": "全脂液态奶油",
+"note": "全脂液态奶油，自己打发成香缇奶油。"
+}
+],
+"spécialité culinaire à base de crème légère et d'aromates 12% mg, à cuisiner": [
+{
+"nom": "液态法式酸奶油",
+"note": "热菜中淡奶油香草烹饪特色品可用普通液态奶油代替。"
+}
+],
+"crème 12 à 20% mg, légère, fluide, rayon frais": [
+{
+"nom": "液态法式酸奶油",
+"note": "12-20%脂肪淡奶油可用全脂液态奶油代替（更绵滑，用量稍减）。"
+}
+],
+"eau du robinet": [
+{
+"nom": "矿泉水，瓶装，不含气（平均值）",
+"note": "烹饪和烘焙中自来水可用不含气矿泉水代替。"
+}
+],
+"jus de citron, fait maison": [
+{
+"nom": "柠檬汁，纯果汁",
+"note": "自制柠檬汁可用瓶装纯柠檬汁代替。"
+}
+],
+"jus de citron vert, frais": [
+{
+"nom": "柠檬汁，自制",
+"note": "新鲜青柠汁可用黄柠檬汁等量代替，味道略有不同。"
+}
+],
+"jus de citron vert, pur jus": [
+{
+"nom": "柠檬汁，纯果汁",
+"note": "纯青柠汁可用纯黄柠檬汁代替。"
+}
+],
+"jus d'ananas, à base de concentré": [
+{
+"nom": "菠萝汁，纯果汁",
+"note": "浓缩还原菠萝汁可用纯菠萝汁代替。"
+}
+],
+"jus d'orange, à base de concentré": [
+{
+"nom": "橙汁，鲜榨",
+"note": "浓缩还原橙汁可用鲜榨橙汁代替。"
+}
+],
+"jus de pomme, à base de concentré": [
+{
+"nom": "苹果汁，纯果汁",
+"note": "浓缩还原苹果汁可用纯苹果汁代替。"
+}
+],
+"jus de pamplemousse (pomélo), à base de concentré": [
+{
+"nom": "葡萄柚汁，纯果汁",
+"note": "浓缩还原葡萄柚汁可用纯葡萄柚汁代替。"
+}
+],
+"jus de raisin, à base de concentré": [
+{
+"nom": "葡萄汁，纯果汁",
+"note": "浓缩还原葡萄汁可用纯葡萄汁代替。"
+}
+],
+"jus de fruits, pur jus (aliment moyen)": [
+{
+"nom": "果汁，浓缩还原（平均值）",
+"note": "纯果汁可用浓缩还原果汁代替，供应和价格常有不同。"
+}
+],
+"nectar de pomme": [
+{
+"nom": "苹果汁，纯果汁",
+"note": "苹果果肉饮料可用纯苹果汁代替，并减少配方中添加的糖。"
+}
+],
+"nectar d'orange": [
+{
+"nom": "橙汁，纯果汁",
+"note": "橙子果肉饮料可用纯橙汁代替，水果更浓、更少糖。"
+}
+],
+"nectar d'ananas": [
+{
+"nom": "菠萝汁，纯果汁",
+"note": "菠萝果肉饮料可用纯菠萝汁代替。"
+}
+],
+"cola, sucré": [
+{
+"nom": "可乐，无添加糖，含甜味剂",
+"note": "含糖可乐可用含甜味剂的无添加糖可乐代替，做清淡版。"
+}
+],
+"limonade, sucrée": [
+{
+"nom": "柠檬汽水（limonade），无添加糖，含甜味剂",
+"note": "含糖柠檬汽水可用含甜味剂的无添加糖柠檬汽水代替。"
+}
+],
+"tonic ou bitter, sucré, avec édulcorants": [
+{
+"nom": "汤力水或苦味汽水，无添加糖，含甜味剂",
+"note": "含糖加甜味剂的汤力水可用含甜味剂的无添加糖汤力水代替。"
+}
+],
+"boisson à l'avoine, nature, sans sucres ajoutés, non enrichie, préemballée": [
+{
+"nom": "豆奶饮料，原味，未强化，预包装",
+"note": "烹饪（烘焙、酱汁）中原味植物饮料可互换：用原味豆奶代替燕麦饮料。"
+}
+],
+"boisson au soja, nature, non enrichie, préemballée": [
+{
+"nom": "杏仁饮料，原味，无添加糖，未强化，预包装",
+"note": "大多数菜谱中原味豆奶可用原味杏仁饮料代替。"
+}
+],
+"boisson au riz, nature, préemballée": [
+{
+"nom": "杏仁饮料，原味，无添加糖，未强化，预包装",
+"note": "米饮料更稀：日常烹饪中可用原味杏仁饮料代替。"
+}
+],
+"boisson à la noix de coco, nature, préemballée": [
+{
+"nom": "杏仁饮料，原味，无添加糖，未强化，预包装",
+"note": "想减淡椰子味时，椰子饮料可用原味杏仁饮料代替。"
+}
+],
+"thé noir, infusé, sans sucres ajoutés": [
+{
+"nom": "绿茶，冲泡，无添加糖",
+"note": "冲泡红茶和绿茶常可根据口味互相代替。"
+}
+],
+"café, non instantané, sans sucres ajoutés, prêt à boire": [
+{
+"nom": "咖啡，速溶，无添加糖，即饮",
+"note": "即饮非速溶咖啡可用冲调的速溶咖啡代替。"
+}
+],
+"café, moulu": [
+{
+"nom": "速溶咖啡粉",
+"note": "冲泡用咖啡粉可用速溶咖啡加热水代替。"
+}
+],
+"fructose": [
+{
+"nom": "糖",
+"note": "烘焙中果糖可用普通糖代替（稍调整用量）。"
+}
+],
+"édulcorant à la saccharine": [
+{
+"nom": "糖",
+"note": "糖精甜味剂可用糖代替，口味更自然。"
+}
+],
+"édulcorant à l'aspartame, en poudre": [
+{
+"nom": "糖",
+"note": "烹饪和烘焙中阿斯巴甜粉可用糖代替。"
+}
+],
+"édulcorant à base d'extrait de stévia": [
+{
+"nom": "糖",
+"note": "甜菊甜味剂可用普通糖代替（味道更接近，调整用量）。"
+}
+],
+"mélasse de canne": [
+{
+"nom": "枫糖浆",
+"note": "烘焙中甘蔗糖蜜可用枫糖浆代替，甜味接近。"
+}
+],
+"caramel liquide ou nappage caramel": [
+{
+"nom": "蜂蜜",
+"note": "用作淋面的焦糖液可用蜂蜜代替。"
+}
+],
+"chocolat noir 50 % de cacao environ, tablette": [
+{
+"nom": "黑巧克力",
+"note": "烹饪/烘焙中50%黑巧克力板可用普通黑巧克力代替。"
+}
+],
+"chocolat noir 70 % de cacao environ, de dégustation, tablette": [
+{
+"nom": "黑巧克力",
+"note": "烹调时70%品鉴黑巧克力可用普通黑巧克力代替。"
+}
+],
+"chocolat noir 40% de cacao et plus, à pâtisser, tablette": [
+{
+"nom": "黑巧克力",
+"note": "烘焙用黑巧克力（40%以上）可用普通黑巧克力代替。"
+}
+],
+"chocolat au lait sans sucres ajoutés, avec édulcorants, tablette": [
+{
+"nom": "牛奶巧克力",
+"note": "无添加糖牛奶巧克力可用普通牛奶巧克力代替。"
+}
+],
+"eau de vie de vin type armagnac ou cognac": [
+{
+"nom": "苹果白兰地（卡尔瓦多斯型）",
+"note": "火焰或酱汁中干邑/雅文邑型白兰地可用卡尔瓦多斯型白兰地代替。"
+}
+],
+"rhum": [
+{
+"nom": "白朗姆酒",
+"note": "大多数烹饪用途中朗姆酒（平均值）可用白朗姆酒代替。"
+}
+],
+"confiture de fraise (extra ou classique)": [
+{
+"nom": "草莓果酱",
+"note": "草莓果酱（特级或普通）相当于目录中的标准草莓果酱。"
+}
+],
+"confiture d'abricot (extra ou classique)": [
+{
+"nom": "杏子果酱",
+"note": "杏子果酱（特级或普通）相当于目录中的标准杏子果酱。"
+}
+],
+"confiture de fraise, allégée en sucres": [
+{
+"nom": "草莓果酱",
+"note": "减糖草莓果酱可用普通草莓果酱代替（更甜）。"
+}
+],
+"confiture d'abricot, allégée en sucres": [
+{
+"nom": "杏子果酱",
+"note": "减糖杏子果酱可用普通杏子果酱代替。"
+}
+],
+"gelée de groseille (extra ou classique)": [
+{
+"nom": "树莓果酱（特级或普通）",
+"note": "夹馅、吐司或挞底中红醋栗果冻酱可用树莓果酱（另一种红色浆果）代替。"
+}
+],
+"croissant ordinaire, artisanal": [
+{
+"nom": "纯黄油可颂，手工制作",
+"note": "手工普通可颂可用手工纯黄油可颂代替，味道更浓郁，用法相同。"
+}
+],
+"pain au lait, artisanal": [
+{
+"nom": "原味布里欧修，手工制作",
+"note": "早餐或下午茶时牛奶面包可用手工原味布里欧修代替。"
+}
+],
+"panettone (brioche italienne aux raisins secs et écorces d'orange confite), préemballée": [
+{
+"nom": "布里欧修，未指明（平均值）",
+"note": "没有蜜饯时潘妮托尼可用普通原味布里欧修代替。"
+}
+],
+"pain aux raisins (viennoiserie), artisanal": [
+{
+"nom": "水果夹心布里欧修，预包装",
+"note": "葡萄干卷可用水果夹心布里欧修代替，同为类似的水果甜酥面包。"
+}
+],
+"pain au chocolat, artisanal": [
+{
+"nom": "纯黄油可颂，手工制作",
+"note": "巧克力甜酥面包缺货时，巧克力面包可用纯黄油可颂代替。"
+}
+],
+"brioche (ou briochettes) aux pépites de chocolat ou fourrée au chocolat, préemballée": [
+{
+"nom": "原味布里欧修，预包装",
+"note": "巧克力豆布里欧修可用预包装原味布里欧修代替（不含巧克力）。"
+}
+],
+"biscuit sec petit beurre": [
+{
+"nom": "原味干饼干",
+"note": "小黄油饼干可用原味干饼干代替，做芝士蛋糕底或甜点碎底料相同。"
+}
+],
+"quatre-quarts (beurre, oeufs, sucre, farine), artisanal": [
+{
+"nom": "四分之四磅蛋糕（黄油、鸡蛋、糖、面粉），预包装",
+"note": "手工和预包装的四分之四磅蛋糕可直接互换，基础配方相同。"
+}
+],
+"baba au rhum, rayon frais": [
+{
+"nom": "朗姆巴巴（baba au rhum），手工制作",
+"note": "冷藏区朗姆巴巴可用手工朗姆巴巴代替，同一款糕点。"
+}
+],
+"kouign amann, préemballé": [
+{
+"nom": "布列塔尼黄油酥（Kouign Amann），手工制作",
+"note": "预包装布列塔尼黄油酥可用手工版代替，同一款布列塔尼特产。"
+}
+],
+"chou à la crème, sans précision (chantilly ou pâtissière)": [
+{
+"nom": "闪电泡芙（éclair）",
+"note": "奶油泡芙和闪电泡芙用同样的泡芙面团和相近的卡仕达馅。"
+}
+],
+"chou à la crème pâtissière": [
+{
+"nom": "香缇奶油泡芙，圣奥诺雷",
+"note": "卡仕达奶油泡芙可根据所需馅料用香缇奶油泡芙（圣奥诺雷型）代替。"
+}
+],
+"corne de gazelle (pâtisserie orientale aux amandes en forme de croissant recouverte de sucre glace)": [
+{
+"nom": "果仁蜜饼（baklava，杏仁糖浆东方糕点）",
+"note": "羚羊角酥和果仁蜜饼都是杏仁加糖的东方糕点，东方点心拼盘中可互换。"
+}
+],
+"brownie au chocolat et aux fruits à coques, préemballé": [
+{
+"nom": "巧克力布朗尼，预包装",
+"note": "坚果布朗尼可用原味布朗尼代替，尤其是坚果过敏时。"
+}
+],
+"gâteau breton fourré à la crème de pruneaux, préemballé": [
+{
+"nom": "布列塔尼西梅布丁蛋糕（far breton）",
+"note": "西梅夹心布列塔尼蛋糕可用布列塔尼西梅布丁蛋糕代替，风味相同的布列塔尼特产。"
+}
+],
+"gâteau mousse de fruits sur génoise, type miroir, bavarois": [
+{
+"nom": "草莓或树莓奶油蛋糕（fraisier/framboisier）",
+"note": "海绵底水果慕斯蛋糕（巴伐露/镜面）和草莓/树莓奶油蛋糕结构相近（海绵蛋糕、奶油、水果）。"
+}
+],
+"macaron sec": [
+{
+"nom": "果酱或奶油夹心软马卡龙",
+"note": "干杏仁蛋白饼可用夹心软马卡龙代替，让甜点拼盘更丰富。"
+}
+],
+"ketchup, préemballé": [
+{
+"nom": "番茄酱汁（Sauce tomate）",
+"note": "预包装番茄酱可用原味番茄酱汁代替"
+}
+],
+"ketchup allégé en sucres, préemballé": [
+{
+"nom": "番茄酱（ketchup），预包装",
+"note": "减糖番茄酱可用普通番茄酱代替"
+}
+],
+"mayonnaise à teneur réduite en matière grasse ou mayonnaise allégée, préemballée": [
+{
+"nom": "蛋黄酱（脂肪至少70%），预包装",
+"note": "低脂蛋黄酱可用普通蛋黄酱代替"
+}
+],
+"sauce barbecue, préemballée": [
+{
+"nom": "番茄酱（ketchup），预包装",
+"note": "烧烤酱可用番茄酱代替，同为酸甜带辣的番茄底料"
+}
+],
+"sauce soja, préemballée": [
+{
+"nom": "鱼露，预包装",
+"note": "亚洲菜中酱油可用鱼露代替"
+}
+],
+"sauce soja sucrée, préemballée": [
+{
+"nom": "酱油，预包装",
+"note": "甜酱油可用普通酱油代替"
+}
+],
+"sauce teriyaki, préemballée": [
+{
+"nom": "甜酱油，预包装",
+"note": "照烧酱可用甜酱油代替"
+}
+],
+"sauce vinaigrette à l'huile d'olive (50 à 75% d'huile), préemballée": [
+{
+"nom": "油醋汁（含油50-75%），预包装",
+"note": "橄榄油油醋汁相当于含油50-75%的普通油醋汁"
+}
+],
+"harissa (sauce au piment), préemballée": [
+{
+"nom": "朝天椒（辣椒）",
+"note": "哈里萨辣酱可用辣椒代替，少量使用"
+},
+{
+"nom": "霹雳辣酱（piri-piri）",
+"note": "霹雳辣酱（piri-piri），同样辣但更稀，是给菜肴或腌汁提味的不错替代品。"
+}
+],
+"sauce moutarde, préemballée": [
+{
+"nom": "第戎芥末酱",
+"note": "芥末酱汁可用第戎芥末加少许奶油稀释代替"
+}
+],
+"sauce caesar, préemballée": [
+{
+"nom": "蛋黄酱（脂肪至少70%），预包装",
+"note": "凯撒酱可用蛋黄酱加帕玛森和鳀鱼代替"
+}
+],
+"sauce béchamel, préemballée": [
+{
+"nom": "黄油贝夏梅酱，自制",
+"note": "预包装贝夏梅酱可用自制黄油贝夏梅酱代替"
+}
+],
+"sauce béarnaise, préemballée": [
+{
+"nom": "荷兰酱，预包装",
+"note": "贝亚恩酱和荷兰酱底料相近，可互换"
+}
+],
+"sauce madère, préemballée": [
+{
+"nom": "红酒酱，自制",
+"note": "马德拉酱可用自制红酒酱代替"
+}
+],
+"huile de beurre ou beurre concentré": [
+{
+"nom": "无盐黄油",
+"note": "浓缩黄油可用普通无盐黄油代替"
+}
+],
+"beurre ou assimilé allégé (léger ou à teneur réduite en matière grasse), doux (aliment moyen)": [
+{
+"nom": "无盐黄油",
+"note": "无盐低脂黄油可用普通无盐黄油代替"
+}
+],
+"beurre à 60-62% mg, à teneur réduite en matière grasse, demi-sel": [
+{
+"nom": "半咸黄油",
+"note": "半盐低脂黄油可用普通半盐黄油代替"
+}
+],
+"huile ou graisse de coco, sans précision": [
+{
+"nom": "无盐黄油",
+"note": "烘焙中固态椰子油可用无盐黄油代替，冷时口感接近"
+}
+],
+"huile de palme, raffinée": [
+{
+"nom": "菜籽油",
+"note": "棕榈油可用菜籽油代替，常见的植物替代品"
+}
+],
+"huile pour friture, sans précision": [
+{
+"nom": "葵花籽油",
+"note": "未指明的油炸用油可用葵花籽油代替"
+}
+],
+"huile d'olive vierge extra": [
+{
+"nom": "特级初榨橄榄油",
+"note": "特级初榨橄榄油，与初榨橄榄油（特级）相同"
+}
+],
+"lard gras, cru": [
+{
+"nom": "猪油",
+"note": "烹饪中生肥膘可用猪油代替"
+}
+],
+"sauce pesto rosso, préemballée": [
+{
+"nom": "罗勒青酱",
+"note": "没有红青酱时可用普通罗勒青酱代替。"
+}
+],
+"câpres, au vinaigre": [
+{
+"nom": "小酸黄瓜",
+"note": "切碎的腌黄瓜可代替酸豆，提供酸脆口感。"
+}
+],
+"oignon au vinaigre": [
+{
+"nom": "小酸黄瓜",
+"note": "配菜中醋腌黄瓜可代替醋腌洋葱提供酸味。"
+}
+],
+"cornichon, aigre-doux": [
+{
+"nom": "醋渍小黄瓜",
+"note": "普通醋腌黄瓜是酸甜腌黄瓜不那么甜的替代品。"
+}
+],
+"olive noire, en saumure, égouttée": [
+{
+"nom": "绿橄榄，盐水浸，沥干",
+"note": "大多数菜谱中盐水绿橄榄可与黑橄榄互换。"
+}
+],
+"olive verte, en saumure, égouttée": [
+{
+"nom": "黑橄榄，盐水浸，沥干",
+"note": "大多数菜谱中盐水黑橄榄可与绿橄榄互换。"
+}
+],
+"olive noire, à l'huile (à la grecque)": [
+{
+"nom": "黑橄榄，盐水浸，沥干",
+"note": "没有油浸黑橄榄时可用盐水黑橄榄代替。"
+}
+],
+"son de maïs": [
+{
+"nom": "小麦麸",
+"note": "麦麸是玉米麸常用的膳食纤维替代品。"
+}
+],
+"son de riz": [
+{
+"nom": "小麦麸",
+"note": "麦麸是米糠常用的膳食纤维替代品。"
+}
+],
+"bouillon de boeuf, déshydraté": [
+{
+"nom": "牛肉高汤",
+"note": "即用牛肉高汤可代替脱水高汤（按说明冲调）。"
+}
+],
+"levure de bière en paillettes": [
+{
+"nom": "啤酒酵母",
+"note": "啤酒酵母片可与普通啤酒酵母互换。"
+}
+],
+"levure de boulanger fraîche": [
+{
+"nom": "干面包酵母",
+"note": "干面包酵母可代替鲜酵母（重量约为一半）。"
+}
+],
+"levure de boulanger déshydratée": [
+{
+"nom": "新鲜面包酵母",
+"note": "鲜面包酵母可代替干酵母（重量约为两倍）。"
+}
+],
+"vanille, extrait alcoolique": [
+{
+"nom": "香草荚",
+"note": "一根刮出籽的香草荚可代替香草醇提取物。"
+}
+],
+"fond de veau pour sauces et cuisson, déshydraté": [
+{
+"nom": "小牛高汤底",
+"note": "即用小牛肉底汤可代替脱水底汤（按说明冲调）。"
+}
+],
+"court-bouillon pour poissons, déshydraté": [
+{
+"nom": "鱼高汤",
+"note": "即用鱼高汤可代替脱水香料汤（court-bouillon）。"
+}
+],
+"extrait de levure, à tartiner": [
+{
+"nom": "酱油",
+"note": "烹饪中酱油的鲜味接近，可代替涂抹用酵母提取物。"
+}
+],
+"gélifiant pour confitures": [
+{
+"nom": "果胶",
+"note": "果胶是果酱凝固剂的经典替代品。"
+}
+],
+"vanille, gousse": [
+{
+"nom": "香草精",
+"note": "香草提取物（约1茶匙）可代替一根香草荚。"
+}
+],
+"menthe, séchée": [
+{
+"nom": "留兰香，新鲜",
+"note": "新鲜薄荷代替干薄荷（用量为3倍）。"
+}
+],
+"romarin, séché": [
+{
+"nom": "迷迭香",
+"note": "新鲜迷迭香代替干迷迭香（用量为3倍）。"
+}
+],
+"sauge, séchée": [
+{
+"nom": "鼠尾草",
+"note": "新鲜鼠尾草代替干鼠尾草（用量为3倍）。"
+}
+],
+"estragon, séché": [
+{
+"nom": "龙蒿",
+"note": "新鲜龙蒿代替干龙蒿（用量为3倍）。"
+}
+],
+"aneth, séché": [
+{
+"nom": "莳萝",
+"note": "新鲜莳萝代替干莳萝（用量为3倍）。"
+}
+],
+"ciboulette, séchée": [
+{
+"nom": "细香葱",
+"note": "新鲜细香葱代替干细香葱（用量为3倍）。"
+}
+],
+"préparation culinaire à base de soja, type \"crème de soja\"": [
+{
+"nom": "浓稠法式酸奶油",
+"note": "烹饪（菜肴、酱汁）中法式酸奶油的经典植物基替代品。"
+}
+],
+"tofu nature, préemballé": [
+{
+"nom": "鸡胸肉",
+"note": "炒菜和咖喱中原味豆腐是鸡胸肉常用的植物基替代品。"
+}
+],
+"seitan, préemballé": [
+{
+"nom": "牛肉末",
+"note": "炖菜和博洛尼亚肉酱中面筋（seitan）是牛肉末常用的植物基替代品。"
+}
+],
+"caviar de tomates": [
+{
+"nom": "茄子泥（茄子鱼子酱），预包装",
+"note": "类似的蔬菜涂抹酱，开胃时可与茄子泥互换。"
+}
+],
+"huile de macadamia": [
+{
+"nom": "牛油果油",
+"note": "味道柔和中性的油，烟点同样高；烹调和调味都是不错的替代品。"
+}
+],
+"huile de périlla": [
+{
+"nom": "芝麻油",
+"note": "普通芝麻油，香味较淡但同属亚洲风味；适合韩国/日本菜。"
+}
+],
+"huile de palme rouge, non raffinée": [
+{
+"nom": "棕榈油",
+"note": "精炼棕榈油，颜色和味道较淡（β-胡萝卜素较少），但口感和烹调用途相同。"
+}
+],
+"margarine allégée": [
+{
+"nom": "人造黄油",
+"note": "普通人造黄油，脂肪含量更高；用量稍减。"
+}
+],
+"margarine": [
+{
+"nom": "低脂人造黄油",
+"note": "低脂版，适合更清淡的烹调或涂抹。"
+}
+],
+"beurre de noisette, pur, sans sucre ajouté": [
+{
+"nom": "杏仁酱，顺滑型",
+"note": "顺滑杏仁酱，口感和用途相似（涂抹、烘焙），杏仁味代替榛子味。"
+}
+],
+"huile de germe de maïs": [
+{
+"nom": "玉米油",
+"note": "普通玉米油，味道和用途几乎相同。"
+}
+],
+"huile de pistache": [
+{
+"nom": "核桃油",
+"note": "核桃油，另一种坚果油，味道不同，但调味和收尾时作用相近。"
+}
+],
+"huile de noix de pécan": [
+{
+"nom": "核桃油",
+"note": "核桃油，香气类型相近（坚果），是油醋汁和收尾的不错替代品。"
+}
+],
+"huile de sésame grillé": [
+{
+"nom": "芝麻油",
+"note": "普通芝麻油，焙炒香气较淡；稍增加用量弥补。"
+}
+],
+"huile de sésame": [
+{
+"nom": "焙炒芝麻油（香油）",
+"note": "焙炒芝麻油，焙炒香气更浓；减量使用。"
+},
+{
+"nom": "黑芝麻油",
+"note": "黑芝麻油，味道更浓、颜色更深，风味更突出。"
+}
+],
+"huile de tournesol vierge, pressée à froid": [
+{
+"nom": "葵花籽油",
+"note": "普通精炼葵花籽油，味道更中性，凉拌和烹调都适用。"
+}
+],
+"huile de tournesol": [
+{
+"nom": "初榨葵花籽油，冷榨",
+"note": "冷榨初榨版，籽香更浓，最好用于凉拌调味。"
+}
+],
+"huile de colza vierge, pressée à froid": [
+{
+"nom": "菜籽油",
+"note": "普通精炼菜籽油，味道较淡，更耐高温烹调。"
+}
+],
+"huile de colza": [
+{
+"nom": "初榨菜籽油，冷榨",
+"note": "冷榨初榨版，榛子味更明显，宜用于冷菜。"
+}
+],
+"suif de mouton": [
+{
+"nom": "牛油（牛脂）",
+"note": "牛油（牛脂），油炸/烘焙中口感和用途非常接近，味道稍淡。"
+}
+],
+"beurre allégé": [
+{
+"nom": "黄油",
+"note": "普通黄油，脂肪含量更高；用量稍减。"
+}
+],
+"beurre fermier cru, non pasteurisé": [
+{
+"nom": "黄油",
+"note": "市售巴氏杀菌黄油，非常适合烹调，农场风味和果香较淡。"
+}
+],
+"huile d'olive vierge, non filtrée": [
+{
+"nom": "特级初榨橄榄油",
+"note": "过滤的特级初榨橄榄油，味道稍不那么粗犷，但品质相当。"
+}
+],
+"huile de sésame noir": [
+{
+"nom": "芝麻油",
+"note": "普通芝麻油，颜色浅，味道稍淡。"
+}
+],
+"sauce gribiche": [
+{
+"nom": "蛋黄酱",
+"note": "普通蛋黄酱，最好加入切碎的熟鸡蛋和酸豆，接近格里比什酱的味道。"
+}
+],
+"sauce ravigote": [
+{
+"nom": "油醋汁",
+"note": "普通油醋汁加入切碎的酸豆、腌黄瓜和香草，接近拉维戈特酱。"
+}
+],
+"sauce mornay": [
+{
+"nom": "白酱（贝夏梅尔酱）",
+"note": "贝夏梅酱加入奶酪碎，这正是自制莫奈酱的底料。"
+}
+],
+"sauce choron": [
+{
+"nom": "贝亚恩酱，预包装",
+"note": "贝亚恩酱加入少许番茄浓缩酱，即成自制肖隆酱。"
+}
+],
+"pico de gallo": [
+{
+"nom": "莎莎酱",
+"note": "新鲜莎莎酱，口感和用途非常接近（塔可、烤肉、鸡蛋）。"
+}
+],
+"sauce cranberry (condiment)": [
+{
+"nom": "红醋栗果冻",
+"note": "红醋栗果冻酱，传统上配禽肉和野味的酸味调料，是蔓越莓酱的不错替代品。"
+}
+],
+"gelée de groseille": [
+{
+"nom": "蔓越莓酱（调味品）",
+"note": "蔓越莓酱，类似的酸甜调料，用于搭配禽肉和野味。"
+}
+],
+"piccalilli": [
+{
+"nom": "甜味什锦泡菜（chowchow），含花椰菜、洋葱和芥末",
+"note": "什锦泡菜（chowchow，芥末醋渍蔬菜酱），与英式芥末腌菜非常接近。"
+}
+],
+"chowchow (pickles), au chou-fleur, oignon et moutarde, sucré": [
+{
+"nom": "英式芥末腌菜（piccalilli）",
+"note": "英式芥末腌菜（piccalilli，芥末姜黄蔬菜酱），与什锦泡菜（chowchow）非常接近。"
+}
+],
+"sauce meunière": [
+{
+"nom": "焦化黄油",
+"note": "焦化黄油加柠檬汁和欧芹碎，即可还原自制黄油柠檬酱。"
+}
+],
+"sauce colombo, prête à l'emploi": [
+{
+"nom": "咖喱酱汁",
+"note": "普通咖喱酱，味道不那么复杂（缺少安的列斯科伦坡特有香料），但用法相同。"
+}
+],
+"sauce chien (antillaise)": [
+{
+"nom": "阿根廷青酱",
+"note": "阿根廷青酱（chimichurri），香草油基酱汁，配烤肉，柠檬味较淡但用法相近。"
+}
+],
+"sauce raita": [
+{
+"nom": "酸奶黄瓜酱（tzatziki），酸奶制，预包装",
+"note": "酸奶黄瓜酱（tzatziki），与印度酸奶酱（raita）非常接近，通常不那么辣。"
+}
+],
+"tzatziki à base de yaourt, préemballé": [
+{
+"nom": "印度酸奶酱（raita）",
+"note": "印度酸奶酱（raita），与希腊酸奶黄瓜酱非常接近，通常更辣。"
+}
+],
+"sauce arrabbiata": [
+{
+"nom": "番茄酱汁（Sauce tomate）",
+"note": "普通番茄酱加辣椒（新鲜、粉或碎），接近香辣番茄酱（arrabbiata）。"
+}
+],
+"sauce puttanesca": [
+{
+"nom": "番茄酱汁（Sauce tomate）",
+"note": "番茄酱加切碎的橄榄、酸豆和鳀鱼，接近烟花女酱（puttanesca）。"
+}
+],
+"sauce curry vert thaï": [
+{
+"nom": "绿咖喱酱",
+"note": "绿咖喱酱用椰奶稀释，还原泰式绿咖喱酱的经典底料。"
+}
+],
+"sauce curry rouge thaï": [
+{
+"nom": "红咖喱酱",
+"note": "红咖喱酱用椰奶稀释，还原泰式红咖喱酱的经典底料。"
+}
+],
+"sauce à l'ail (toum libanais)": [
+{
+"nom": "蛋黄酱",
+"note": "蛋黄酱加蒜泥，绵滑口感接近黎巴嫩蒜酱（toum），更温和。"
+}
+],
+"sauce yakiniku": [
+{
+"nom": "照烧酱",
+"note": "照烧酱，同为甜咸酱油基，腌制或淋烤肉的不错替代品。"
+}
+],
+"sauce teriyaki": [
+{
+"nom": "日式烤肉酱（yakiniku）",
+"note": "日式烤肉酱（yakiniku），同为甜咸酱油基，是照烧酱的不错替代品。"
+}
+],
+"sauce nuoc cham": [
+{
+"nom": "越南鱼露",
+"note": "纯鱼露，更咸且没有其他香味（青柠、糖、辣椒）；需稀释并稍加糖。"
+}
+],
+"sauce piri-piri": [
+{
+"nom": "哈里萨辣酱（harissa），预包装",
+"note": "哈里萨辣酱，更浓稠的北非辣椒酱，同样用于给烤肉和腌汁提味。"
+}
+],
+"sauce zhoug": [
+{
+"nom": "阿根廷青酱",
+"note": "阿根廷青酱（chimichurri），香草油基酱（用欧芹而非香菜），同样配烤肉。"
+}
+],
+"sauce enchilada verte": [
+{
+"nom": "红辣椒卷饼酱（enchilada），微辣，即食",
+"note": "番茄基红辣椒卷饼酱，比绿番茄版酸味淡，但用法相同。"
+}
+],
+"sauce enchilada rouge, douce, prête à servir": [
+{
+"nom": "墨西哥青辣椒卷饼酱（enchilada verde）",
+"note": "绿番茄（tomatillo）基青辣椒卷饼酱，更酸，但同样用于淋卷饼。"
+}
+],
+"sauce moutarde au miel": [
+{
+"nom": "沙拉酱，蜂蜜芥末，经典",
+"note": "市售蜂蜜芥末沙拉酱，几乎相同的产品。"
+}
+]
+}

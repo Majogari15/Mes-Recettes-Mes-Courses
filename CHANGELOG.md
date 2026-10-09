@@ -1,3 +1,10 @@
+# Non publié
+
+- Chinois simplifié (10e langue) : interface, 9 992 ingrédients et 1 530 substituts traduits (repris du mobile), clause de responsabilité, drapeau.
+- Chinois : lecture de photo (Tesseract chi_sim), lignes d'ingrédients chinoises (克, 汤匙, 个, 适量, chiffres chinois, 斤), import par lien des pages sans recette structurée (美食天下) sans service tiers, durées 分钟/小时/半小时 du mode cuisine.
+- Chinois : PDF avec police chinoise (Microsoft YaHei, sinon Noto Sans SC embarquée), dates année/mois/jour, yuan par défaut, listes séparées par « ， », dates de péremption chinoises (保质期, 生产日期 + durée).
+- Dates affichées sans le « à » français dans les autres langues ; voix de lecture choisie selon la langue ; nom Open Food Facts demandé dans toutes les langues.
+
 # Build 79 — 1.6.32 (MSIX 1.6.32.0)
 
 - 9 langues : italien, portugais, indonésien, norvégien et suédois ajoutés (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois).

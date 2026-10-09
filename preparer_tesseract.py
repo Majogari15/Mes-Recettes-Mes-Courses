@@ -18,7 +18,7 @@ PROJECT = Path(__file__).resolve().parent
 TARGET = PROJECT / "tesseract-ocr"
 # Mêmes codes que TESSERACT_LANG_CODES dans main.py (vérifié par les tests),
 # plus "osd" (détection d'orientation de la page).
-LANGUAGES = ("fra", "eng", "spa", "deu", "ita", "por", "ind", "nor", "swe", "osd")
+LANGUAGES = ("fra", "eng", "spa", "deu", "ita", "por", "ind", "nor", "swe", "chi_sim", "osd")
 # Modèles "fast" : quelques Mo par langue au lieu de ~15 Mo, précision
 # suffisante pour des recettes (ce sont aussi ceux de l'installeur Windows).
 TESSDATA_URL = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/{code}.traineddata"
