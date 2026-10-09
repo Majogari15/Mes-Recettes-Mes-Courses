@@ -1019,6 +1019,208 @@ class DisclaimerWindowModesTests(AppWindowTestBase):
         widest = max(c.winfo_reqwidth() for c in win.scroll_body.winfo_children())
         self.assertLessEqual(widest, win.scroll_canvas.winfo_width())
 
+class CatalogueDuplicatesTests(TempDataMixin, unittest.TestCase):
+    """Doublons du catalogue repris du mobile (doublonDe) : jamais proposés,
+    données gardées pour les recettes qui les utilisent déjà."""
+
+    def test_retired_names_are_never_proposed(self):
+        retired = main.load_catalogue_duplicates()
+        self.assertEqual(len(retired), 30)
+        catalogue = main.load_default_ingredients()
+        lowered = {n.lower() for n in catalogue}
+        self.assertFalse(lowered & set(retired))
+        self.assertTrue({v.lower() for v in retired.values()} <= lowered)
+        self.assertIn("Noisette", catalogue)
+        self.assertNotIn("Noisettes", catalogue)
+        # Données gardées : une recette qui utilise déjà « Noisettes » garde
+        # ses allergènes, sa nutrition et sa traduction.
+        self.assertTrue(main.get_ingredient_allergens("Noisettes"))
+        self.assertIsNotNone(main.get_ingredient_nutrition("Noisettes"))
+
+    def test_substitutes_point_to_the_kept_name_in_every_language(self):
+        self.assertEqual([s["nom"] for s in main.get_ingredient_substitutions("noix de pécan")], ["Noisette"])
+        original = main.CURRENT_LANGUAGE
+        self.addCleanup(main.apply_language, original)
+        main.apply_language("en")
+        self.assertEqual([s["nom"] for s in main.get_display_ingredient_substitutions("noix de pécan")],
+                         [main.translate_ingredient_name("Noisette")])
+
+    def test_typing_or_importing_a_foreign_name_never_gives_a_retired_name(self):
+        retired = main.load_catalogue_duplicates()
+        for language in main.UI_TRANSLATED_LANGUAGES:
+            reverse = main.load_ingredient_reverse_translations(language)
+            self.assertFalse(set(reverse.values()) & set(retired), language)
+        index_names = {n.lower() for names in main._url_foreign_food_index().values() for n in names}
+        self.assertFalse(index_names & set(retired))
+
+
+class TrackingParamsTests(unittest.TestCase):
+    def test_tracking_params_are_removed_others_kept(self):
+        f = main.strip_tracking_params
+        self.assertEqual(f("https://www.marmiton.org/r.aspx?utm_source=fb&utm_medium=social&id=12"),
+                         "https://www.marmiton.org/r.aspx?id=12")
+        self.assertEqual(f("https://a.fr/r?fbclid=XYZ"), "https://a.fr/r")
+        self.assertEqual(f("https://a.fr/r?q=a%20b&gclid=1#top"), "https://a.fr/r?q=a%20b#top")
+        for unchanged in ("https://a.fr/r?page=2", "https://a.fr/r", "http://[::1"):
+            self.assertEqual(f(unchanged), unchanged)
+        self.assertEqual(main.ImportFromUrlWindow._extract_url("Vu : https://a.fr/t?utm_campaign=x&p=1 !"),
+                         "https://a.fr/t?p=1")
+
+    def test_import_requests_and_records_the_clean_address(self):
+        seen = []
+
+        def fake_urlopen(request, timeout=None):
+            seen.append(request.full_url)
+            raise main.urllib.error.URLError("hors ligne")
+        with patch.object(main.urllib.request, "urlopen", fake_urlopen):
+            with self.assertRaises(Exception):
+                main.fetch_recipe_from_url("https://a.fr/tarte?utm_source=x&id=3")
+        self.assertEqual(seen[0], "https://a.fr/tarte?id=3")
+
+class CurrencyTests(AppWindowTestBase):
+    """Devise configurable (reprise du mobile) : « € » n'est plus écrit en
+    dur, le symbole et sa place suivent la devise et la langue."""
+
+    def tearDown(self):
+        main.CURRENT_LANGUAGE = "fr"
+
+    def test_format_follows_language_and_currency(self):
+        cases = {("fr", "EUR"): "2,50\u00a0€", ("de", "CHF"): "2,50\u00a0CHF", ("en", "EUR"): "€2.50",
+                 ("en", "CHF"): "CHF 2.50", ("id", "IDR"): "Rp 2,50", ("en", "JPY"): "¥3", ("sv", "SEK"): "2,50\u00a0kr"}
+        for (language, code), expected in cases.items():
+            main.CURRENT_LANGUAGE = language
+            self.assertEqual(main.format_price(2.5, code), expected)
+        main.CURRENT_LANGUAGE = "en"
+        self.assertEqual(main.format_price(2.675, "USD"), "$2.68")
+
+    def test_choice_is_saved_and_unknown_codes_fall_back_to_euro(self):
+        self.assertEqual(main.get_currency(), "EUR")
+        main.set_currency("GBP")
+        self.assertEqual((main.get_currency(), main.format_price(1)), ("GBP", "1,00\u00a0£"))
+        main.set_currency("XYZ")
+        self.assertEqual(main.get_currency(), "EUR")
+
+    def test_no_euro_sign_left_in_price_texts(self):
+        for language in main.UI_LANGUAGES:
+            catalog = main._language_catalog(language)
+            for key, text in catalog.items():
+                if key != "disclaimer_text":  # « zéro euro (0 €) » : montant juridique, pas un prix
+                    self.assertNotIn("€", text, (language, key))
+            self.assertIn("{currency}", catalog["ingprices_price_label"], language)
+
+    def test_prices_window_switches_currency(self):
+        win = main.IngredientPricesWindow(self.app)
+        self.addCleanup(win.destroy)
+        win.currency_combo.current(win._currency_codes.index("USD"))
+        win.currency_combo.event_generate("<<ComboboxSelected>>")
+        win.update()
+        self.assertEqual(main.get_currency(), "USD")
+        self.assertEqual(win.price_label.cget("text"), main.t("ingprices_price_label", currency="$"))
+
+class ShoppingListQrTests(AppWindowTestBase):
+    """Partage de la liste de courses par QR, au format de l'app mobile
+    (MESRECETTES_SHOPPING:1), découpé en plusieurs QR si besoin."""
+
+    def test_payload_matches_the_mobile_format_and_units(self):
+        payload = main.encode_shopping_list_for_qr([
+            ("Farine", 500, "Gr", True), ("Lait", 250, "ml", False), ("Sel", "", "", False),
+            ("Huile", 2, "cuillère à soupe", False), ("Sucre", 1.5, "kg", False), ("A|B\nC", 1, "pincée", False)])
+        self.assertEqual(payload, "MESRECETTES_SHOPPING:1\n" + "\n".join([
+            "Farine|500|g|1", "Lait|25|cl|0", "Sel|||0", "Huile|2|c. à soupe|0", "Sucre|1.5|kg|0", "A B C|1|pincée|0"]))
+
+    def test_long_list_is_split_and_reassembles_with_the_mobile_checksum(self):
+        items = [(f"Ingrédient « spécial » n°{i}", i * 1.5, "Gr", i % 3 == 0) for i in range(80)]
+        payload = main.encode_shopping_list_for_qr(items)
+        parts = main._split_mobile_qr_parts(payload)
+        self.assertGreater(len(parts), 1)
+        fragments = sorted((main._parse_multi_qr_fragment(p) for p in reversed(parts)), key=lambda f: f["part_index"])
+        full = "".join(f["chunk"] for f in fragments)
+        self.assertEqual(full, payload)
+        self.assertEqual(main._mobile_qr_checksum(full), fragments[0]["checksum"])
+
+    def test_share_button_opens_a_qr_window_with_the_checked_state(self):
+        win = main.ShoppingChecklistWindow(self.app, [("Fruits et légumes", [("Poireau", 3, "pièce"), ("Farine", 500, "Gr")])])
+        self.addCleanup(win.destroy)
+        win.qr_items[1][3].set(True)
+        qr = win.share_by_qr()
+        self.addCleanup(qr.destroy)
+        self.assertEqual(qr.payload, "MESRECETTES_SHOPPING:1\nPoireau|3|pièce|0\nFarine|500|g|1")
+        self.assertEqual(qr.title(), main.t("qrcode_shopping_title"))
+
+class _FakeWebcam:
+    """Fausse webcam : renvoie en boucle des images (BGR, comme OpenCV)."""
+
+    def __init__(self, images):
+        import numpy
+        self.frames = [numpy.array(img.convert("RGB"))[:, :, ::-1].copy() for img in images]
+        self.index, self.released = 0, False
+
+    def read(self):
+        frame = self.frames[(self.index // 4) % len(self.frames)]  # chaque image dure 4 lectures
+        self.index += 1
+        return True, frame
+
+    def release(self):
+        self.released = True
+
+
+@unittest.skipUnless(main.WEBCAM_AVAILABLE and main.QRCODE_READER_AVAILABLE, "OpenCV ou pyzbar absent")
+class WebcamScanTests(AppWindowTestBase):
+    """Scan en direct par la webcam (repris du mobile) : vraie image d'un
+    code, décodée par la même chaîne que l'application."""
+
+    def _pump_until(self, condition, limit=400):
+        import time
+        for _ in range(limit):
+            self.app.update()
+            if condition():
+                return True
+            time.sleep(0.01)
+        return False
+
+    def test_pantry_barcode_is_read_from_the_webcam(self):
+        import tempfile
+        from PIL import Image
+        path = Path(tempfile.mkdtemp()) / "ean.png"
+        _draw_ean13("3017620422003", path)
+        camera = _FakeWebcam([Image.open(path)])
+        pantry = main.PantryWindow(self.app)
+        self.addCleanup(pantry.destroy)
+        scanned = []
+        with patch.object(main, "open_webcam", lambda: camera), \
+             patch.object(main.PantryWindow, "handle_barcode", lambda s, code: scanned.append(code)):
+            dialog = pantry.open_barcode_dialog()
+            scanner = dialog.barcode_webcam()
+            self.assertTrue(self._pump_until(lambda: scanned))
+        self.assertEqual(scanned, ["3017620422003"])
+        self.assertTrue(camera.released)
+        self.assertFalse(scanner.winfo_exists())
+
+    def test_multi_part_recipe_qr_is_assembled_from_the_webcam(self):
+        import qrcode
+        recipe = {"name": "Tarte " + "très longue " * 40, "ingredients": [
+            {"name": f"Ingrédient {i}", "quantity": i, "unit": "Gr"} for i in range(1, 40)],
+            "description": "Étape. " * 120}
+        parts = main._split_mobile_qr_parts(main._recipe_to_mobile_qr_payload(recipe, 4))
+        self.assertGreater(len(parts), 1)
+        images = [qrcode.make(part, error_correction=qrcode.constants.ERROR_CORRECT_L).get_image() for part in reversed(parts)]
+        camera = _FakeWebcam(images)
+        finished = []
+        with patch.object(main.App, "_finish_qr_import", lambda s, read: finished.append(read())):
+            scanner = self.app.open_import_from_qr_webcam(capture_factory=lambda: camera)
+            self.assertTrue(self._pump_until(lambda: finished, limit=2000))
+        self.assertTrue(finished[0]["name"].startswith("Tarte très longue"))
+        self.assertEqual(len(finished[0]["ingredients"]), 39)
+        self.assertTrue(camera.released)
+        self.assertFalse(scanner.winfo_exists())
+
+    def test_missing_webcam_is_reported_without_crash(self):
+        scanner = self.app.open_import_from_qr_webcam(capture_factory=lambda: None)
+        self.addCleanup(scanner.destroy)
+        self.assertEqual(scanner.status_label.cget("text"), main.t("webcam_unavailable"))
+        scanner.close()
+        self.assertFalse(scanner.winfo_exists())
+
 
 if __name__ == "__main__":
     unittest.main()

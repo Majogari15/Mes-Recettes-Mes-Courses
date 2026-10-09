@@ -86,6 +86,11 @@ def _interdire_dialogues_tk_inattendus(monkeypatch):
     if hasattr(main, "detect_system_dark_mode"):
         monkeypatch.setattr(main, "detect_system_dark_mode", lambda: False)
 
+    # Jamais la vraie webcam pendant les tests (voyant allumé sur le poste du
+    # développeur) : un test de scan fournit sa propre fausse caméra.
+    if hasattr(main, "open_webcam"):
+        monkeypatch.setattr(main, "open_webcam", lambda *a, **k: None)
+
     yield
 
 

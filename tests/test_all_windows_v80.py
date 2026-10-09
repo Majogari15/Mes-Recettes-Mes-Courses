@@ -45,8 +45,12 @@ def _arguments(cls, app, recipe):
         n = p.name.lower()
         if n in ("app", "parent", "master", "root", "owner", "target_window", "parent_window", "manager"):
             args.append(app)
-        elif n.endswith("callback") or n == "on_done":
+        elif n.endswith("callback") or n in ("on_done", "decoder"):
             args.append(lambda *a, **k: None)
+        elif n == "on_value":
+            args.append(lambda value: (False, None))
+        elif n == "hint":
+            args.append("test")
         elif n == "persons":
             args.append(4)
         elif n == "grouped_totals":
@@ -71,6 +75,8 @@ class AllWindowsOpenTests(TempDataMixin, unittest.TestCase):
             ("get_disclaimer_accepted", lambda: True), ("get_large_text_preference", lambda: False),
             ("get_language_preference", lambda: language), ("maybe_create_auto_backup", lambda: None),
             ("get_dark_mode_preference", lambda: dark),
+            # Jamais la vraie caméra pendant les tests : « aucune webcam ».
+            ("open_webcam", lambda *a, **k: None),
         ]
         for name, value in patches:
             patcher = patch.object(main, name, value)

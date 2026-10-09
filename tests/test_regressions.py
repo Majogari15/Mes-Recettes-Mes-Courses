@@ -585,7 +585,7 @@ class ShoppingListWidgetTests(TempDataMixin, unittest.TestCase):
         self.app.update()
 
         widgets = self._descendants(win.result_frame)
-        expected_cost_text = main.t("onerecipe_cost_label", cost="4.00", partial="")
+        expected_cost_text = main.t("onerecipe_cost_label", cost=main.format_price(4), partial="")
         labels = [w for w in widgets if isinstance(w, ttk.Label)]
         self.assertTrue(
             any(lbl.cget("text") == expected_cost_text for lbl in labels),

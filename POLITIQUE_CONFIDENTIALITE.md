@@ -1,6 +1,6 @@
 # Politique de confidentialité — Mes Recettes, Mes Courses (Windows)
 
-*Dernière mise à jour : 4 octobre 2026 — English version below.*
+*Dernière mise à jour : 9 octobre 2026 — English version below.*
 
 Cette politique concerne l'application **Windows** (installateur et
 Microsoft Store). L'application mobile a sa propre politique, sur le site
@@ -83,6 +83,11 @@ adresse IP.
   copier. Ce contenu est analysé localement, n'est ni conservé ni transmis,
   et rien n'est importé sans votre clic. Le Diagnostic peut y copier son
   rapport, à votre demande.
+- **Webcam** : utilisée uniquement quand vous ouvrez vous-même le scan d'un
+  QR code ou d'un code-barres par la webcam. Les images sont analysées en
+  direct sur votre ordinateur, ne sont ni enregistrées ni envoyées, et la
+  caméra est libérée dès la fermeture de la fenêtre de scan. Seul le numéro
+  d'un code-barres lu est ensuite envoyé à Open Food Facts (voir plus haut).
 - **Lecture à voix haute** (mode cuisine) : voix de synthèse de Windows.
 - **Impression, export PDF, QR code, export agenda (.ics), sauvegardes** :
   fichiers créés sur votre ordinateur, que vous partagez ensuite comme vous
@@ -125,7 +130,7 @@ majogari81@gmail.com — ou une « Issue » sur le dépôt GitHub du projet.
 
 # Privacy policy — Mes Recettes, Mes Courses (Windows)
 
-*Last updated: 4 October 2026.*
+*Last updated: 9 October 2026.*
 
 This policy covers the **Windows** application (installer and Microsoft
 Store). The mobile application has its own policy, on the mobile
@@ -200,6 +205,11 @@ like any Internet request, they see your IP address.
   recipe link you have just copied. This content is analysed locally, is
   neither kept nor sent, and nothing is imported without your click. The
   Diagnostics screen can copy its report to it, at your request.
+- **Webcam**: used only when you yourself open QR code or barcode scanning
+  with the webcam. Images are analysed live on your computer, are neither
+  saved nor sent, and the camera is released as soon as the scan window
+  closes. Only the number of a barcode read is then sent to Open Food Facts
+  (see above).
 - **Read aloud** (cooking mode): Windows speech synthesis.
 - **Printing, PDF export, QR code, calendar export (.ics), backups**: files
   created on your computer, which you then share as you wish.

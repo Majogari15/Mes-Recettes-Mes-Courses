@@ -34,6 +34,7 @@ import urllib.request
 import uuid
 import zipfile
 from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 # Numéro de version de l'application — introduit ici pour la première
@@ -431,6 +432,15 @@ try:
 except (ImportError, OSError):
     QRCODE_READER_AVAILABLE = False
 
+# OpenCV (optionnel) : ouvre seulement la webcam pour le scan en direct des
+# QR codes et codes-barres ; le décodage reste fait par pyzbar ci-dessus.
+try:
+    import cv2
+    WEBCAM_AVAILABLE = True
+except (ImportError, OSError):
+    cv2 = None
+    WEBCAM_AVAILABLE = False
+
 # pytesseract est nécessaire pour importer une recette depuis une photo (OCR).
 # Il ne suffit pas de l'installer via pip : il nécessite aussi le programme
 # Tesseract OCR installé séparément sur le système (voir le LISEZ-MOI).
@@ -524,6 +534,7 @@ BUNDLED_DATA_DIR = os.path.join(BASE_DIR, "data")
 DATA_FILE = os.path.join(DATA_DIR, "recipes.json")
 INGREDIENTS_FILE = os.path.join(DATA_DIR, "ingredients.json")
 DEFAULT_INGREDIENTS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredients_par_defaut.json")
+CATALOGUE_DUPLICATES_FILE = os.path.join(BUNDLED_DATA_DIR, "catalogue_doublons.json")
 NUTRITION_DATA_FILE = os.path.join(BUNDLED_DATA_DIR, "valeurs_nutritionnelles.json")
 INGREDIENT_ALLERGENS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredient_allergenes.json")
 INGREDIENT_SUBSTITUTIONS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredient_substitutions.json")
@@ -919,15 +930,38 @@ def confirm_backup_preview(parent, zip_path):
     )
 
 
+@functools.lru_cache(maxsize=1)
+def load_catalogue_duplicates():
+    """Doublons du catalogue (même produit présent deux fois, ex.
+    « Noisettes » = « Noisette »), repris de l'app mobile : nom retiré ->
+    nom gardé, clés en minuscules. Jamais proposés, mais leurs données
+    (allergènes, nutrition, traductions) restent pour les recettes qui les
+    utilisent déjà."""
+    try:
+        with open(CATALOGUE_DUPLICATES_FILE, "r", encoding="utf-8") as f:
+            pairs = json.load(f).get("doublons", {})
+        return {k.strip().lower(): v for k, v in pairs.items() if isinstance(v, str)}
+    except (OSError, ValueError, AttributeError) as exc:
+        log_internal_error("load_catalogue_duplicates", exc)
+        return {}
+
+
+def catalogue_kept_name(name):
+    """Nom gardé si `name` est un doublon retiré du catalogue, sinon `name`."""
+    return load_catalogue_duplicates().get(str(name).strip().lower(), name)
+
+
 def load_default_ingredients():
     """Charge le catalogue d'ingrédients fourni avec l'application
-    (data/ingredients_par_defaut.json, ~10 000 noms repris de l'app mobile)."""
+    (data/ingredients_par_defaut.json, ~10 000 noms repris de l'app mobile),
+    sans les doublons retirés (voir load_catalogue_duplicates)."""
     if os.path.exists(DEFAULT_INGREDIENTS_FILE):
         try:
             with open(DEFAULT_INGREDIENTS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    return data
+                    retired = load_catalogue_duplicates()
+                    return [n for n in data if str(n).strip().lower() not in retired]
         except Exception as exc:
             log_internal_error("load_default_ingredients", exc)
             return []
@@ -2535,6 +2569,51 @@ def save_ingredient_prices(prices):
     _atomic_write_json(INGREDIENT_PRICES_FILE, prices)
 
 
+# Devises proposées (comme l'app mobile, sans les monnaies arabes : pas
+# d'arabe dans l'app Windows). Symboles limités à €, £, ¥, $ et des lettres :
+# les seuls glyphes monétaires de la police des PDF (Vera). Changer de
+# devise ne convertit pas les prix saisis : seul le symbole affiché change.
+CURRENCY_SYMBOLS = {
+    "EUR": "€", "USD": "$", "GBP": "£", "CHF": "CHF", "CAD": "CA$", "AUD": "A$",
+    "CNY": "¥", "HKD": "HK$", "TWD": "NT$", "SGD": "S$", "JPY": "¥", "SEK": "kr",
+    "NOK": "kr", "DKK": "kr", "IDR": "Rp", "BRL": "R$", "MXN": "MX$",
+}
+CURRENCIES_WITHOUT_CENTS = ("JPY",)
+
+
+def get_currency():
+    code = load_settings().get("currency")
+    return code if code in CURRENCY_SYMBOLS else "EUR"
+
+
+def set_currency(code):
+    settings = load_settings()
+    settings["currency"] = code if code in CURRENCY_SYMBOLS else "EUR"
+    save_settings(settings)
+
+
+def currency_symbol(code=None):
+    return CURRENCY_SYMBOLS[code or get_currency()]
+
+
+def format_price(value, code=None):
+    """Montant avec le symbole à sa place selon la langue, comme l'app
+    mobile : « 2,50 € » (fr, es, de, it, pt, no, sv), « €2.50 » (en),
+    « € 2,50 » (id). Remplace le « € » auparavant écrit en dur."""
+    code = code or get_currency()
+    symbol = CURRENCY_SYMBOLS[code]
+    # Arrondi au plus proche (0,5 vers le haut), comme Intl côté mobile ;
+    # le format Python arrondirait 2,5 ¥ à « 2 » (arrondi au pair).
+    step = Decimal("1") if code in CURRENCIES_WITHOUT_CENTS else Decimal("0.01")
+    amount = str(Decimal(str(value)).quantize(step, rounding=ROUND_HALF_UP))
+    if CURRENT_LANGUAGE == "en":
+        return f"{symbol}{' ' if symbol.isalpha() else ''}{amount}"
+    amount = amount.replace(".", ",")
+    if CURRENT_LANGUAGE == "id":
+        return f"{symbol} {amount}"
+    return f"{amount}\u00a0{symbol}"
+
+
 def get_ingredient_price(name):
     return load_ingredient_prices().get(name.strip().lower())
 
@@ -2644,7 +2723,7 @@ def _render_cart_cost_summary(parent, items):
         return
     partial = "" if cost_known == cost_total else t("onerecipe_cost_partial", known=cost_known, total=cost_total)
     ttk.Label(
-        parent, text=t("onerecipe_cost_label", cost=f"{cost:.2f}", partial=partial),
+        parent, text=t("onerecipe_cost_label", cost=format_price(cost), partial=partial),
         font=("Segoe UI", sf(9), "bold"), foreground=COLOR_ACCENT_DARK
     ).pack(anchor="w", pady=(0, gs(SPACE_XS)))
 
@@ -2799,7 +2878,14 @@ def decode_barcode_image(path):
     if not QRCODE_READER_AVAILABLE or not PIL_AVAILABLE:
         return None
     with Image.open(path) as image:
-        results = decode_barcodes(image.convert("L"))
+        return decode_barcode_from_image(image)
+
+
+def decode_barcode_from_image(image):
+    """Premier code-barres produit (EAN/UPC) d'une image PIL, ou None."""
+    if not QRCODE_READER_AVAILABLE:
+        return None
+    results = decode_barcodes(image.convert("L"))
     for result in results:
         if getattr(result, "type", "") in BARCODE_TYPES:
             code = normalize_barcode(result.data.decode("ascii", "ignore"))
@@ -3308,7 +3394,10 @@ def load_ingredient_reverse_translations(lang):
         return _ingredient_reverse_translations_cache[lang]
     forward = load_ingredient_translations(lang)
     grouped = {}
+    retired = load_catalogue_duplicates()
     for fr_lower, translated_name in forward.items():
+        if fr_lower in retired:
+            continue
         grouped.setdefault(translated_name.strip().lower(), []).append(fr_lower)
     reverse = {}
     for translated_lower, fr_list in grouped.items():
@@ -3368,6 +3457,28 @@ def get_display_ingredient_values(ingredient_names):
     return [translate_ingredient_name(n) for n in ingredient_names]
 
 
+def _substitutes_without_retired(base, shown=None):
+    """Remplace dans `shown` (même ordre que `base`, la liste française) un
+    substitut qui pointe vers un doublon retiré du catalogue par le nom
+    gardé, et retire la répétition si ce nom y figure déjà."""
+    shown = base if shown is None else shown
+    if len(shown) != len(base):
+        return shown
+    retired = load_catalogue_duplicates()
+    result, seen = [], set()
+    for original, item in zip(base, shown):
+        nom = str(original.get("nom", "")) if isinstance(original, dict) else ""
+        kept = retired.get(nom.strip().lower())
+        key = (kept or nom).strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if kept and isinstance(item, dict):
+            item = dict(item, nom=kept if shown is base else translate_ingredient_name(kept))
+        result.append(item)
+    return result
+
+
 def get_ingredient_substitutions(name):
     """Retourne la liste de substituts connus pour un ingrédient (une
     surcharge personnelle, si vous en avez défini une, est toujours
@@ -3380,7 +3491,7 @@ def get_ingredient_substitutions(name):
     override = load_ingredient_overrides().get(key)
     if override is not None and "substitutions" in override:
         return override["substitutions"]
-    return load_default_substitutions().get(key, [])
+    return _substitutes_without_retired(load_default_substitutions().get(key, []))
 
 
 _default_substitutions_translations_cache = {}
@@ -3420,11 +3531,12 @@ def get_display_ingredient_substitutions(name):
     override = load_ingredient_overrides().get(key)
     if override is not None and "substitutions" in override:
         return override["substitutions"]
+    base = load_default_substitutions().get(key, [])
     if CURRENT_LANGUAGE != "fr":
         translated = load_default_substitutions_translated(CURRENT_LANGUAGE).get(key)
         if translated is not None:
-            return translated
-    return load_default_substitutions().get(key, [])
+            return _substitutes_without_retired(base, translated)
+    return _substitutes_without_retired(base)
 
 
 def has_known_substitutions():
@@ -4313,7 +4425,7 @@ def draw_recipe_content(c, recipe, persons, width, height):
         y -= 0.2 * cm
         if cost_known:
             partial = "" if cost_known == cost_total else t("recipepdf_partial_suffix", known=cost_known, total=cost_total)
-            y = _pdf_draw_wrapped(c, t("recipepdf_cost", cost=f"{cost:.2f}", partial=partial),
+            y = _pdf_draw_wrapped(c, t("recipepdf_cost", cost=format_price(cost), partial=partial),
                                   left, y, usable, height, font_name="Helvetica-Oblique", font_size=9)
         if nutri_known:
             partial = "" if nutri_known == nutri_total else t("recipepdf_partial_suffix", known=nutri_known, total=nutri_total)
@@ -5773,9 +5885,11 @@ def _url_foreign_food_index():
     # de l'interface : construit une fois au lieu de parcourir les
     # traductions pour chaque ingrédient importé.
     index = {}
+    retired = load_catalogue_duplicates()
     for lang in UI_TRANSLATED_LANGUAGES:
         for fr, foreign in load_ingredient_translations(lang).items():
-            index.setdefault(ingredient_sort_key(foreign), set()).add(fr.capitalize())
+            if fr.strip().lower() not in retired:
+                index.setdefault(ingredient_sort_key(foreign), set()).add(fr.capitalize())
     return index
 
 
@@ -6116,6 +6230,31 @@ def _download_recipe_page(request):
                 raise
 
 
+# Paramètres de traçage marketing connus (même liste que l'app mobile),
+# retirés avant l'import : jamais utiles à une page de recette. Liste fermée
+# plutôt qu'une règle large (« tout utm_* ») qui pourrait un jour retirer un
+# paramètre dont la page dépend vraiment.
+TRACKING_URL_PARAMS = frozenset((
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id",
+    "gclid", "fbclid", "igshid", "mc_cid", "mc_eid", "msclkid", "yclid", "twclid",
+    "ref_src", "ref_url", "mkt_tok", "_hsenc", "_hsmi", "vero_id",
+))
+
+
+def strip_tracking_params(url):
+    """Adresse sans ses paramètres de traçage ; inchangée si rien à retirer
+    ou si elle est mal formée (l'import signalera alors l'erreur)."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+    except ValueError:
+        return url
+    kept = [(k, v) for k, v in query if k not in TRACKING_URL_PARAMS]
+    if len(kept) == len(query):
+        return url
+    return urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(kept, quote_via=urllib.parse.quote)))
+
+
 def fetch_recipe_from_url(url):
     """Télécharge une page de recette et tente d'en extraire le contenu à
     partir des données structurées Schema.org (JSON-LD), un format utilisé
@@ -6134,6 +6273,7 @@ def fetch_recipe_from_url(url):
     déjà présent. Malgré cela, certains sites restent bloqués : une
     protection basée sur l'empreinte TLS (JA3) ou la réputation de l'IP
     échappe à toute combinaison d'en-têtes HTTP."""
+    url = strip_tracking_params(url)
     request = urllib.request.Request(
         url, headers={
             "User-Agent": (
@@ -9120,6 +9260,31 @@ class App(APP_TK_BASE):
         if not paths:
             return
         self._finish_qr_import(lambda: import_recipe_prefill_from_qr_images(paths))
+
+    def open_import_from_qr_webcam(self, capture_factory=None):
+        """Scan en direct : les parties d'un QR multiple s'accumulent (dans
+        n'importe quel ordre) jusqu'à la recette complète."""
+        values = []
+
+        def on_value(value):
+            values.append(value)
+            try:
+                prefill = import_recipe_prefill_from_qr_texts(values)
+            except QrImportIncompleteError as e:
+                return False, t("webcam_qr_progress", received=e.received, total=e.total)
+            except QrImportMixedBatchesError:
+                values[:] = [value]
+                return False, t("qrimport_mixed_batches")
+            except QrImportChecksumError:
+                values.clear()
+                return False, t("qrimport_checksum_error")
+            if prefill:
+                self.after_idle(lambda: self._finish_qr_import(lambda: prefill))
+                return True, None
+            values.pop()
+            return False, t("qrimport_no_code")
+        return WebcamScanDialog(self, decode_qr_text_from_image, on_value, t("webcam_hint_qr"),
+                                capture_factory=capture_factory)
 
     def open_import_from_qr_text(self):
         """Repli quand la lecture d'image échoue : coller le texte obtenu avec
@@ -12469,6 +12634,19 @@ class IngredientPricesWindow(tk.Toplevel):
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(0, gs(10)))
 
+        currency_frame = ttk.Frame(self)
+        currency_frame.pack(pady=(0, gs(SPACE_SM)), fill="x", padx=gs(15))
+        ttk.Label(currency_frame, text=t("currency_label")).pack(side="left")
+        self._currency_codes = list(CURRENCY_SYMBOLS)
+        self.currency_combo = ttk.Combobox(
+            currency_frame, state="readonly", width=12,
+            values=[f"{CURRENCY_SYMBOLS[c]} — {c}" if CURRENCY_SYMBOLS[c] != c else c for c in self._currency_codes])
+        self.currency_combo.current(self._currency_codes.index(get_currency()))
+        self.currency_combo.pack(side="left", padx=gs(5))
+        self.currency_combo.bind("<<ComboboxSelected>>", self._on_currency_selected)
+        ttk.Label(self, text=t("currency_hint"), foreground=COLOR_TEXT_MUTED, font=("Segoe UI", sf(8)),
+                  wraplength=gs(440), justify="left").pack(fill="x", padx=gs(15), pady=(0, gs(SPACE_SM)))
+
         search_frame = ttk.Frame(self)
         search_frame.pack(pady=(0, gs(5)), fill="x", padx=gs(15))
         ttk.Label(search_frame, text=t("common_search_label")).pack(side="left")
@@ -12488,7 +12666,8 @@ class IngredientPricesWindow(tk.Toplevel):
 
         edit_frame = ttk.Frame(self)
         edit_frame.pack(pady=gs(10), padx=gs(15), fill="x")
-        ttk.Label(edit_frame, text=t("ingprices_price_label")).grid(row=0, column=0, padx=gs(3))
+        self.price_label = ttk.Label(edit_frame, text=t("ingprices_price_label", currency=currency_symbol()))
+        self.price_label.grid(row=0, column=0, padx=gs(3))
         self.price_entry = ttk.Entry(edit_frame, width=8)
         self.price_entry.grid(row=0, column=1, padx=gs(3))
         ttk.Label(edit_frame, text=t("ingprices_for_one_label")).grid(row=0, column=2, padx=gs(3))
@@ -12510,6 +12689,11 @@ class IngredientPricesWindow(tk.Toplevel):
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED, justify="center"
         ).pack(pady=(0, gs(10)))
 
+    def _on_currency_selected(self, event=None):
+        set_currency(self._currency_codes[self.currency_combo.current()])
+        self.price_label.config(text=t("ingprices_price_label", currency=currency_symbol()))
+        self._populate()
+
     def _populate(self):
         self.listbox.delete(0, tk.END)
         search = self.search_entry.get().strip()
@@ -12522,7 +12706,7 @@ class IngredientPricesWindow(tk.Toplevel):
             self._names.append(name)
             price_info = get_ingredient_price(name)
             if price_info:
-                suffix = t("ingprices_price_suffix", price=f"{price_info['price']:.2f}", unit=price_info['unit'])
+                suffix = t("ingprices_price_suffix", price=format_price(price_info['price']), unit=price_info['unit'])
             else:
                 suffix = t("ingprices_no_price_set")
             self.listbox.insert(tk.END, f"{translate_ingredient_name(name)}{suffix}")
@@ -12647,7 +12831,7 @@ class IngredientEditWindow(tk.Toplevel):
         price_frame = ttk.Frame(nutrition_tab)
         price_frame.pack()
         existing_price = get_ingredient_price(existing_name) if self.editing else None
-        ttk.Label(price_frame, text=t("ingprices_price_label")).grid(row=0, column=0, padx=gs(3))
+        ttk.Label(price_frame, text=t("ingprices_price_label", currency=currency_symbol())).grid(row=0, column=0, padx=gs(3))
         self.price_entry = ttk.Entry(price_frame, width=9)
         if existing_price:
             self.price_entry.insert(0, str(existing_price["price"]))
@@ -14068,6 +14252,9 @@ class ImportExportWindow(tk.Toplevel):
                    command=self.choose_recipe_for_qr).pack(side="left", padx=gs(SPACE_XS))
         ttk.Button(body, text=t("importexport_mobile_qr_paste"), style="Secondary.TButton",
                    command=self.import_mobile_qr_text).pack(pady=(0, gs(6)))
+        if QRCODE_READER_AVAILABLE and WEBCAM_AVAILABLE:
+            ttk.Button(body, text=t("importexport_mobile_qr_webcam"), style="Secondary.TButton",
+                       command=self.import_mobile_qr_webcam).pack(pady=(0, gs(6)))
         ttk.Label(body, text=t("importexport_shared_intro"),
                   justify="center", font=("Segoe UI", sf(8)), wraplength=390).pack(pady=(gs(3), gs(SPACE_SM)))
         ttk.Button(body, text=t("importexport_export_shared_button"),
@@ -14127,6 +14314,10 @@ class ImportExportWindow(tk.Toplevel):
     def import_mobile_qr(self):
         self.destroy()
         self.app.after(50, self.app.open_import_from_qr)
+
+    def import_mobile_qr_webcam(self):
+        self.destroy()
+        self.app.after(50, self.app.open_import_from_qr_webcam)
 
     def import_mobile_qr_text(self):
         self.destroy()
@@ -14515,6 +14706,7 @@ class ShoppingChecklistWindow(tk.Toplevel):
         scrollbar.pack(side="right", fill="y")
 
         self.checks = []
+        self.qr_items = []  # (nom, quantité, unité, case) pour le QR mobile
         # Un cadre par rayon : réordonnables (glisser la poignée ⠿ ou ↑/↓)
         # pour suivre l'ordre du magasin, mémorisé pour les prochaines listes.
         self.rayon_frames = []
@@ -14545,6 +14737,7 @@ class ShoppingChecklistWindow(tk.Toplevel):
                                        command=lambda: None)
                 chk.pack(anchor="w", padx=gs(10), pady=gs(1))
                 self.checks.append((var, chk, lbl_text))
+                self.qr_items.append((name, qty, unit, var))
                 var.trace_add("write", lambda *args, v=var, c=chk: self._update_style(v, c))
             group.pack(fill="x")
             self.rayon_frames.append((rayon, group))
@@ -14553,10 +14746,20 @@ class ShoppingChecklistWindow(tk.Toplevel):
         btn_frame.pack(pady=gs(10))
         ttk.Button(btn_frame, text=t("checklist_check_all_button"), command=self.check_all).grid(row=0, column=0, padx=gs(5))
         ttk.Button(btn_frame, text=t("checklist_uncheck_all_button"), command=self.uncheck_all).grid(row=0, column=1, padx=gs(5))
+        ttk.Button(btn_frame, text=t("shopping_qr_share_button"), style="Secondary.TButton",
+                   command=self.share_by_qr).grid(row=0, column=2, padx=gs(5))
 
         self.progress_label = ttk.Label(self, text="", font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED)
         self.progress_label.pack(pady=(0, gs(10)))
         self._update_progress()
+
+    def share_by_qr(self):
+        """QR (découpé en plusieurs si besoin) lisible par l'app mobile, qui
+        importe la liste avec l'état coché de chaque article."""
+        payload = encode_shopping_list_for_qr(
+            [(name, qty, unit, var.get()) for name, qty, unit, var in self.qr_items])
+        return QRCodeWindow(self.app, {"name": t("qrcode_shopping_title")}, None, payload=payload,
+                            heading=t("qrcode_shopping_title"), hint=t("qrcode_shopping_hint"))
 
     def _update_style(self, var, chk):
         style_name = "Checked.TCheckbutton" if var.get() else "TCheckbutton"
@@ -16301,7 +16504,7 @@ class OneRecipeWindow(tk.Toplevel):
         cost, cost_known, cost_total = compute_recipe_cost(recipe, persons)
         if cost_known:
             partial = "" if cost_known == cost_total else t("onerecipe_cost_partial", known=cost_known, total=cost_total)
-            self.result_text.insert(tk.END, "\n" + t("onerecipe_cost_label", cost=f"{cost:.2f}", partial=partial) + "\n")
+            self.result_text.insert(tk.END, "\n" + t("onerecipe_cost_label", cost=format_price(cost), partial=partial) + "\n")
 
         nutrition, nutri_known, nutri_total = compute_recipe_nutrition(recipe, persons)
         if nutri_known:
@@ -17902,6 +18105,36 @@ def _parse_multi_qr_fragment(text_value):
     }
 
 
+SHOPPING_QR_PREFIX = "MESRECETTES_SHOPPING:1\n"
+
+
+# Unités Windows -> unités de l'app mobile (UNIT_OPTIONS côté mobile), avec
+# facteur sur la quantité : le décodage mobile d'une liste de courses ne
+# convertit rien. Les autres unités passent telles quelles (affichées brutes).
+MOBILE_SHOPPING_UNITS = {"gr": ("g", 1), "kilo": ("kg", 1), "litre": ("L", 1), "ml": ("cl", 0.1),
+                         "cuillère à soupe": ("c. à soupe", 1), "cuillère à café": ("c. à café", 1)}
+
+
+def encode_shopping_list_for_qr(items):
+    """Liste de courses au format QR de l'app mobile (encodeShoppingListForQr) :
+    une ligne « nom|quantité|unité|coché » par article, après l'en-tête.
+    `items` : tuples (nom, quantité, unité, coché)."""
+    lines = []
+    for name, qty, unit, checked in items:
+        name = str(name or "").replace("|", " ").replace("\n", " ").strip()
+        if not name:
+            continue
+        unit_text, factor = MOBILE_SHOPPING_UNITS.get(str(unit or "").strip().lower(), (str(unit or ""), 1))
+        try:
+            value = round(float(str(qty).replace(",", ".")) * factor, 3)
+            qty_text = str(int(value)) if value == int(value) else str(value)
+        except (TypeError, ValueError, OverflowError):
+            qty_text = ""  # quantité non précisée (ou NaN/infini)
+        unit_text = unit_text.replace("|", " ").replace("\n", " ")
+        lines.append(f"{name}|{qty_text}|{unit_text}|{'1' if checked else '0'}")
+    return SHOPPING_QR_PREFIX + "\n".join(lines)
+
+
 def _recipe_to_mobile_qr_payload(recipe, persons):
     """Construit exactement le JSON compact v1 utilisé par l'app mobile."""
     payload = {
@@ -18022,7 +18255,14 @@ def _decode_qr_image_file(path):
     # Pillow gère correctement les chemins Windows Unicode ; pyzbar est très
     # robuste sur les QR denses/multi-parties produits par l'app mobile.
     with Image.open(path) as image:
-        results = decode_barcodes(image)
+        return decode_qr_text_from_image(image)
+
+
+def decode_qr_text_from_image(image):
+    """Texte du premier QR code d'une image PIL, ou None."""
+    if not QRCODE_READER_AVAILABLE:
+        return None
+    results = decode_barcodes(image)
     for result in results:
         if getattr(result, "type", "") == "QRCODE":
             try:
@@ -18190,28 +18430,115 @@ def save_qr_parts_atomically(parts, target_paths, make_qr):
                 log_internal_error("qr_export_cleanup", cleanup_error)
 
 
+def open_webcam(index=0):
+    """Webcam ouverte (DirectShow sous Windows : ouverture rapide), ou None."""
+    if not WEBCAM_AVAILABLE:
+        return None
+    capture = cv2.VideoCapture(index, cv2.CAP_DSHOW) if os.name == "nt" else cv2.VideoCapture(index)
+    if not capture.isOpened():
+        capture.release()
+        return None
+    return capture
+
+
+class WebcamScanDialog(tk.Toplevel):
+    """Scan en direct d'un QR code ou d'un code-barres par la webcam.
+
+    Les images restent en mémoire, analysées sur l'ordinateur, jamais
+    enregistrées ni envoyées. `decoder(image PIL)` renvoie un texte ou None ;
+    `on_value(texte)` renvoie (terminé, message d'état). La caméra est
+    libérée dès la fermeture."""
+
+    FRAME_DELAY_MS = 60
+
+    def __init__(self, parent, decoder, on_value, hint, capture_factory=None):
+        super().__init__(parent)
+        self.decoder, self.on_value = decoder, on_value
+        self.title(t("webcam_title"))
+        self.transient(parent)
+        self.configure(background=COLOR_BG)
+        self._after_id, self._photo, self._frames, self._failures = None, None, 0, 0
+        self._seen = set()
+        self.video_label = ttk.Label(self)
+        self.video_label.pack(padx=gs(SPACE_MD), pady=(gs(SPACE_MD), gs(SPACE_SM)))
+        ttk.Label(self, text=hint, wraplength=gs(480), justify="center").pack(padx=gs(SPACE_MD))
+        self.status_label = ttk.Label(self, text="", foreground=COLOR_TEXT_MUTED, wraplength=gs(480), justify="center")
+        self.status_label.pack(padx=gs(SPACE_MD), pady=gs(SPACE_XS))
+        ttk.Button(self, text=t("common_close"), command=self.close).pack(pady=(gs(SPACE_XS), gs(SPACE_MD)))
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Escape>", lambda e: self.close())
+        self.capture = (capture_factory or open_webcam)()
+        if self.capture is None:
+            self.status_label.configure(text=t("webcam_unavailable"))
+            return
+        self._after_id = self.after(self.FRAME_DELAY_MS, self._tick)
+
+    def _tick(self):
+        self._after_id = None
+        ok, frame = self.capture.read()
+        if not ok or frame is None:
+            self._failures += 1
+            if self._failures > 50:
+                self.status_label.configure(text=t("webcam_unavailable"))
+                self._release()
+                return
+        else:
+            self._failures = 0
+            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            preview = image.copy()
+            preview.thumbnail((gs(480), gs(360)))
+            self._photo = ImageTk.PhotoImage(preview)
+            self.video_label.configure(image=self._photo)
+            self._frames += 1
+            if self._frames % 2 == 0:  # ~8 analyses par seconde suffisent
+                value = self.decoder(image)
+                if value and value not in self._seen:
+                    self._seen.add(value)
+                    done, message = self.on_value(value)
+                    if done:
+                        self.close()
+                        return
+                    if message:
+                        self.status_label.configure(text=message)
+        self._after_id = self.after(self.FRAME_DELAY_MS, self._tick)
+
+    def _release(self):
+        if self._after_id is not None:
+            self.after_cancel(self._after_id)
+            self._after_id = None
+        if getattr(self, "capture", None) is not None:
+            self.capture.release()
+            self.capture = None
+
+    def close(self):
+        self._release()
+        if self.winfo_exists():
+            self.destroy()
+
+
 class QRCodeWindow(tk.Toplevel):
     """QR d'une recette au format compact compatible avec l'app mobile."""
 
-    def __init__(self, app, recipe, persons):
+    def __init__(self, app, recipe, persons, payload=None, heading=None, hint=None):
         super().__init__(app)
         self.app = app
         self.recipe = recipe
         self.persons = persons
-        self.title(t("qrcode_title", name=recipe["name"]))
+        heading = heading or t("qrcode_title", name=recipe["name"])
+        self.title(heading)
         fit_window_to_workarea(self, gs(500), gs(620), margin=18)
         safe_minsize(self, gs(460), gs(580))
         self.resizable(True, True)
         self.grab_set()
 
-        self.payload = _recipe_to_mobile_qr_payload(recipe, persons)
+        self.payload = payload or _recipe_to_mobile_qr_payload(recipe, persons)
         self.parts = _split_mobile_qr_parts(self.payload)
         self.current_part = 0
         self._qr_img = None
         self._photo = None
 
         ttk.Label(
-            self, text=t("qrcode_title", name=recipe["name"]),
+            self, text=heading,
             font=("Segoe UI", sf(12), "bold"), wraplength=440, justify="center"
         ).pack(pady=(gs(12), gs(6)))
 
@@ -18219,7 +18546,7 @@ class QRCodeWindow(tk.Toplevel):
         self.qr_label.pack(fill="both", expand=True, padx=gs(18), pady=gs(6))
 
         ttk.Label(
-            self, text=t("qrcode_mobile_compatible"),
+            self, text=hint or t("qrcode_mobile_compatible"),
             font=("Segoe UI", sf(8)), foreground=COLOR_TEXT_MUTED,
             justify="center", wraplength=440
         ).pack(pady=(gs(2), gs(SPACE_SM)))
@@ -18580,12 +18907,19 @@ class PantryWindow(tk.Toplevel):
             code_entry.delete(0,tk.END); code_entry.insert(0,code); submit()
         code_entry.bind("<Return>",submit)
         buttons=ttk.Frame(frame); buttons.pack(fill="x",pady=(gs(SPACE_SM),0))
+        def from_webcam():
+            def on_code(code):
+                code_entry.delete(0,tk.END); code_entry.insert(0,code); dialog.after_idle(submit)
+                return True, None
+            return WebcamScanDialog(dialog, decode_barcode_from_image, on_code, t("webcam_hint_barcode"))
         if QRCODE_READER_AVAILABLE:
             ttk.Button(buttons,text=t("pantry_barcode_photo_button"),style="Secondary.TButton",command=from_photo).pack(side="left")
+        if QRCODE_READER_AVAILABLE and WEBCAM_AVAILABLE:
+            ttk.Button(buttons,text=t("pantry_barcode_webcam_button"),style="Secondary.TButton",command=from_webcam).pack(side="left",padx=(gs(SPACE_SM),0))
         ttk.Button(buttons,text=t("common_cancel"),style="Secondary.TButton",command=dialog.destroy).pack(side="right")
         ttk.Button(buttons,text=t("pantry_barcode_search_button"),style="Primary.TButton",command=submit).pack(side="right",padx=(0,gs(SPACE_SM)))
         code_entry.focus_set()
-        dialog.barcode_entry=code_entry; dialog.barcode_submit=submit; dialog.barcode_status=status
+        dialog.barcode_entry=code_entry; dialog.barcode_submit=submit; dialog.barcode_status=status; dialog.barcode_webcam=from_webcam
         return dialog
     def handle_barcode(self,code):
         known=get_barcode_ingredient(code)
@@ -20581,7 +20915,7 @@ class ImportFromUrlWindow(tk.Toplevel):
         papiers peut contenir davantage que la seule adresse — un lien
         partagé accompagné d'un titre, par exemple)."""
         match = re.search(r"https?://\S+", (text or "").strip())
-        return match.group(0).rstrip(".,;)") if match else None
+        return strip_tracking_params(match.group(0).rstrip(".,;)")) if match else None
 
     def _read_clipboard_url(self):
         try:
@@ -21505,7 +21839,7 @@ class CompareRecipesWindow(tk.Toplevel):
                 if v is None: disp.append('—')
                 else: disp.append(fmt(v)+(("  "+t("compare_best_marker")) if bv is not None and v==bv and len(set(nums))>1 else ""))
             line(label,disp)
-        metric_line(t("compare_field_cost"),costs,lambda v:f"{v:.2f} € / p.")
+        metric_line(t("compare_field_cost"),costs,lambda v:f"{format_price(v)} / p.")
         metric_line(t("compare_field_nutrition"),kcals,lambda v:f"{v:.0f} kcal / p.")
         line(t("compare_field_ingredient_count"),[len(r.get('ingredients',[])) for r in recipes],best=lambda v:str(v),lower=True)
 
@@ -21692,7 +22026,7 @@ class StatisticsWindow(tk.Toplevel):
             without_price = total - len(costs_per_person)
             text.insert(
                 tk.END,
-                t("stats_avg_cost_line", avg=f"{avg_cost:.2f}", count=len(costs_per_person), without_price=without_price)
+                t("stats_avg_cost_line", avg=format_price(avg_cost), count=len(costs_per_person), without_price=without_price)
             )
         else:
             text.insert(tk.END, t("stats_no_priced_recipe"))
@@ -21759,7 +22093,7 @@ class StatisticsWindow(tk.Toplevel):
         try:
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 w=csv.writer(f, delimiter=";")
-                w.writerow(["Recette","Catégorie","Difficulté","Note","Cuissons","Dernière cuisson","Temps total (min)","Coût/pers (€)","Calories/pers","Tags"])
+                w.writerow(["Recette","Catégorie","Difficulté","Note","Cuissons","Dernière cuisson","Temps total (min)",f"Coût/pers ({get_currency()})","Calories/pers","Tags"])
                 for r in self.app.recipes:
                     try: total=float(r.get('prep_time') or 0)+float(r.get('cook_time') or 0)
                     except Exception: total=0

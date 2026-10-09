@@ -72,7 +72,7 @@ class AuditV52Tests(unittest.TestCase):
         # les dossiers entiers (une langue ajoutée suit automatiquement).
         for language in ("fr", *main.UI_TRANSLATED_LANGUAGES):
             self.assertTrue((ROOT / "i18n" / f"{language}.json").is_file(), language)
-        bundled = [main.DEFAULT_INGREDIENTS_FILE, main.NUTRITION_DATA_FILE,
+        bundled = [main.DEFAULT_INGREDIENTS_FILE, main.CATALOGUE_DUPLICATES_FILE, main.NUTRITION_DATA_FILE,
                    main.INGREDIENT_ALLERGENS_FILE, main.INGREDIENT_SUBSTITUTIONS_FILE,
                    *main.INGREDIENT_SUBSTITUTIONS_TRANSLATION_FILES.values(),
                    *main.INGREDIENT_TRANSLATIONS_FILES.values()]
