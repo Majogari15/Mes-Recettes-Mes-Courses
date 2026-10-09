@@ -7073,13 +7073,33 @@ def t(key, **kwargs):
     return text
 
 
+# Version du texte de la clause : l'incrémenter à chaque changement de fond
+# le fait présenter de nouveau au lancement (acceptation obligatoire).
+# v2 : texte aligné sur l'app mobile (éditeur, données calculées, services
+# tiers, droit applicable), adapté à l'ordinateur.
+DISCLAIMER_VERSION = 2
+# Politique de confidentialité propre à l'app Windows (voir le fichier du dépôt).
+PRIVACY_POLICY_URL = "https://github.com/Majogari15/Mes-Recettes-Mes-Courses/blob/main/POLITIQUE_CONFIDENTIALITE.md"
+
+
+def get_accepted_disclaimer_version():
+    settings = load_settings()
+    # Ancien réglage oui/non : correspond à la version 1 du texte.
+    default = 1 if settings.get("disclaimer_accepted") else 0
+    try:
+        return int(settings.get("disclaimer_accepted_version", default))
+    except (TypeError, ValueError):
+        return default
+
+
 def get_disclaimer_accepted():
-    return bool(load_settings().get("disclaimer_accepted", False))
+    return get_accepted_disclaimer_version() >= DISCLAIMER_VERSION
 
 
 def set_disclaimer_accepted(value):
     settings = load_settings()
     settings["disclaimer_accepted"] = bool(value)
+    settings["disclaimer_accepted_version"] = DISCLAIMER_VERSION if value else 0
     save_settings(settings)
 
 
@@ -7614,10 +7634,14 @@ class DisclaimerWindow(tk.Toplevel):
     lancement de l'application. Tant qu'elle n'est pas acceptée (case cochée
     puis bouton « Continuer »), l'application ne peut pas être utilisée."""
 
-    def __init__(self, app):
+    def __init__(self, app, read_only=False):
         super().__init__(app)
         self.app = app
         self.accepted = False
+        # read_only : simple relecture depuis l'app (bouton Fermer, sans
+        # case à cocher ni sélecteur de langue).
+        self.read_only = read_only
+        self.updated = not read_only and get_accepted_disclaimer_version() > 0
         # La hauteur est plafonnée à l'espace écran réellement disponible
         # (moins une petite marge), pour que le bouton « Continuer » reste
         # toujours visible même sur un écran de petite hauteur ou avec le
@@ -7627,7 +7651,7 @@ class DisclaimerWindow(tk.Toplevel):
         safe_minsize(self, gs(700), min(gs(520), get_usable_screen_height(self) - 48))
         self.resizable(True, True)
         self.grab_set()
-        self.protocol("WM_DELETE_WINDOW", self._quit_app)
+        self.protocol("WM_DELETE_WINDOW", self.destroy if read_only else self._quit_app)
         self._build_ui()
 
     def _build_ui(self):
@@ -7645,7 +7669,8 @@ class DisclaimerWindow(tk.Toplevel):
         # ---- Sélecteur de langue, tout en haut : mêmes principe et
         # habillage que le menu déroulant de la page d'accueil. ----
         lang_bar = ttk.Frame(self)
-        lang_bar.pack(fill="x", padx=gs(15), pady=(gs(10), 0))
+        if not self.read_only:
+            lang_bar.pack(fill="x", padx=gs(15), pady=(gs(10), 0))
         language_names = LANGUAGE_NAMES
         current_flag = self.app.flag_photos.get(self.app.language)
         menubutton_kwargs = {"text": language_names.get(self.app.language, "Français")}
@@ -7671,7 +7696,7 @@ class DisclaimerWindow(tk.Toplevel):
 
         ttk.Label(self, text=t("disclaimer_heading"), font=("Segoe UI", sf(14), "bold"),
                   foreground=COLOR_ERROR).pack(pady=(gs(15), gs(5)))
-        ttk.Label(self, text=t("disclaimer_intro"),
+        ttk.Label(self, text=t("disclaimer_updated_intro") if self.updated else t("disclaimer_intro"),
                   font=("Segoe UI", sf(9)), foreground=COLOR_TEXT_MUTED).pack(pady=(0, gs(10)))
 
         text_frame = ttk.Frame(self)
@@ -7683,6 +7708,10 @@ class DisclaimerWindow(tk.Toplevel):
         scrollbar.pack(side="right", fill="y")
         text_widget.insert("1.0", t("disclaimer_text"))
         text_widget.config(state="disabled")
+
+        if self.read_only:
+            ttk.Button(self, text=t("common_close"), command=self.destroy).pack(pady=gs(SPACE_MD))
+            return
 
         self.accept_var = tk.BooleanVar(value=previously_checked)
         check = ttk.Checkbutton(
@@ -13979,7 +14008,8 @@ class ImportExportWindow(tk.Toplevel):
         super().__init__(app)
         self.app = app
         self.title(t("importexport_title"))
-        fit_window_to_workarea(self, gs(480), gs(940), margin=18)
+        # 560 : la ligne des boutons QR (531 px) tient sans être coupée.
+        fit_window_to_workarea(self, gs(560), gs(940), margin=18)
         safe_minsize(self, gs(440), gs(500))
         self.resizable(True, True)
         self.grab_set()
@@ -13992,12 +14022,20 @@ class ImportExportWindow(tk.Toplevel):
         header_row = ttk.Frame(body)
         header_row.pack(fill="x", padx=gs(18), pady=(gs(12), gs(6)))
         ttk.Label(header_row, text=t("importexport_heading"),
-                  font=("Segoe UI", sf(13), "bold")).pack(side="left")
-        ttk.Button(header_row, text=t("diagnostic_button"), style="Secondary.TButton",
-                   command=lambda: DiagnosticWindow(self.app, self)).pack(side="right")
+                  font=("Segoe UI", sf(13), "bold")).pack()
+        # Comme l'écran Sauvegarde du mobile : diagnostic et textes légaux
+        # consultables, sur une ligne à part (l'en-tête débordait).
+        links_row = ttk.Frame(body)
+        links_row.pack(pady=(0, gs(SPACE_SM)))
+        ttk.Button(links_row, text=t("diagnostic_button"), style="Secondary.TButton",
+                   command=lambda: DiagnosticWindow(self.app, self)).pack(side="left")
+        ttk.Button(links_row, text=t("disclaimer_link"), style="Secondary.TButton",
+                   command=lambda: DisclaimerWindow(self.app, read_only=True)).pack(side="left", padx=(gs(SPACE_SM), 0))
+        ttk.Button(links_row, text=t("privacy_policy_link"), style="Secondary.TButton",
+                   command=lambda: webbrowser.open(PRIVACY_POLICY_URL)).pack(side="left", padx=(gs(SPACE_SM), 0))
 
         ttk.Label(
-            self,
+            body,
             text=t("importexport_export_intro"),
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(0, gs(10)))
@@ -14006,7 +14044,7 @@ class ImportExportWindow(tk.Toplevel):
                    width=42, command=self.export_data).pack(pady=gs(6))
 
         ttk.Label(
-            self,
+            body,
             text=t("importexport_import_intro"),
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(gs(10), gs(10)))
@@ -14019,7 +14057,7 @@ class ImportExportWindow(tk.Toplevel):
         ttk.Label(body, text=t("importexport_mobile_exchange_heading"),
                   font=("Segoe UI", sf(11), "bold")).pack(pady=(0, gs(6)))
         ttk.Label(
-            self, text=t("importexport_mobile_exchange_intro"),
+            body, text=t("importexport_mobile_exchange_intro"),
             justify="center", font=("Segoe UI", sf(9)), wraplength=390
         ).pack(pady=(0, gs(10)))
         qr_row = ttk.Frame(body)
@@ -14041,7 +14079,7 @@ class ImportExportWindow(tk.Toplevel):
 
         ttk.Label(body, text=t("importexport_auto_backups_heading"), font=("Segoe UI", sf(12), "bold")).pack()
         ttk.Label(
-            self,
+            body,
             text=t("importexport_auto_backups_intro", hours=AUTO_BACKUP_MIN_INTERVAL_HOURS, retention=AUTO_BACKUP_RETENTION),
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(gs(5), gs(10)))
@@ -14067,7 +14105,7 @@ class ImportExportWindow(tk.Toplevel):
         ttk.Label(body, text=t("importexport_cloud_heading"),
                   font=("Segoe UI", sf(12), "bold")).pack()
         ttk.Label(
-            self,
+            body,
             text=t("importexport_cloud_intro"),
             justify="center", font=("Segoe UI", sf(9))
         ).pack(pady=(gs(5), gs(SPACE_SM)))

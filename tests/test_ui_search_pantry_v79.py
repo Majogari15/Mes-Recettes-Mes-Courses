@@ -947,6 +947,78 @@ class LargeTextLayoutTests(AppWindowTestBase):
                   and w.cget("text") == main.t("stats_heatmap_legend")][0]
         self.assertTrue(self._visible(win, legend))
 
+class DisclaimerVersionTests(TempDataMixin, unittest.TestCase):
+    """Clause v2 : un ancien « oui » (v1) ne suffit plus, le nouveau texte
+    est présenté avec la mention de mise à jour ; relecture possible."""
+
+    def test_old_acceptance_requires_accepting_the_new_text(self):
+        self.assertFalse(main.get_disclaimer_accepted())
+        settings = main.load_settings()
+        settings["disclaimer_accepted"] = True  # réglage d'avant la v2
+        main.save_settings(settings)
+        self.assertEqual(main.get_accepted_disclaimer_version(), 1)
+        self.assertFalse(main.get_disclaimer_accepted())
+        main.set_disclaimer_accepted(True)
+        self.assertEqual(main.get_accepted_disclaimer_version(), main.DISCLAIMER_VERSION)
+        self.assertTrue(main.get_disclaimer_accepted())
+
+    def test_clause_text_is_the_desktop_version_in_every_language(self):
+        for language in main.UI_LANGUAGES:
+            text = main._language_catalog(language)["disclaimer_text"]
+            self.assertIn("majogari81@gmail.com", text, language)
+            self.assertNotIn("smartphone", text.lower(), language)
+            self.assertIn("OneDrive", text, language)
+            self.assertEqual(text.count("\n\n"), 16, language)
+
+
+class DisclaimerWindowModesTests(AppWindowTestBase):
+    def _walk(self, widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from self._walk(child)
+
+    def _texts(self, win):
+        return [w.cget("text") for w in self._walk(win) if isinstance(w, (ttk.Label, ttk.Button, ttk.Checkbutton))]
+
+    def test_updated_text_is_announced_after_an_old_acceptance(self):
+        settings = main.load_settings()
+        settings["disclaimer_accepted"] = True
+        main.save_settings(settings)
+        win = main.DisclaimerWindow(self.app)
+        self.addCleanup(win.destroy)
+        self.assertIn(main.t("disclaimer_updated_intro"), self._texts(win))
+        self.assertIn(main.t("disclaimer_checkbox"), self._texts(win))
+
+    def test_read_only_window_only_offers_close(self):
+        win = main.DisclaimerWindow(self.app, read_only=True)
+        texts = self._texts(win)
+        self.assertIn(main.t("common_close"), texts)
+        self.assertNotIn(main.t("disclaimer_checkbox"), texts)
+        self.assertNotIn(main.t("disclaimer_quit_button"), texts)
+        win.tk.eval(win.protocol("WM_DELETE_WINDOW"))  # fermer ne quitte pas l application
+        self.assertFalse(win.winfo_exists())
+        self.assertTrue(self.app.winfo_exists())
+
+    def test_import_export_offers_legal_links_and_fits(self):
+        win = main.ImportExportWindow(self.app)
+        self.addCleanup(win.destroy)
+        win.update()
+        buttons = {w.cget("text"): w for w in self._walk(win) if isinstance(w, ttk.Button)}
+        with patch.object(main.webbrowser, "open") as mock_open:
+            buttons[main.t("privacy_policy_link")].invoke()
+        mock_open.assert_called_once_with(main.PRIVACY_POLICY_URL)
+        before = {str(w) for w in self.app.winfo_children()}
+        buttons[main.t("disclaimer_link")].invoke()
+        opened = [w for w in self.app.winfo_children() if str(w) not in before]
+        self.assertEqual(len(opened), 1)
+        self.assertTrue(opened[0].read_only)
+        opened[0].destroy()
+        # Tout le contenu est dans la zone défilante et tient en largeur.
+        self.assertEqual([w for w in win.winfo_children() if not isinstance(w, tk.Toplevel)][0].winfo_children()[0], win.scroll_canvas)
+        self.assertEqual(len([w for w in win.winfo_children() if not isinstance(w, tk.Toplevel)]), 1)
+        widest = max(c.winfo_reqwidth() for c in win.scroll_body.winfo_children())
+        self.assertLessEqual(widest, win.scroll_canvas.winfo_width())
+
 
 if __name__ == "__main__":
     unittest.main()

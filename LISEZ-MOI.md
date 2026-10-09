@@ -243,9 +243,15 @@ affiche une clause de responsabilité (notamment sur la gestion des
 allergènes, qui reste une aide informative et ne remplace jamais une
 vérification personnelle des étiquettes des produits). Cochez "J'ai lu et
 j'accepte les conditions ci-dessus" pour activer le bouton "Continuer" et
-accéder à l'application. Ce texte n'apparaît **qu'une seule fois** : votre
-acceptation est mémorisée dans `settings.json`, les lancements suivants
-vont directement à la page d'accueil.
+accéder à l'application. Votre acceptation est mémorisée dans
+`settings.json`, avec la version du texte : les lancements suivants vont
+directement à la page d'accueil, sauf si le texte de la clause a été modifié
+par une mise à jour — il est alors présenté de nouveau, avec la mention
+« Ce texte a été mis à jour », et doit être accepté pour continuer.
+
+La clause reste consultable à tout moment, tout comme la
+[politique de confidentialité](POLITIQUE_CONFIDENTIALITE.md), grâce aux
+boutons en haut de l'écran **Importer / Exporter les données**.
 
 <a id="page-accueil"></a>
 **🏠 Page d'accueil**

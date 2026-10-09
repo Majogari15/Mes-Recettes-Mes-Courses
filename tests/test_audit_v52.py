@@ -42,6 +42,23 @@ class AuditV52Tests(unittest.TestCase):
                    and not any(k.startswith(p) for p in dynamic if p)]
         self.assertEqual(orphans, [])
 
+    def test_every_internet_service_is_declared_in_the_privacy_policy(self):
+        # Toute nouvelle connexion doit être décrite dans la politique de
+        # confidentialité (exigence Microsoft Store, honnêteté envers
+        # l'utilisateur) : ce test échoue tant qu'elle ne l'est pas.
+        source = (ROOT / "main.py").read_text(encoding="utf-8")
+        policy = (ROOT / "POLITIQUE_CONFIDENTIALITE.md").read_text(encoding="utf-8")
+        hosts = set(re.findall(r"https?://(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})", source))
+        # Sites de recettes cités comme exemples ou cibles de recherche, et
+        # adresses de test : l'import direct depuis le site choisi est décrit.
+        recipe_sites = {d for sites in main.RECIPE_SEARCH_SITES.values() for d in sites} | set(main.KNOWN_RECIPE_DOMAINS)
+        undeclared = sorted(h for h in hosts if h not in recipe_sites and not h.endswith(("example.com", "example.org"))
+                            and h.split(".")[-2] not in policy.lower())
+        self.assertEqual(undeclared, [])
+        self.assertIn("Mes-Recettes-Mes-Courses/blob/main/POLITIQUE_CONFIDENTIALITE.md", main.PRIVACY_POLICY_URL)
+        for section in ("Presse-papiers", "Clipboard", "Jina AI Reader", "Open Food Facts", "OneDrive"):
+            self.assertIn(section, policy)
+
     def test_paddings_follow_the_large_text_scale(self):
         # C2 : 900+ marges en nombre fixe ne grandissaient pas en mode
         # « Texte agrandi ». Toute marge non nulle passe par gs(...).
