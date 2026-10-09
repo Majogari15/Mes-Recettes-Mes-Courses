@@ -1208,11 +1208,33 @@ class WebcamScanTests(AppWindowTestBase):
         finished = []
         with patch.object(main.App, "_finish_qr_import", lambda s, read: finished.append(read())):
             scanner = self.app.open_import_from_qr_webcam(capture_factory=lambda: camera)
-            self.assertTrue(self._pump_until(lambda: finished, limit=2000))
+            done = self._pump_until(lambda: finished, limit=2000)
+            self.assertTrue(done, scanner.status_label.cget("text") if scanner.winfo_exists() else "fermé")
         self.assertTrue(finished[0]["name"].startswith("Tarte très longue"))
         self.assertEqual(len(finished[0]["ingredients"]), 39)
         self.assertTrue(camera.released)
         self.assertFalse(scanner.winfo_exists())
+
+    def test_misread_part_does_not_block_the_scan(self):
+        # Une partie mal lue (même lot, contenu altéré) fait échouer la somme
+        # de contrôle : les parties déjà vues doivent pouvoir être relues,
+        # sinon le scan restait bloqué indéfiniment.
+        import qrcode
+        recipe = {"name": "Gratin " + "dauphinois " * 40, "ingredients": [
+            {"name": f"Produit {i}", "quantity": i, "unit": "Gr"} for i in range(1, 30)],
+            "description": "Cuire. " * 100}
+        parts = main._split_mobile_qr_parts(main._recipe_to_mobile_qr_payload(recipe, 4))
+        self.assertGreater(len(parts), 2)
+        misread = parts[0][:-3] + ("x" if parts[0][-3] != "x" else "y") + parts[0][-2:]
+        sequence = [parts[0], misread] + parts[1:]
+        images = [qrcode.make(p, error_correction=qrcode.constants.ERROR_CORRECT_L).get_image() for p in sequence]
+        camera = _FakeWebcam(images)
+        finished = []
+        with patch.object(main.App, "_finish_qr_import", lambda s, read: finished.append(read())):
+            scanner = self.app.open_import_from_qr_webcam(capture_factory=lambda: camera)
+            done = self._pump_until(lambda: finished, limit=3000)
+            self.assertTrue(done, scanner.status_label.cget("text") if scanner.winfo_exists() else "fermé")
+        self.assertTrue(finished[0]["name"].startswith("Gratin dauphinois"))
 
     def test_missing_webcam_is_reported_without_crash(self):
         scanner = self.app.open_import_from_qr_webcam(capture_factory=lambda: None)

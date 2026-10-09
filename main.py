@@ -7540,6 +7540,19 @@ def _ui_scrollable_body(window):
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
     _ui_bind_local_mousewheel(canvas, body, lambda ev: canvas.yview_scroll(int(-ev.delta / 120), "units"))
+
+    def fit_width():
+        # Le canevas ne fait plus grandir la fenêtre comme un simple pack :
+        # élargir une fois le contenu construit, selon sa largeur réelle
+        # (polices plus larges selon le système, la langue ou le texte agrandi).
+        try:
+            needed = body.winfo_reqwidth() + scrollbar.winfo_reqwidth() + gs(SPACE_XS)
+            limit = window.winfo_screenwidth() - gs(SPACE_XL)
+            if window.winfo_width() < needed:
+                window.geometry(f"{min(needed, limit)}x{window.winfo_height()}")
+        except tk.TclError:
+            pass
+    window.after_idle(fit_width)
     return canvas, body
 
 
@@ -9274,9 +9287,10 @@ class App(APP_TK_BASE):
                 return False, t("webcam_qr_progress", received=e.received, total=e.total)
             except QrImportMixedBatchesError:
                 values[:] = [value]
-                return False, t("qrimport_mixed_batches")
+                return False, t("qrimport_mixed_batches"), True
             except QrImportChecksumError:
-                values.clear()
+                # Lectures gardées : une nouvelle lecture d'une partie peut
+                # suffire à trouver la bonne combinaison.
                 return False, t("qrimport_checksum_error")
             if prefill:
                 self.after_idle(lambda: self._finish_qr_import(lambda: prefill))
@@ -18328,15 +18342,23 @@ def import_recipe_prefill_from_qr_texts(decoded_values):
         raise QrImportMixedBatchesError()
 
     total = fragments[0]["total_parts"]
-    by_index = {f["part_index"]: f["chunk"] for f in fragments}
+    # Toutes les lectures distinctes d'une même partie sont gardées (une
+    # lecture de webcam peut être fausse) : la somme de contrôle choisit.
+    by_index = {}
+    for f in fragments:
+        readings = by_index.setdefault(f["part_index"], [])
+        if f["chunk"] not in readings:
+            readings.append(f["chunk"])
     if len(by_index) < total or any(i not in by_index for i in range(1, total + 1)):
         raise QrImportIncompleteError(len(by_index), total)
 
     expected_checksum = fragments[0]["checksum"]
-    candidate_lists = [
-        _qr_chunk_repair_candidates(by_index[index])
-        for index in range(1, total + 1)
-    ]
+    candidate_lists = []
+    for index in range(1, total + 1):
+        merged = []
+        for reading in reversed(by_index[index]):  # lecture la plus récente d'abord
+            merged.extend(c for c in _qr_chunk_repair_candidates(reading) if c not in merged)
+        candidate_lists.append(merged)
 
     # Le meilleur candidat de chaque partie suffit dans les cas ZBar observés.
     full = "".join(candidates[0] for candidates in candidate_lists)
@@ -18494,10 +18516,14 @@ class WebcamScanDialog(tk.Toplevel):
                 value = self.decoder(image)
                 if value and value not in self._seen:
                     self._seen.add(value)
-                    done, message = self.on_value(value)
+                    done, message, *forget = self.on_value(value)
                     if done:
                         self.close()
                         return
+                    if forget and forget[0]:
+                        # Lot invalide (partie mal lue, autre QR) : tout
+                        # peut être relu, sinon le scan resterait bloqué.
+                        self._seen = {value}
                     if message:
                         self.status_label.configure(text=message)
         self._after_id = self.after(self.FRAME_DELAY_MS, self._tick)
