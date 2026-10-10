@@ -970,7 +970,7 @@ class DisclaimerVersionTests(TempDataMixin, unittest.TestCase):
             self.assertNotIn("smartphone", text.lower(), language)
             self.assertIn("OneDrive", text, language)
             # 16 séparations ; le chinois ajoute « la version française fait foi ».
-            self.assertEqual(text.count("\n\n"), 17 if language == "zh" else 16, language)
+            self.assertEqual(text.count("\n\n"), 17 if language in ("zh", "ar") else 16, language)
 
 
 class DisclaimerWindowModesTests(AppWindowTestBase):

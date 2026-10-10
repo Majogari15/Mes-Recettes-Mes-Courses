@@ -60,7 +60,7 @@ thème sombre disponible en un clic.
   boutons Imprimer (il est inclus automatiquement dans l’exécutable PyInstaller)
 - `i18n/` : tous les textes de l'interface, un fichier par langue
   (`fr.json`, `en.json`, `es.json`, `de.json`, `it.json`, `pt.json`,
-  `id.json`, `no.json`, `sv.json`, `zh.json` — français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié). Seule la langue affichée est
+  `id.json`, `no.json`, `sv.json`, `zh.json`, `ar.json` — français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié, arabe). Seule la langue affichée est
   chargée. Sans ce dossier, l'application démarre quand même grâce à un
   petit noyau français minimal de secours, mais la plupart des textes et
   les langues autres que le français ne s'affichent pas correctement
@@ -77,7 +77,7 @@ thème sombre disponible en un clic.
     (voir "🔄 Gérer les substitutions" plus bas)
   - `ingredient_translations_<langue>.json` et
     `ingredient_substitutions_<langue>.json` : traductions des ingrédients
-    et des substituts dans les 9 autres langues (voir "🌐 Changer de
+    et des substituts dans les 10 autres langues (voir "🌐 Changer de
     langue" plus bas)
   - `flag_<langue>.png` : icônes de drapeaux du menu de langue
 - `recipes.json` : créé automatiquement dès que vous enregistrez votre
@@ -279,7 +279,7 @@ aussi à sa nouvelle taille adaptée.
 
 **🌐 Changer de langue** — le menu déroulant en haut à droite de la page
 d'accueil (affichant la langue actuelle avec sa vraie icône de drapeau)
-propose un choix direct entre les dix langues disponibles pour toute
+propose un choix direct entre les onze langues disponibles pour toute
 l'interface : page d'accueil, chaque fenêtre, chaque message d'erreur ou
 de confirmation, y compris le texte légal de la clause de
 responsabilité. D'autres langues pourront être ajoutées de la même façon
@@ -290,7 +290,7 @@ changement).
 
 Au tout premier lancement (avant qu'aucune préférence n'ait jamais été
 enregistrée), l'application démarre dans la langue de votre système
-d'exploitation si elle est reconnue (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié), au lieu de toujours démarrer en français. Ensuite, votre
+d'exploitation si elle est reconnue (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié, arabe), au lieu de toujours démarrer en français. Ensuite, votre
 choix — qu'il vienne de cette détection ou d'une sélection manuelle — est
 toujours respecté et n'est plus jamais écrasé automatiquement.
 

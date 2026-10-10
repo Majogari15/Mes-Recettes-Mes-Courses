@@ -24,7 +24,7 @@ Ce dossier contient, à côté de Mes Recettes, Mes Courses.exe, plusieurs fichi
 indispensables à son bon fonctionnement :
 
   - Dossier i18n
-      Tous les textes de l'interface, un fichier par langue (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié).
+      Tous les textes de l'interface, un fichier par langue (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié, arabe).
       Sans lui, l'application démarre quand même (un petit noyau
       français minimal de secours est prévu pour ça), mais la plupart
       des textes et les autres langues ne s'afficheront pas correctement.
@@ -112,7 +112,7 @@ résultat : une fraction ou un caractère peut encore être mal reconnu.
 
 Un menu déroulant en haut à droite de la page d'accueil (et de l'écran de
 clause de responsabilité au tout premier lancement) permet de choisir
-entre français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois et chinois simplifié. Toute l'interface
+entre français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié et arabe. Toute l'interface
 bascule immédiatement, y compris les 9 992 ingrédients du catalogue, les rayons de
 courses, les catégories, les difficultés, les allergènes, les jours de
 la semaine et créneaux de repas, les options de tri des recettes, les

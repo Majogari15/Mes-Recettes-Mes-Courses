@@ -96,7 +96,7 @@ est satisfaite. Consultez les
 ## 5. Vérifier avant la soumission
 
 La compilation réussie de l'installateur ne garantit pas la certification.
-Installez le MSIX final sur Windows et testez le lancement, les dix langues,
+Installez le MSIX final sur Windows et testez le lancement, les onze langues,
 les données conservées lors d'une mise à jour, les sauvegardes et restaurations,
 les imports et les exports. Contrôlez le nom, l'icône et les entrées du menu Démarrer.
 

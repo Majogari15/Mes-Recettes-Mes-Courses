@@ -1,5 +1,12 @@
 # Non publié
 
+- Arabe (11e langue) : interface, 9 992 ingrédients et 1 530 substituts traduits (repris du mobile), clause, drapeau ; texte arabe affiché de droite à gauche par Windows (disposition des fenêtres non inversée).
+- Arabe : recherche insensible aux voyelles, hamza, tatouil et « ى » ; chiffres arabo-indiens convertis à la frappe ; lignes d'ingrédients arabes (unités, duel, fractions, quantité au milieu), lecture de photo (Tesseract ara), import par lien testé sur 3 sites arabes.
+- Arabe : minuteurs (دقائق, ساعة, ساعتين, نصف ساعة), péremption (تاريخ الانتهاء, fabrication écartée), virgule « ، », devises des pays arabophones, voix arabe si installée.
+- Arabe : PDF avec lettres liées (arabic-reshaper, MIT), police Arial ou Noto Sans Arabic embarquée, texte aligné à droite et sommaire en miroir.
+
+# Non publié
+
 - Chinois simplifié (10e langue) : interface, 9 992 ingrédients et 1 530 substituts traduits (repris du mobile), clause de responsabilité, drapeau.
 - Chinois : lecture de photo (Tesseract chi_sim), lignes d'ingrédients chinoises (克, 汤匙, 个, 适量, chiffres chinois, 斤), import par lien des pages sans recette structurée (美食天下) sans service tiers, durées 分钟/小时/半小时 du mode cuisine.
 - Chinois : PDF avec police chinoise (Microsoft YaHei, sinon Noto Sans SC embarquée), dates année/mois/jour, yuan par défaut, listes séparées par « ， », dates de péremption chinoises (保质期, 生产日期 + durée).

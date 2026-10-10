@@ -127,6 +127,37 @@ def install_tk_exception_logger(root):
     root.report_callback_exception = handler
 
 
+ARABIC_RE = re.compile(r"[\u0600-\u06ff\u0750-\u077f\ufb50-\ufdff\ufe70-\ufeff]")
+# Chiffres arabo-indiens (et persans) -> chiffres occidentaux, séparateurs arabes.
+_ASCII_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹٫٬", "01234567890123456789.,")
+# Marques de direction invisibles (LRM, RLM, isolations) ajoutées par l'OCR/le web.
+_BIDI_MARKS_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\u061c]")
+
+
+def ascii_digits(text):
+    """« ٢٫٥ » -> « 2.5 » ; retire les marques de direction invisibles."""
+    return _BIDI_MARKS_RE.sub("", str(text or "")).translate(_ASCII_DIGITS)
+
+
+def _convert_arabic_digit_key(event):
+    """Insère le chiffre occidental à la place du chiffre arabo-indien tapé."""
+    if event.char and event.char in "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹٫":
+        try:
+            event.widget.insert("insert", event.char.translate(_ASCII_DIGITS))
+        except tk.TclError:
+            return None
+        return "break"
+    return None
+
+
+def install_arabic_digit_bindings(root):
+    """Chiffres arabo-indiens tapés au clavier convertis en chiffres
+    occidentaux dans tous les champs (comme l'app mobile) : les quantités,
+    dates et codes-barres restent toujours lisibles par l'application."""
+    for widget_class in ("Entry", "TEntry", "TCombobox", "Text", "TSpinbox"):
+        root.bind_class(widget_class, "<Key>", _convert_arabic_digit_key, add="+")
+
+
 def install_select_all_bindings(root):
     """Fait fonctionner Ctrl+A comme « tout sélectionner » dans les champs
     de saisie, partout dans l'application.
@@ -426,6 +457,15 @@ except ImportError:
 # pyzbar est utilisé uniquement pour lire des QR codes enregistrés sous forme
 # d'image (notamment ceux générés par l'application mobile). Il s'appuie sur
 # Pillow déjà utilisé par l'application et reste bien plus léger qu'OpenCV.
+# Liaison des lettres arabes pour les PDF (reportlab ne la fait pas) : petite
+# bibliothèque pure Python, licence MIT.
+try:
+    import arabic_reshaper
+    ARABIC_RESHAPER_AVAILABLE = True
+except ImportError:
+    arabic_reshaper = None
+    ARABIC_RESHAPER_AVAILABLE = False
+
 try:
     from pyzbar.pyzbar import decode as decode_barcodes
     QRCODE_READER_AVAILABLE = True
@@ -546,11 +586,11 @@ INGREDIENT_SUBSTITUTIONS_FILE = os.path.join(BUNDLED_DATA_DIR, "ingredient_subst
 # langue de référence des données ; chaque autre langue a ses fichiers
 # i18n/<code>.json, ingredient_translations_<code>.json et
 # ingredient_substitutions_<code>.json (repris de l'app mobile).
-UI_LANGUAGES = ("fr", "en", "es", "de", "it", "pt", "id", "no", "sv", "zh")
+UI_LANGUAGES = ("fr", "en", "es", "de", "it", "pt", "id", "no", "sv", "zh", "ar")
 LANGUAGE_NAMES = {
     "fr": "Français", "en": "English", "es": "Español", "de": "Deutsch",
     "it": "Italiano", "pt": "Português", "id": "Bahasa Indonesia", "no": "Norsk", "sv": "Svenska",
-    "zh": "简体中文",
+    "zh": "简体中文", "ar": "العربية",
 }
 INGREDIENT_SUBSTITUTIONS_TRANSLATION_FILES = {
     lang: os.path.join(BUNDLED_DATA_DIR, f"ingredient_substitutions_{lang}.json") for lang in UI_LANGUAGES[1:]
@@ -578,6 +618,7 @@ TESSERACT_LANG_CODES = {
     "no": "nor",
     "sv": "swe",
     "zh": "chi_sim",
+    "ar": "ara",
 }
 
 
@@ -986,7 +1027,9 @@ def ingredient_sort_key(text):
     normalized = normalize_oe(text)
     decomposed = unicodedata.normalize("NFD", normalized)
     stripped = "".join(c for c in decomposed if unicodedata.category(c) != "Mn")
-    return stripped.lower()
+    # Arabe : NFD + Mn retirent déjà voyelles brèves, chadda et hamza (أ إ آ
+    # -> ا) ; reste le tatouil (ـ) et « ى » lu « ي » (comme l'app mobile).
+    return stripped.replace("\u0640", "").replace("ى", "ي").lower()
 
 
 def print_file(path):
@@ -1380,6 +1423,16 @@ RAYON_TRANSLATIONS = {
         "boissons": "饮料",
         "autre": "其他",
     },
+    "ar": {
+        "fruits & légumes": "فواكه وخضروات",
+        "viandes & poissons": "لحوم وأسماك",
+        "crèmerie": "ألبان",
+        "boulangerie & pâtisserie": "مخبوزات وحلويات",
+        "épicerie": "بقالة",
+        "herbes & épices": "أعشاب وتوابل",
+        "boissons": "مشروبات",
+        "autre": "أخرى",
+    },
 }
 
 
@@ -1495,6 +1548,16 @@ CATEGORY_TRANSLATIONS = {
         "sauce": "酱汁",
         "autre": "其他",
     },
+    "ar": {
+        "petit-déjeuner": "فطور",
+        "entrée": "مقبلات",
+        "plat": "طبق رئيسي",
+        "dessert": "حلوى",
+        "apéro": "مقبلات خفيفة",
+        "boisson": "مشروب",
+        "sauce": "صلصة",
+        "autre": "أخرى",
+    },
 }
 
 DIFFICULTY_TRANSLATIONS = {
@@ -1551,6 +1614,12 @@ DIFFICULTY_TRANSLATIONS = {
         "facile": "简单",
         "moyen": "中等",
         "difficile": "困难",
+    },
+    "ar": {
+        "très facile": "سهلة جدًا",
+        "facile": "سهلة",
+        "moyen": "متوسطة",
+        "difficile": "صعبة",
     },
 }
 
@@ -1703,6 +1772,16 @@ SORT_OPTION_TRANSLATIONS = {
         "ajoutées récemment": "最近添加",
         "plus cuisinées": "做得最多",
         "dernière cuisson": "最近做过",
+    },
+    "ar": {
+        "nom (a-z)": "الاسم (أ-ي)",
+        "temps de préparation": "وقت التحضير",
+        "temps total": "الوقت الإجمالي",
+        "difficulté": "الصعوبة",
+        "note": "التقييم",
+        "ajoutées récemment": "المضافة حديثًا",
+        "plus cuisinées": "الأكثر طهيًا",
+        "dernière cuisson": "آخر طهي",
     },
 }
 
@@ -1924,6 +2003,28 @@ UNIT_TRANSLATIONS = {
         "rouleau": "卷",
         "bouteille": "瓶",
     },
+    "ar": {
+        "gr": "غ",
+        "kilo": "كغ",
+        "litre": "لتر",
+        "pièce": "حبة",
+        "cuillère à soupe": "ملعقة كبيرة",
+        "cuillère à café": "ملعقة صغيرة",
+        "pincée": "رشة",
+        "cuillerée": "ملعقة",
+        "filet": "رشة زيت",
+        "poignée": "حفنة",
+        "pot de yaourt": "علبة زبادي",
+        "sachet": "كيس",
+        "disque": "قرص",
+        "tour de moulin": "لفة مطحنة",
+        "grosse poignée": "حفنة كبيرة",
+        "autre": "أخرى",
+        "boîte": "علبة",
+        "paquet": "عبوة",
+        "rouleau": "لفافة",
+        "bouteille": "زجاجة",
+    },
 }
 
 
@@ -2059,6 +2160,15 @@ WEEKDAY_TRANSLATIONS = {
         "samedi": "星期六",
         "dimanche": "星期日",
     },
+    "ar": {
+        "lundi": "الاثنين",
+        "mardi": "الثلاثاء",
+        "mercredi": "الأربعاء",
+        "jeudi": "الخميس",
+        "vendredi": "الجمعة",
+        "samedi": "السبت",
+        "dimanche": "الأحد",
+    },
 }
 
 MEALSLOT_TRANSLATIONS = {
@@ -2142,6 +2252,15 @@ MEALSLOT_TRANSLATIONS = {
         "dîner — entrée": "晚餐 — 前菜",
         "dîner — plat": "晚餐 — 主菜",
         "dîner — dessert": "晚餐 — 甜点",
+    },
+    "ar": {
+        "petit-déjeuner": "الفطور",
+        "déjeuner — entrée": "الغداء — مقبلات",
+        "déjeuner — plat": "الغداء — طبق رئيسي",
+        "déjeuner — dessert": "الغداء — حلوى",
+        "dîner — entrée": "العشاء — مقبلات",
+        "dîner — plat": "العشاء — طبق رئيسي",
+        "dîner — dessert": "العشاء — حلوى",
     },
 }
 
@@ -2655,6 +2774,9 @@ CURRENCY_SYMBOLS = {
     "EUR": "€", "USD": "$", "GBP": "£", "CHF": "CHF", "CAD": "CA$", "AUD": "A$",
     "CNY": "¥", "HKD": "HK$", "TWD": "NT$", "SGD": "S$", "JPY": "¥", "SEK": "kr",
     "NOK": "kr", "DKK": "kr", "IDR": "Rp", "BRL": "R$", "MXN": "MX$",
+    "MAD": "MAD", "DZD": "DZD", "TND": "TND", "LYD": "LYD", "EGP": "EGP", "SDG": "SDG", "MRU": "MRU",
+    "SAR": "SAR", "AED": "AED", "QAR": "QAR", "KWD": "KWD", "BHD": "BHD", "OMR": "OMR", "JOD": "JOD",
+    "LBP": "LBP", "IQD": "IQD", "SYP": "SYP", "YER": "YER",
 }
 CURRENCIES_WITHOUT_CENTS = ("JPY",)
 
@@ -2950,7 +3072,7 @@ BARCODE_TYPES = ("EAN13", "EAN8", "UPCA", "UPCE")
 
 def normalize_barcode(value):
     """Code EAN/UPC en chiffres seuls, ou None si la longueur est impossible."""
-    digits = re.sub(r"\D", "", value or "")
+    digits = re.sub(r"[^0-9]", "", ascii_digits(value))
     return digits if len(digits) in (8, 12, 13, 14) else None
 
 
@@ -3052,7 +3174,7 @@ def chinese_number(text):
 def pick_tts_voice_id(voices, language, text=""):
     """Voix de synthèse adaptée : chinois dès que le texte en contient, sinon
     la langue de l'interface ; None (voix par défaut) si aucune ne convient."""
-    wanted = "zh" if CJK_RE.search(text or "") else language
+    wanted = "zh" if CJK_RE.search(text or "") else "ar" if ARABIC_RE.search(text or "") else language
     prefixes = {"no": ("nb", "no", "nn")}.get(wanted, (wanted,))
     for voice in voices or ():
         languages = [str(code).lower().replace("_", "-") for code in (getattr(voice, "languages", None) or [])]
@@ -3063,7 +3185,8 @@ def pick_tts_voice_id(voices, language, text=""):
 
 def list_join(items):
     """Liste affichée : « ， » en chinois, « , » ailleurs (comme l'app mobile)."""
-    return ("，" if CURRENT_LANGUAGE == "zh" else ", ").join(str(i) for i in items)
+    separator = {"zh": "，", "ar": "، "}.get(CURRENT_LANGUAGE, ", ")
+    return separator.join(str(i) for i in items)
 
 
 def format_display_date(value, with_time=False):
@@ -3076,7 +3199,7 @@ def format_display_date(value, with_time=False):
 
 def parse_pantry_expiration(value):
     """Retourne une date pour YYYY-MM-DD, JJ/MM/AAAA, AAAA/MM/JJ ou « 2027年3月15日 »."""
-    value = (value or "").strip()
+    value = ascii_digits(value).strip()
     if not value:
         return None
     chinese = re.fullmatch(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?", value)
@@ -3107,9 +3230,10 @@ EXPIRATION_DATE_KEYWORDS = (
     "best før", "minst holdbar", "siste forbruksdag",
     "bast fore", "sista forbrukningsdag",
     "保质期至", "有效期至", "保质期", "有效期", "到期日", "截止日期", "最佳食用", "此日期前", "赏味期限",
+    "تاريخ الانتهاء", "تاريخ انتهاء", "انتهاء الصلاحية", "ينتهي", "صالح حتى", "يستهلك قبل", "يفضل استهلاكه قبل", "الصلاحية",
 )
 # Date de fabrication (étiquettes chinoises) : jamais prise pour la péremption.
-EXPIRATION_DATE_PRODUCTION_KEYWORDS = ("生产日期", "生产", "制造日期", "包装日期")
+EXPIRATION_DATE_PRODUCTION_KEYWORDS = ("生产日期", "生产", "制造日期", "包装日期", "تاريخ الإنتاج", "تاريخ الانتاج", "الإنتاج", "الانتاج", "إنتاج")
 EXPIRATION_DATE_KEYWORD_WINDOW = 30
 
 
@@ -3125,6 +3249,7 @@ def extract_expiration_date_from_ocr_text(text_value, today=None):
     de péremption juste avant pèse bien plus qu'une date seulement plausible."""
     if not text_value:
         return None
+    text_value = ascii_digits(text_value)
     today = today or datetime.now().date()
     min_plausible = today - timedelta(days=60)
     max_plausible = today + timedelta(days=5 * 365)
@@ -3138,11 +3263,11 @@ def extract_expiration_date_from_ocr_text(text_value, today=None):
             return
         preceding = _plain_lower(text_value[max(0, match.start() - EXPIRATION_DATE_KEYWORD_WINDOW):match.start()])
         score = 1
-        near = preceding[-12:]
-        if any(keyword in near for keyword in EXPIRATION_DATE_PRODUCTION_KEYWORDS):
+        near = preceding[-16:]
+        if any(_plain_lower(keyword) in near for keyword in EXPIRATION_DATE_PRODUCTION_KEYWORDS):
             score -= 50
             production_dates.append(parsed)
-        elif any(keyword in preceding for keyword in EXPIRATION_DATE_KEYWORDS):
+        elif any(_plain_lower(keyword) in preceding for keyword in EXPIRATION_DATE_KEYWORDS):
             score += 100
         if min_plausible <= parsed <= max_plausible:
             score += 10
@@ -4428,6 +4553,22 @@ ALLERGEN_TRANSLATIONS = {
         "lupin": "羽扇豆",
         "mollusques": "软体动物",
     },
+    "ar": {
+        "gluten": "الغلوتين",
+        "lactose": "الحليب (بما فيه اللاكتوز)",
+        "œufs": "البيض",
+        "arachides": "الفول السوداني",
+        "fruits à coque": "المكسرات",
+        "soja": "الصويا",
+        "poisson": "السمك",
+        "crustacés": "القشريات",
+        "sésame": "السمسم",
+        "céleri": "الكرفس",
+        "moutarde": "الخردل",
+        "sulfites": "الكبريتيت",
+        "lupin": "الترمس",
+        "mollusques": "الرخويات",
+    },
 }
 
 
@@ -4461,6 +4602,67 @@ PDF_CJK_FONT_CANDIDATES = (
     ("normal", os.path.join(BUNDLED_DATA_DIR, "fonts", "NotoSansSC-subset.ttf")),
 )
 _pdf_cjk_fonts = {}
+# Police arabe des PDF : Arial de Windows (arabe + latin), sinon Noto Sans
+# Arabic embarquée (licence OFL, la même que l'app mobile).
+PDF_ARABIC_FONT_CANDIDATES = (
+    ("normal", os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "arial.ttf")),
+    ("bold", os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "arialbd.ttf")),
+    ("normal", os.path.join(BUNDLED_DATA_DIR, "fonts", "NotoSansArabic-subset.ttf")),
+    ("bold", os.path.join(BUNDLED_DATA_DIR, "fonts", "NotoSansArabic-Bold-subset.ttf")),
+)
+_pdf_arabic_fonts = {}
+
+
+def _pdf_arabic_font(bold=False):
+    if not _pdf_arabic_fonts:
+        for weight, path in PDF_ARABIC_FONT_CANDIDATES:
+            if weight in _pdf_arabic_fonts or not os.path.isfile(path):
+                continue
+            name = f"RecipeArabic{'Bold' if weight == 'bold' else ''}"
+            try:
+                pdfmetrics.registerFont(TTFont(name, path))
+                _pdf_arabic_fonts[weight] = name
+            except Exception as exc:
+                log_internal_error("pdf_arabic_font", exc)
+        _pdf_arabic_fonts.setdefault("none", None)
+    return _pdf_arabic_fonts.get("bold" if bold else "normal") or _pdf_arabic_fonts.get("normal")
+
+
+_PDF_MIRRORED = str.maketrans("()[]{}«»<>", ")(][}{»«><")
+
+
+def _pdf_visual(text):
+    """Ordre d'affichage d'une ligne arabe (droite à gauche) : lettres liées,
+    mots arabes retournés, suites de mots latins ou de nombres gardées dans
+    leur ordre. Réordonnancement simple par mots, suffisant pour des recettes."""
+    text = _BIDI_MARKS_RE.sub("", str(text or ""))
+    if not ARABIC_RE.search(text):
+        return text
+    if ARABIC_RESHAPER_AVAILABLE:
+        text = arabic_reshaper.reshape(text)
+    runs = []
+    for token in re.split(r"(\s+)", text):
+        if not token:
+            continue
+        # Ponctuation seule (« : », « - », « | ») : sens de la phrase arabe.
+        rtl = (bool(ARABIC_RE.search(token)) or (token.isspace() and bool(runs) and runs[-1][0])
+               or (not token.isspace() and not any(ch.isalnum() for ch in token)))
+        if runs and runs[-1][0] == rtl:
+            runs[-1][1].append(token)
+        else:
+            runs.append([rtl, [token]])
+    pieces = []
+    for rtl, tokens in reversed(runs):
+        if rtl:
+            # Groupe arabe inversé caractère par caractère (ordre des mots et
+            # des lettres liées), parenthèses retournées.
+            pieces.append("".join(tokens)[::-1].translate(_PDF_MIRRORED))
+        else:
+            # L'espace qui suivait la suite latine la précède une fois retournée.
+            run = "".join(tokens)
+            stripped = run.rstrip()
+            pieces.append(run[len(stripped):] + stripped)
+    return "".join(pieces)
 
 
 def _pdf_cjk_font(bold=False):
@@ -4484,6 +4686,10 @@ def _pdf_font_name(name, text=""):
         cjk = _pdf_cjk_font(bold=name.endswith("Bold"))
         if cjk:
             return cjk
+    if CURRENT_LANGUAGE == "ar" or ARABIC_RE.search(str(text or "")):
+        arabic = _pdf_arabic_font(bold=name.endswith("Bold"))
+        if arabic:
+            return arabic
     mapping = {'Helvetica': ('RecipeSans', 'Vera.ttf'),
                'Helvetica-Bold': ('RecipeSansBold', 'VeraBd.ttf'),
                'Helvetica-Oblique': ('RecipeSansItalic', 'VeraIt.ttf')}
@@ -4511,7 +4717,7 @@ def _pdf_wrap_lines(c, text, max_width, font_name="Helvetica", font_size=10):
                 line += " "
             continue
         candidate = line + token
-        if line.strip() and c.stringWidth(candidate, font_name, font_size) > max_width:
+        if line.strip() and c.stringWidth(_pdf_visual(candidate), font_name, font_size) > max_width:
             lines.append(line.rstrip())
             line = token
         else:
@@ -4551,7 +4757,12 @@ def _pdf_draw_wrapped(c, text, x, y, max_width, height, *, font_name="Helvetica"
                 else:
                     c.setFillColor(color)
             c.setFont(font_name, font_size)
-        c.drawString(x, y, line)
+        if ARABIC_RE.search(line) or CURRENT_LANGUAGE == "ar":
+            # Page en miroir (comme le mobile) : texte arabe aligné à droite.
+            visual = _pdf_visual(line)
+            c.drawString(x + max_width - c.stringWidth(visual, font_name, font_size), y, visual)
+        else:
+            c.drawString(x, y, line)
         y -= line_height
     if color is not None:
         c.setFillColorRGB(0, 0, 0)
@@ -4722,7 +4933,7 @@ def build_cookbook_pdf(path, recipes_with_persons):
     def numbered_show_page():
         c.setFillColorRGB(0,0,0)
         c.setFont(_pdf_font_name("Helvetica", t("cookbookpdf_page_number", current=1, total=1)), 8)
-        c.drawCentredString(width/2, 1*cm, t("cookbookpdf_page_number", current=current[0], total=total_pages))
+        c.drawCentredString(width/2, 1*cm, _pdf_visual(t("cookbookpdf_page_number", current=current[0], total=total_pages)))
         real_show()
         current[0] += 1
     c.showPage = numbered_show_page
@@ -4746,9 +4957,15 @@ def build_cookbook_pdf(path, recipes_with_persons):
             numbered_show_page(); y = height - 2*cm
         c.setFont(_pdf_font_name("Helvetica", label), 10)
         for i,line in enumerate(lines):
-            c.drawString(left, y, line)
-            if i == 0:
-                c.drawRightString(width-right, y, str(start_page))
+            if CURRENT_LANGUAGE == "ar":
+                # Sommaire en miroir : titre à droite, numéro de page à gauche.
+                c.drawRightString(width-right, y, _pdf_visual(line))
+                if i == 0:
+                    c.drawString(left, y, str(start_page))
+            else:
+                c.drawString(left, y, line)
+                if i == 0:
+                    c.drawRightString(width-right, y, str(start_page))
             y -= 0.48*cm
         y -= 0.08*cm
 
@@ -4762,7 +4979,7 @@ def build_cookbook_pdf(path, recipes_with_persons):
     # footer de la dernière page, sans créer une page blanche supplémentaire
     c.setFillColorRGB(0,0,0)
     c.setFont(_pdf_font_name("Helvetica", t("cookbookpdf_page_number", current=1, total=1)), 8)
-    c.drawCentredString(width/2, 1*cm, t("cookbookpdf_page_number", current=current[0], total=total_pages))
+    c.drawCentredString(width/2, 1*cm, _pdf_visual(t("cookbookpdf_page_number", current=current[0], total=total_pages)))
     c.save()
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
@@ -4935,6 +5152,7 @@ _ICS_MEAL_PERIOD_TRANSLATIONS = {
     "no": {"petit-déjeuner": "Frokost", "déjeuner": "Lunsj", "dîner": "Middag"},
     "sv": {"petit-déjeuner": "Frukost", "déjeuner": "Lunch", "dîner": "Middag"},
     "zh": {"petit-déjeuner": "早餐", "déjeuner": "午餐", "dîner": "晚餐"},
+    "ar": {"petit-déjeuner": "الفطور", "déjeuner": "الغداء", "dîner": "العشاء"},
 }
 _ICS_COURSE_LABEL_TRANSLATIONS = {
     "en": {"entrée": "Starter", "plat": "Main", "dessert": "Dessert"},
@@ -4946,6 +5164,7 @@ _ICS_COURSE_LABEL_TRANSLATIONS = {
     "no": {"entrée": "Forrett", "plat": "Hovedrett", "dessert": "Dessert"},
     "sv": {"entrée": "Förrätt", "plat": "Huvudrätt", "dessert": "Efterrätt"},
     "zh": {"entrée": "前菜", "plat": "主菜", "dessert": "甜点"},
+    "ar": {"entrée": "مقبلات", "plat": "طبق رئيسي", "dessert": "حلوى"},
 }
 
 
@@ -5870,6 +6089,148 @@ def parse_chinese_ingredient_line(line):
             "quantity": None if quantity is None else quantity * factor, "unit": unit}
 
 
+# Unités arabes -> (unité de l'app, facteur). Duel (« كوبين » = 2 tasses) et
+# fractions écrites en toutes lettres gérés à part.
+ARABIC_UNITS = (
+    ("ملعقة كبيرة", "cuillère à soupe", 1), ("ملاعق كبيرة", "cuillère à soupe", 1), ("ملعقتان كبيرتان", "cuillère à soupe", 2),
+    ("ملعقتين كبيرتين", "cuillère à soupe", 2), ("ملعقة صغيرة", "cuillère à café", 1), ("ملاعق صغيرة", "cuillère à café", 1),
+    ("ملعقتان صغيرتان", "cuillère à café", 2), ("ملعقتين صغيرتين", "cuillère à café", 2),
+    ("كيلو غرامات", "Kilo", 1), ("كيلو غرام", "Kilo", 1), ("كيلو جرامات", "Kilo", 1), ("كيلو جرام", "Kilo", 1),
+    ("كيلوغرام", "Kilo", 1), ("كيلوجرام", "Kilo", 1), ("كيلو", "Kilo", 1), ("كجم", "Kilo", 1), ("كغ", "Kilo", 1),
+    ("غرامات", "Gr", 1), ("غرام", "Gr", 1), ("جرامات", "Gr", 1), ("جرام", "Gr", 1), ("جم", "Gr", 1), ("غ", "Gr", 1),
+    ("مليلتر", "ml", 1), ("ملليلتر", "ml", 1), ("مل", "ml", 1), ("لتر", "Litre", 1), ("ل", "Litre", 1),
+    ("كوبين", "cup", 2), ("كوبان", "cup", 2), ("أكواب", "cup", 1), ("اكواب", "cup", 1), ("كوب", "cup", 1),
+    ("فنجان", "cup", 1), ("ملعقتين", "cuillerée", 2), ("ملعقتان", "cuillerée", 2), ("ملاعق", "cuillerée", 1),
+    ("ملعقة", "cuillerée", 1), ("رشة", "pincée", 1), ("رشتين", "pincée", 2), ("حفنة", "poignée", 1),
+    ("حبتين", "pièce", 2), ("حبتان", "pièce", 2), ("حبات", "pièce", 1), ("حبة", "pièce", 1),
+    ("فصين", "pièce", 2), ("فصوص", "pièce", 1), ("فص", "pièce", 1), ("علبة", "boîte", 1), ("علب", "boîte", 1),
+    ("كيس", "sachet", 1), ("ظرف", "sachet", 1), ("زجاجة", "bouteille", 1), ("شريحة", "pièce", 1), ("شرائح", "pièce", 1),
+    ("رأس", "pièce", 1), ("عود", "pièce", 1), ("أعواد", "pièce", 1), ("باقة", "pièce", 1), ("قطعة", "pièce", 1), ("قطع", "pièce", 1),
+)
+ARABIC_FRACTIONS = (("ثلاثة أرباع", 0.75), ("نصف", 0.5), ("ربع", 0.25), ("ثلث", 1 / 3), ("ثلثين", 2 / 3), ("ثلثي", 2 / 3))
+ARABIC_VAGUE_QUANTITIES = ("حسب الرغبة", "حسب الذوق", "حسب الحاجة", "حسب الطلب", "قليل من", "قليلا من", "كمية مناسبة", "للتزيين")
+_ARABIC_UNIT_ALT = "|".join(re.escape(u) for u, _, _ in sorted(ARABIC_UNITS, key=lambda x: -len(x[0])))
+ARABIC_INGREDIENT_HEADINGS = ("المكونات", "المكوّنات", "المقادير", "مكونات", "مقادير")
+ARABIC_STEP_HEADINGS = ("طريقة التحضير", "طريقة العمل", "الطريقة", "التحضير", "الخطوات", "خطوات التحضير")
+
+
+ARABIC_SIZE_WORDS = ("كبيرة", "كبير", "متوسطة", "متوسط", "صغيرة", "صغير")
+
+
+def parse_arabic_ingredient_line(line):
+    """« 2 كوب دقيق », « دقيق 200 غرام », « أرز بسمتي : 2 كوب طويل الحبة »,
+    « ½ ملعقة صغيرة هيل », « كوبين سكر », « 1 كبير دجاجة », « ملح حسب
+    الرغبة » -> {name, quantity, unit} ; nom ramené au catalogue si possible."""
+    text = _url_fraction_text(ascii_digits(line or ""))
+    text = re.sub(r"[(（][^)）]*[)）]", " ", text).replace(":", " ").replace("：", " ")
+    text = re.sub(r"\s+", " ", text).strip(" -•*●·،؛,;")
+    if not text or not ARABIC_RE.search(text):
+        return None
+    for vague in ARABIC_VAGUE_QUANTITIES:
+        if vague in text:
+            name = text.replace(vague, "").strip(" ،")
+            return {"name": _url_food_name(name), "quantity": None, "unit": ""} if name else None
+    number = r"[0-9]+\s+[0-9]+/[0-9]+|[0-9]+(?:[.,][0-9]+)?(?:\s*/\s*[0-9]+)?"
+    fractions = "|".join(re.escape(w) for w, _ in ARABIC_FRACTIONS)
+    match = re.search(rf"(?<![^\s])(?:(?P<num>{number})|(?P<frac>{fractions}))(?:\s*(?P<unit>{_ARABIC_UNIT_ALT}))?(?=\s|$)", text)
+    quantity, unit, factor = None, "", 1
+    if match:
+        if match.group("num"):
+            raw = match.group("num").replace(",", ".")
+            if re.fullmatch(r"[0-9]+\s+[0-9]+/[0-9]+", raw):
+                whole, frac = raw.split()
+                top, bottom = frac.split("/")
+                quantity = float(whole) + float(top) / float(bottom)
+            elif "/" in raw:
+                top, bottom = (part.strip() for part in raw.split("/"))
+                quantity = float(top) / float(bottom) if float(bottom) else None
+            else:
+                quantity = float(raw)
+        else:
+            quantity = dict(ARABIC_FRACTIONS)[match.group("frac")]
+        if match.group("unit"):
+            unit, factor = next((u, f) for code, u, f in ARABIC_UNITS if code == match.group("unit"))
+        before, after = text[:match.start()].strip(), text[match.end():].strip()
+        name = before or after
+    else:
+        unit_match = re.match(rf"(?:{_ARABIC_UNIT_ALT})(?=\s|$)", text)
+        if unit_match:
+            unit, factor = next((u, f) for code, u, f in ARABIC_UNITS if code == unit_match.group(0))
+            quantity, name = 1, text[unit_match.end():].strip()  # « ملعقة زيت » : une cuillère
+        else:
+            name = text
+    # Qualificatif de taille avant le nom (« كبير دجاجة ») : retiré.
+    words = name.split()
+    while len(words) > 1 and words[0] in ARABIC_SIZE_WORDS:
+        words = words[1:]
+    name = re.sub(r"^(?:من|مِن)\s+", "", " ".join(words)).strip(" ،")
+    if not name:
+        return None
+    if quantity is not None and not unit:
+        unit = "pièce"
+    return {"name": _url_food_name(name), "quantity": None if quantity is None else quantity * factor, "unit": unit}
+
+
+def parse_arabic_recipe_text(raw_text):
+    """Recette arabe depuis un texte (photo OCR ou page web) : rubriques
+    المكونات / طريقة التحضير, personnes « 4 أشخاص » ou « شخصين »."""
+    lines = []
+    for line in ascii_digits(raw_text or "").replace("\r", "").splitlines():
+        line = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", line)
+        line = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line)
+        line = re.sub(r"^[#*>\-\s●•]+", "", line).strip()
+        if line:
+            lines.append(line)
+    full = "\n".join(lines)
+    persons = None
+    match = re.search(r"([0-9]+)\s*(?:أشخاص|اشخاص|شخص|أفراد|حصص|حصة)", full)
+    if match and 0 < int(match.group(1)) <= 50:
+        persons = int(match.group(1))
+    elif re.search(r"شخصين|شخصان", full):
+        persons = 2
+
+    def heading(line, words):
+        bare = line.strip(" :：").replace("ـ", "")
+        return any(bare == w or (bare.startswith(w) and len(bare) <= len(w) + 12) for w in words)
+
+    name = next((ln for ln in lines if ARABIC_RE.search(ln) and len(ln) <= 80
+                 and not heading(ln, ARABIC_INGREDIENT_HEADINGS + ARABIC_STEP_HEADINGS)), "")
+    ingredients, steps, section = [], [], None
+    for line in lines:
+        if heading(line, ARABIC_STEP_HEADINGS):
+            section = "steps"
+            continue
+        if heading(line, ARABIC_INGREDIENT_HEADINGS):
+            section = "ingredients"
+            continue
+        if section == "ingredients":
+            for part in re.split(r"[،؛;]", line):
+                parsed = parse_arabic_ingredient_line(part)
+                if parsed:
+                    ingredients.append(parsed)
+        elif section == "steps":
+            if re.fullmatch(r"[0-9]+[.)-]?", line):
+                continue
+            if line.startswith(("شارك", "مشاركة", "اقرأ أيضا", "اقرأ أيضًا", "وصفات ذات صلة", "تعليقات")):
+                section = "end"
+                continue
+            steps.append(re.sub(r"^[0-9]+\s*[.)-]\s*", "", line))
+    divisor = persons or 4
+    for ingredient in ingredients:
+        if ingredient["quantity"] is not None:
+            ingredient["quantity"] = ingredient["quantity"] / divisor
+    return {
+        "name": name[:100],
+        "description": "\n".join(f"{i}. {step}" for i, step in enumerate(steps, start=1))[:12000],
+        "ingredients": ingredients,
+        "ocr_warnings": [],
+        "prep_time": "",
+        "cook_time": "",
+        "default_persons": persons or 4,
+        "quantity_basis": "per_person",
+    }
+
+
 def html_to_text(page_html):
     """Texte lisible d'une page HTML (une ligne par bloc), sans scripts ni styles."""
     text_value = re.sub(r"(?is)<(script|style|noscript)[^>]*>.*?</\1>", " ", page_html or "")
@@ -6013,6 +6374,8 @@ def parse_photo_ocr_recipe(raw_text):
     """Transforme le texte multi-photo en préremplissage de recette fiable."""
     if len(CJK_RE.findall(raw_text or "")) >= 20:
         return parse_chinese_recipe_text(raw_text)
+    if len(ARABIC_RE.findall(raw_text or "")) >= 40:
+        return parse_arabic_recipe_text(raw_text)
     text_value = (raw_text or "").replace("\r", "")
     lines = [re.sub(r"\s+", " ", line).strip() for line in text_value.splitlines()]
     nonempty = [line for line in lines if line and not re.match(r"^-{2,}.*-{2,}$", line)]
@@ -6317,6 +6680,10 @@ _URL_FOOD_ALIASES = {
  '葱花': 'Ciboule ou ciboulette, fraîche', '大葱': 'Ciboule ou ciboulette, fraîche',
  '胡椒粉': 'Poivre', '香油': 'Huile de sésame', '芝麻油': 'Huile de sésame', '香菜': 'Coriandre fraîche',
  '鸡精': 'Bouillon de poulet', '食用油': 'Huile', '油': 'Huile',
+ # Formes arabes courantes (pluriels, sans article) absentes des traductions.
+ 'بيضة': 'Oeufs', 'بيضات': 'Oeufs', 'زيت زيتون': "Huile d'olive", 'طحين': 'Farine',
+ 'لحم مفروم': 'Boeuf haché', 'بيكنج باودر': 'Levure chimique', 'كمون': 'Cumin en poudre',
+ 'سمن': 'Beurre clarifié', 'سمن بلدي': 'Ghee',
 }
 
 @functools.lru_cache(maxsize=1)
@@ -6348,6 +6715,8 @@ def _url_food_name(name):
     canonical = _URL_FOOD_ALIASES.get(base)
     if canonical is None:
         candidates = set(_url_foreign_food_index().get(base, ()))
+        if not candidates and base.startswith("ال") and len(base) > 3:
+            candidates = set(_url_foreign_food_index().get(base[2:], ()))
         if len(candidates) == 1:
             canonical = candidates.pop()
     if not canonical:
@@ -6373,6 +6742,10 @@ def _url_quantity_range(line):
 
 
 def _parse_url_ingredient(line):
+    if ARABIC_RE.search(str(line or "")):
+        parsed = parse_arabic_ingredient_line(line)
+        if parsed:
+            return parsed
     line = _url_fraction_text(line)
     quantity_range = _url_quantity_range(line)
     if quantity_range:
@@ -6787,6 +7160,10 @@ def fetch_recipe_from_url(url):
             direct = parse_chinese_recipe_text(html_to_text(page_html))
             if direct.get("ingredients"):
                 return direct
+        if len(ARABIC_RE.findall(page_html[:200000])) >= 100:
+            direct = parse_arabic_recipe_text(html_to_text(page_html))
+            if direct.get("ingredients"):
+                return direct
         try:
             reader_text = _fetch_recipe_reader_text(url)
         except Exception as exc:
@@ -6833,14 +7210,15 @@ def fetch_recipe_from_url(url):
         yields = yield_value if isinstance(yield_value, list) else [yield_value]
         # Prefer explicit people when a publisher supplies both servings and pieces.
         people = next((v for v in yields if re.search(r'\b(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\.?)(?:\b|$)', str(v), re.I)
-                       or re.search(r'\d\s*(?:人份|人|份)', str(v))), None)
+                       or re.search(r'\d\s*(?:人份|人|份)', str(v))
+                       or re.search(r'(?:\d\s*(?:أشخاص|اشخاص|شخص|أفراد|حصص|حصة)|شخصين|شخصان)', ascii_digits(v))), None)
         pieces = next((v for v in yields if re.search(r'\b(?:cookies?|biscuits?|pièces?|pieces?|crêpes?|muffins?|pancakes?|stuck|stück|galletas?)\b', str(v), re.I)), None)
         if pieces is None:
             pieces = next((v for v in yields if re.match(r'^(?:makes|yields|ergibt|rinde)\b', str(v), re.I)), None)
         yield_value = people if people is not None else (None if pieces is not None else yields[0])
         if pieces is not None:
             yield_note = t('importurl_yield_note', value=clean_text(pieces))
-        match = (re.search(r"(\d+(?:[.,]\d+)?)\s*(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\b|人份|人|份)", str(people), re.I)
+        match = (re.search(r"(\d+(?:[.,]\d+)?)\s*(?:personnes?|people|servings?|portions?|personas?|personen|raciones?|ración|persone|porzion[ei]|pessoas?|porç(?:ão|ões)|porsi|orang|porsjon(?:er)?|personer|portion(?:er)?|pers\b|人份|人|份|أشخاص|اشخاص|شخص|أفراد|حصص|حصة)", ascii_digits(people), re.I)
                  if people is not None else re.search(r"\d+(?:[.,]\d+)?", str(yield_value or "")))
         people_range = _url_quantity_range(str(people or ''))
         if people_range:
@@ -7604,6 +7982,7 @@ def detect_system_language():
                 "sv": ("sv", "swedish"),
                 # Chinois simplifié : seule variante proposée, aussi pour zh-TW/HK.
                 "zh": ("zh", "chinese"),
+                "ar": ("ar", "arabic"),
             }
             for code, prefixes in aliases.items():
                 if any(lang_code_lower.startswith(p + "_") or lang_code_lower.startswith(p + "-")
@@ -8875,6 +9254,7 @@ class App(APP_TK_BASE):
         configure_app_style(self)
         self.configure(background=COLOR_BG)
         install_select_all_bindings(self)
+        install_arabic_digit_bindings(self)
 
         # ---- Clause de responsabilité : obligatoire au tout premier
         # lancement, l'application reste inutilisable tant qu'elle n'est
@@ -17440,6 +17820,18 @@ class CookingModeWindow(tk.Toplevel):
                     result.append((match.group(0), seconds))
             for match in re.finditer(r"(?<![0-9零〇一二两三四五六七八九十个])半(?:个)?小时", text):
                 result.append((match.group(0), 1800))
+        # Arabe : « 10 دقائق », « ساعة », « ساعتين » (2 h), « نصف ساعة ».
+        if re.search(r"[\u0600-\u06ff]", text):
+            plain = text.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+            for match in re.finditer(r"(?<![0-9])([0-9]+)(?:\s*(?:-|–|إلى|الى)\s*([0-9]+))?\s*"
+                                     r"(دقائق|دقيقة|دقيقه|ساعات|ساعة|ساعه|ثواني|ثوان|ثانية)", plain):
+                unit = match.group(3)
+                factor = 3600 if unit.startswith("ساع") else 1 if unit.startswith("ثان") or unit.startswith("ثوا") else 60
+                result.append((match.group(0), int(match.group(2) or match.group(1)) * factor))
+            for words, seconds in (("ساعتين", 7200), ("ساعتان", 7200), ("نصف ساعة", 1800), ("ربع ساعة", 900),
+                                   ("دقيقتين", 120), ("دقيقتان", 120)):
+                if words in plain:
+                    result.append((words, seconds))
         return result
 
     def remove_timer(self, row):
@@ -21285,7 +21677,7 @@ RECIPE_SEARCH_SITES = {
     "zh": ("meishichina.com",),
 }
 RECIPE_SEARCH_WORD = {"fr": "recette", "en": "recipe", "es": "receta", "de": "Rezept", "it": "ricetta",
-                      "pt": "receita", "id": "resep", "no": "oppskrift", "sv": "recept", "zh": "做法"}
+                      "pt": "receita", "id": "resep", "no": "oppskrift", "sv": "recept", "zh": "做法", "ar": "وصفة"}
 # Sites testés à l'import (2 recettes chacun) + racines du mot « recette »
 # dans les 9 langues : un lien copié n'est proposé à l'import que s'il
 # ressemble à une recette, pas pour chaque adresse copiée.

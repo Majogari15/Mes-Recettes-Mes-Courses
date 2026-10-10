@@ -16,7 +16,7 @@ if errorlevel 1 (
 )
 
 echo Etape 1/5 : Installation des dependances necessaires...
-echo   (pillow, reportlab, openpyxl, qrcode, pyzbar, pytesseract, pyttsx3, tkinterdnd2, pyinstaller, pypdfium2, opencv)
+echo   (pillow, reportlab, openpyxl, qrcode, pyzbar, pytesseract, pyttsx3, tkinterdnd2, pyinstaller, pypdfium2, opencv, arabic-reshaper)
 python -m pip install --upgrade pip >nul
 python -m pip install -r requirements.txt
 if errorlevel 1 (
