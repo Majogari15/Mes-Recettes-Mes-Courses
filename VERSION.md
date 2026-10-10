@@ -1,3 +1,7 @@
+# Build 80 — 1.6.33 (MSIX 1.6.33.0)
+
+11 langues : chinois simplifié et arabe ajoutés (interface, catalogue, substituts, OCR, import, PDF) ; fenêtres disposées de droite à gauche en arabe. Documentation et scripts de construction mis à jour. Voir CHANGELOG.md.
+
 # Build 79 — 1.6.32 (MSIX 1.6.32.0)
 
 9 langues, catalogue mobile de 9 992 ingrédients, i18n/ et data/, parité mobile (code-barres, péremption sur photo, ordres manuels), OCR 9 langues embarqué, recherche web de recettes, fix flake Tk. Voir CHANGELOG.md.
