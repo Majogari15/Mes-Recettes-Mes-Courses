@@ -17,6 +17,10 @@
 #else
 #error "dist\i18n\fr.json est absent. Relancez Construire_le_exe.bat."
 #endif
+#ifexist "dist\data\fonts\NotoSansArabic-subset.ttf"
+#else
+#error "dist\data\fonts est incomplet (polices des PDF chinois et arabes). Relancez Construire_le_exe.bat."
+#endif
 
 [Setup]
 ; Identifiant unique de l'application (généré une seule fois, à garder

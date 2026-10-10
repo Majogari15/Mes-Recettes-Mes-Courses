@@ -86,6 +86,10 @@ echo Etape 5/5 : Copie des fichiers necessaires a cote de l'executable...
 rem Textes de l'interface (une langue par fichier) et bases d'ingredients :
 rem dossiers entiers, une langue ou un fichier ajoute est copie sans
 rem modifier ce script.
+rem Vide d'abord les anciennes copies : un fichier retire du projet ne doit
+rem pas rester dans dist (ni donc dans l'installateur).
+if exist dist\i18n rmdir /s /q dist\i18n
+if exist dist\data rmdir /s /q dist\data
 xcopy /Y /E /I /Q i18n dist\i18n >nul
 xcopy /Y /E /I /Q data dist\data >nul
 copy /Y LISEZ-MOI.txt dist\LISEZ-MOI.txt >nul
@@ -119,7 +123,7 @@ if not exist "dist\Mes Recettes, Mes Courses.exe" (
     pause
     exit /b 1
 )
-for %%F in (i18n\*.json data\*.json data\*.png) do (
+for %%F in (i18n\*.json data\*.json data\*.png data\fonts\*) do (
     if not exist "dist\%%F" (
         echo [ERREUR] Ressource manquante dans dist : %%F
         pause
