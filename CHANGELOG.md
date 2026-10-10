@@ -1,6 +1,6 @@
 # Non publié
 
-- Arabe (11e langue) : interface, 9 992 ingrédients et 1 530 substituts traduits (repris du mobile), clause, drapeau ; texte arabe affiché de droite à gauche par Windows (disposition des fenêtres non inversée).
+- Arabe (11e langue) : interface, 9 992 ingrédients et 1 530 substituts traduits (repris du mobile), clause, drapeau ; fenêtres disposées de droite à gauche (boutons, colonnes, tableaux, onglets, barres de défilement et listes en miroir).
 - Arabe : recherche insensible aux voyelles, hamza, tatouil et « ى » ; chiffres arabo-indiens convertis à la frappe ; lignes d'ingrédients arabes (unités, duel, fractions, quantité au milieu), lecture de photo (Tesseract ara), import par lien testé sur 3 sites arabes.
 - Arabe : minuteurs (دقائق, ساعة, ساعتين, نصف ساعة), péremption (تاريخ الانتهاء, fabrication écartée), virgule « ، », devises des pays arabophones, voix arabe si installée.
 - Arabe : PDF avec lettres liées (arabic-reshaper, MIT), police Arial ou Noto Sans Arabic embarquée, texte aligné à droite et sommaire en miroir.

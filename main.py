@@ -158,6 +158,167 @@ def install_arabic_digit_bindings(root):
         root.bind_class(widget_class, "<Key>", _convert_arabic_digit_key, add="+")
 
 
+# --- Disposition droite-gauche (arabe) -------------------------------------
+# Tk n'a pas de mode RTL : en arabe, chaque placement est mis en miroir au
+# moment où il est fait (pack : côtés et ancres ; grid : colonnes, sticky ;
+# options anchor/justify/compound ; colonnes des tableaux). Le choix est figé
+# par fenêtre à sa création : une fenêtre ouverte avant un changement de
+# langue garde une disposition cohérente.
+_RTL_GRID_LAST_COLUMN = 99
+_RTL_SIDES = {"left": "right", "right": "left"}
+_RTL_TEXT_CLASSES = {"label", "message", "ttk::label", "entry", "ttk::entry", "ttk::combobox", "spinbox", "ttk::spinbox"}
+
+
+def _rtl_window(widget):
+    """Vrai si la fenêtre du widget est disposée de droite à gauche."""
+    try:
+        top = widget.winfo_toplevel() if widget is not None else tk._default_root
+    except (tk.TclError, KeyError, AttributeError):
+        return False
+    if top is None:
+        return CURRENT_LANGUAGE == "ar"
+    rtl = getattr(top, "_mrmc_rtl", None)
+    if rtl is None:
+        rtl = top._mrmc_rtl = CURRENT_LANGUAGE == "ar"
+    return rtl
+
+
+def _rtl_anchor(value):
+    if not isinstance(value, str) or value in ("center", ""):
+        return value
+    return value.translate(str.maketrans("ewEW", "weWE"))
+
+
+def _rtl_sticky(value):
+    if isinstance(value, (tuple, list)):
+        value = "".join(value)
+    return value.translate(str.maketrans("ewEW", "weWE")) if isinstance(value, str) else value
+
+
+def _rtl_pad(value):
+    if isinstance(value, (tuple, list)) and len(value) == 2:
+        return (value[1], value[0])
+    if isinstance(value, str) and len(value.split()) == 2:
+        return " ".join(reversed(value.split()))
+    return value
+
+
+def _rtl_column(column, span=1):
+    try:
+        return _RTL_GRID_LAST_COLUMN - int(column) - int(span or 1) + 1
+    except (TypeError, ValueError):
+        return column
+
+
+def _rtl_mirror_options(options, widget_name=None):
+    """anchor / justify / compound / padx en miroir ; texte aligné à droite
+    par défaut dans les étiquettes et champs."""
+    if "anchor" in options:
+        options["anchor"] = _rtl_anchor(options["anchor"])
+    for key in ("justify", "compound"):
+        if options.get(key) in _RTL_SIDES:
+            options[key] = _RTL_SIDES[options[key]]
+    if widget_name in _RTL_TEXT_CLASSES and "justify" not in options:
+        options["justify"] = "right"
+    return options
+
+
+def install_rtl_layout():
+    """Installe une fois pour toutes la mise en miroir (inactive hors arabe)."""
+    if getattr(tk.Pack, "_mrmc_rtl_installed", False):
+        return
+    tk.Pack._mrmc_rtl_installed = True
+    pack_configure, grid_configure = tk.Pack.pack_configure, tk.Grid.grid_configure
+    columnconfigure, bbox, slaves = tk.Misc.grid_columnconfigure, tk.Misc.grid_bbox, tk.Misc.grid_slaves
+    base_init, misc_configure = tk.BaseWidget.__init__, tk.Misc._configure
+    tree_init, tree_heading, tree_column = ttk.Treeview.__init__, ttk.Treeview.heading, ttk.Treeview.column
+    create_window = tk.Canvas.create_window
+
+    def pack(self, cnf={}, **kw):
+        if _rtl_window(self):
+            kw = {**cnf, **kw}; cnf = {}
+            if kw.get("side") in _RTL_SIDES:
+                kw["side"] = _RTL_SIDES[kw["side"]]
+            if "anchor" in kw:
+                kw["anchor"] = _rtl_anchor(kw["anchor"])
+            if "padx" in kw:
+                kw["padx"] = _rtl_pad(kw["padx"])
+        return pack_configure(self, cnf, **kw)
+
+    def grid(self, cnf={}, **kw):
+        if _rtl_window(self):
+            kw = {**cnf, **kw}; cnf = {}
+            if "column" in kw:
+                kw["column"] = _rtl_column(kw["column"], kw.get("columnspan", 1))
+            if "sticky" in kw:
+                kw["sticky"] = _rtl_sticky(kw["sticky"])
+            if "padx" in kw:
+                kw["padx"] = _rtl_pad(kw["padx"])
+        return grid_configure(self, cnf, **kw)
+
+    def grid_columnconfigure(self, index, cnf={}, **kw):
+        if isinstance(index, int) and _rtl_window(self):
+            index = _rtl_column(index)
+        return columnconfigure(self, index, cnf, **kw)
+
+    def grid_bbox(self, column=None, row=None, col2=None, row2=None):
+        if _rtl_window(self):
+            column = None if column is None else _rtl_column(column)
+            col2 = None if col2 is None else _rtl_column(col2)
+        return bbox(self, column, row, col2, row2)
+
+    def grid_slaves(self, row=None, column=None):
+        if column is not None and _rtl_window(self):
+            column = _rtl_column(column)
+        return slaves(self, row, column)
+
+    def widget_init(self, master, widgetName, cnf={}, kw={}, extra=()):
+        if _rtl_window(master):
+            cnf = _rtl_mirror_options({**cnf, **kw}, widgetName); kw = {}
+        return base_init(self, master, widgetName, cnf, kw, extra)
+
+    def configure(self, cmd, cnf, kw):
+        if (kw or isinstance(cnf, dict)) and cmd == "configure" and _rtl_window(self):
+            kw = _rtl_mirror_options({**(cnf or {}), **kw}); cnf = None
+        return misc_configure(self, cmd, cnf, kw)
+
+    def treeview_init(self, master=None, **kw):
+        tree_init(self, master, **kw)
+        if kw.get("columns") and _rtl_window(self):
+            columns = kw["columns"]
+            columns = columns.split() if isinstance(columns, str) else list(columns)
+            self.configure(displaycolumns=list(reversed(columns)))
+
+    def heading(self, column, option=None, **kw):
+        if "anchor" in kw and _rtl_window(self):
+            kw["anchor"] = _rtl_anchor(kw["anchor"])
+        return tree_heading(self, column, option, **kw)
+
+    def tree_col(self, column, option=None, **kw):
+        if "anchor" in kw and _rtl_window(self):
+            kw["anchor"] = _rtl_anchor(kw["anchor"])
+        return tree_column(self, column, option, **kw)
+
+    def canvas_window(self, *args, **kw):
+        # Contenu défilant posé en (0, 0) ancré « nw » : collé au bord droit.
+        coords = args[0] if len(args) == 1 else args
+        if kw.get("anchor") != "nw" or tuple(coords) != (0, 0) or not _rtl_window(self):
+            return create_window(self, *args, **kw)
+        item = create_window(self, (max(self.winfo_width(), 1), 0), **{**kw, "anchor": "ne"})
+        self.bind("<Configure>", lambda e: self.coords(item, e.width, 0), add="+")
+        return item
+
+    tk.Pack.pack_configure = tk.Pack.pack = pack
+    tk.Grid.grid_configure = tk.Grid.grid = grid
+    for cls in (tk.Misc, tk.Grid):
+        cls.grid_columnconfigure = cls.columnconfigure = grid_columnconfigure
+        cls.grid_bbox, cls.grid_slaves = grid_bbox, grid_slaves
+    tk.Grid.bbox, tk.Grid.slaves = grid_bbox, grid_slaves
+    tk.BaseWidget.__init__ = widget_init
+    tk.Misc._configure = configure
+    ttk.Treeview.__init__, ttk.Treeview.heading, ttk.Treeview.column = treeview_init, heading, tree_col
+    tk.Canvas.create_window = canvas_window
+
 def install_select_all_bindings(root):
     """Fait fonctionner Ctrl+A comme « tout sélectionner » dans les champs
     de saisie, partout dans l'application.
@@ -9074,7 +9235,8 @@ def configure_app_style(root):
     style.configure("TLabelframe.Label", background=COLOR_BG, foreground=COLOR_ACCENT_DARK,
                      font=("Segoe UI", sf(10), "bold"))
 
-    style.configure("TNotebook", background=COLOR_BG, bordercolor=COLOR_BORDER)
+    style.configure("TNotebook", background=COLOR_BG, bordercolor=COLOR_BORDER,
+                    tabposition="ne" if CURRENT_LANGUAGE == "ar" else "nw")  # onglets à droite en arabe
     style.configure("TNotebook.Tab", background=COLOR_ACCENT_LIGHT, foreground=COLOR_TEXT,
                      padding=(gs(12), gs(6)), font=base_font)
     style.map("TNotebook.Tab",
@@ -9213,6 +9375,8 @@ class App(APP_TK_BASE):
         apply_font_scale(self.large_text)
         self.language = get_language_preference()
         apply_language(self.language)
+        install_rtl_layout()
+        self._mrmc_rtl = self.language == "ar"
         self.title(f"{t('home_window_title')} — {PRODUCT_VERSION} (build {APP_BUILD})")
         # Icônes de drapeaux pour le bouton de langue, chargées une seule
         # fois ici (et non à chaque reconstruction de la page d'accueil)
@@ -9450,6 +9614,8 @@ class App(APP_TK_BASE):
         self.language = lang
         set_language_preference(self.language)
         apply_language(self.language)
+        self._mrmc_rtl = self.language == "ar"
+        ttk.Style(self).configure("TNotebook", tabposition="ne" if self._mrmc_rtl else "nw")
         self.title(f"{t('home_window_title')} — {PRODUCT_VERSION} (build {APP_BUILD})")
         for child in self.winfo_children():
             if not isinstance(child, tk.Toplevel):
