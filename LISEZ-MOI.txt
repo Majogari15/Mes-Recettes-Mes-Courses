@@ -153,7 +153,8 @@ pouvez la changer à tout moment.
   détection des recettes réalisables grâce à un substitut d'ingrédient
 - Substituts d'ingrédients suggérés (beurre, oeufs, farine...), personnalisables
 - Suivi du garde-manger avec quantités, décompté automatiquement (sur
-  proposition) après avoir cuisiné une recette
+  proposition) après avoir cuisiné une recette ; ajout par code-barres
+  (saisie, photo ou webcam) et date de péremption lue sur une photo
 - Planning de la semaine en vue calendrier (jours toujours visibles même en
   faisant défiler), avec export vers un calendrier (.ics) qui se répète
   automatiquement chaque semaine
@@ -161,7 +162,10 @@ pouvez la changer à tout moment.
 - Mode cuisine plein écran et minuteurs multiples réglables (avec alarme
   sonore et clignotante)
 - QR code de recette compatible avec l'application mobile dans les deux sens
-  (export bureau → mobile et import de QR mobile depuis une image)
+  (export bureau → mobile et import de QR mobile depuis une image ou la
+  webcam) ; liste de courses partageable par QR code
+- Recherche de recettes sur Internet et import depuis un lien
+- Prix des ingrédients dans la devise de votre choix
 - Journal de cuisine (notes et photos à chaque fois que vous cuisinez)
 - Coût et valeurs nutritionnelles estimés par recette
 - Statistiques (recettes les plus cuisinées, coût moyen, calories
@@ -170,7 +174,9 @@ pouvez la changer à tout moment.
 - Sauvegardes automatiques périodiques, avec copie optionnelle vers un
   dossier cloud (Google Drive, OneDrive, Dropbox...)
 - Thème clair / sombre, au choix
-- Interface disponible en français, anglais, espagnol et allemand (voir section 3)
+- Interface disponible en 11 langues : français, anglais, espagnol,
+  allemand, italien, portugais, indonésien, norvégien, suédois, chinois
+  simplifié et arabe (fenêtres disposées de droite à gauche en arabe)
 - Export d'un livre de recettes complet en PDF, avec pages numérotées et
   numéro de page indiqué dans le sommaire
 

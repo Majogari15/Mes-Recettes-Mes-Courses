@@ -1,7 +1,7 @@
 """Prépare la copie portable de Tesseract OCR embarquée par Construire_le_exe.bat.
 
 Outil de construction, pas une dépendance de l'application : l'utilisateur
-final n'a rien à installer pour lire une photo dans l'une des 9 langues.
+final n'a rien à installer pour lire une photo dans l'une des 11 langues.
 - Sans dossier "tesseract-ocr" à côté de ce script, copie l'installation
   Tesseract du PC de construction (emplacements Windows habituels).
 - Complète ensuite tessdata avec le paquet de chaque langue de l'interface

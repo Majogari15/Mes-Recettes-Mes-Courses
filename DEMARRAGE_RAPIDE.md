@@ -42,12 +42,12 @@ icône à double-cliquer) :
    Bureau, autre PC...) — gardez tous les fichiers de ce dossier ensemble.
    Le fichier **`LISEZ-MOI.txt`** à l'intérieur explique tout ce qu'il faut
    savoir pour utiliser cette version `.exe` (sans aucune référence à
-   Python, puisque vous n'en aurez plus besoin). Tesseract OCR reste
-   nécessaire pour l'import photo, même avec le `.exe` — **sauf** si vous
-   placez un dossier `tesseract-ocr` portable à côté de ce script avant
-   l'étape 2 : il sera alors inclus automatiquement dans `dist` et
-   l'import photo fonctionnera sans rien installer de plus (voir la
-   section OCR de `LISEZ-MOI.md`).
+   Python, puisque vous n'en aurez plus besoin). Si Tesseract OCR est
+   installé sur CE PC (ou si un dossier `tesseract-ocr` portable est placé
+   à côté du script), le script l'inclut dans `dist` avec les 11 langues :
+   l'import photo fonctionne alors sans rien installer de plus. Sinon,
+   Tesseract devra être installé à part (voir la section OCR de
+   `LISEZ-MOI.md`).
 
 > Ce script doit être exécuté sur Windows (pas depuis ce chat) : téléchargez
 > le dossier, puis lancez `Construire_le_exe.bat` sur votre propre PC.
@@ -60,18 +60,14 @@ icône à double-cliquer) :
   et intégré automatiquement dans le `.exe`
 - `i18n/` : tous les textes de l'interface, un fichier par langue
   (français, anglais, espagnol, allemand, italien, portugais, indonésien, norvégien, suédois, chinois simplifié, arabe)
-- `ingredients_par_defaut.json`, `valeurs_nutritionnelles.json`,
-  `ingredient_allergenes.json`, `ingredient_substitutions.json` : les bases
-  de données fournies (ingrédients courants, valeurs nutritionnelles,
-  allergènes, substituts culinaires)
-- `ingredient_translations_en.json`, `ingredient_translations_es.json`,
-  `ingredient_translations_de.json`, `ingredient_substitutions_en.json`,
-  `ingredient_substitutions_es.json`, `ingredient_substitutions_de.json` :
-  les traductions anglaise, espagnole et allemande des ingrédients et des
-  substituts, pour l'affichage multilingue (voir "🌐 Changer de langue"
-  dans le guide complet)
-- `flag_fr.png`, `flag_uk.png`, `flag_es.png`, `flag_de.png` : les icônes
-  de drapeaux du menu déroulant de langue
+- `data/` : les bases de données fournies (ingrédients courants, valeurs
+  nutritionnelles, allergènes, substituts culinaires), leurs traductions
+  dans les 10 autres langues (`ingredient_translations_<langue>.json`,
+  `ingredient_substitutions_<langue>.json`), les icônes de drapeaux du menu
+  de langue et les polices (`data/fonts/`) utilisées par les PDF en chinois
+  et en arabe
+- `preparer_tesseract.py` : prépare la copie de Tesseract OCR (avec les 11
+  langues) incluse dans le `.exe`
 - `Construire_le_exe.bat` : script pour générer le `.exe` automatiquement
   (Option B)
 - `LISEZ-MOI.md` : le guide complet d'utilisation de toutes les

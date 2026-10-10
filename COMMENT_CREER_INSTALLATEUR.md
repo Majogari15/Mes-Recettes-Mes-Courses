@@ -1,10 +1,10 @@
-# Correctif de construction Tcl/Tk — version 1.6.14
+# Résumé de la procédure de publication
 
-1. Sur le PC habituel, extraire cette archive dans un nouveau dossier et lancer `Construire_le_exe.bat`.
-2. Attendre les confirmations du contrôle des fichiers Tcl/Tk et du démarrage de l’interface, puis le message « Termine ! ».
+1. Sur le PC habituel, lancer `Construire_le_exe.bat`.
+2. Attendre les confirmations du contrôle des fichiers Tcl/Tk, de la préparation de Tesseract OCR et du démarrage de l’interface, puis le message « Termine ! ».
 3. Ouvrir `dist\Mes Recettes, Mes Courses.exe` et vérifier l’écran d’accueil.
-4. Compiler `installateur_store_capture.iss` avec Inno Setup sur ce même PC (version 1.6.19 déjà renseignée).
-5. Transférer le nouvel installateur `installateur\MesRecettesMesCourses_StoreCapture.exe` dans une machine Hyper-V propre, avant de lancer la capture. Créer un NOUVEAU MSIX à partir de cet installateur, version **1.6.20.0**. Le nom affiché sera repris automatiquement depuis `Mes Recettes, Mes Courses.exe`.
+4. Compiler `installateur_store_capture.iss` avec Inno Setup sur ce même PC (vérifier que `MyAppVersion` correspond à la version de `PRODUCT_VERSION` dans `main.py`).
+5. Transférer le nouvel installateur `installateur\MesRecettesMesCourses_StoreCapture.exe` dans une machine Hyper-V propre, avant de lancer la capture. Créer un NOUVEAU MSIX à partir de cet installateur, avec une version supérieure à celle déjà publiée (par exemple **1.6.33.0** après 1.6.32.0). Le nom affiché sera repris automatiquement depuis `Mes Recettes, Mes Courses.exe`.
 6. Tester une copie signée du nouveau MSIX dans la VM, y compris le lancement de l’application. Conserver la copie destinée au Store selon la procédure habituelle.
 
 La préparation Tcl/Tk utilise les ressources du Python employé pour compiler. Les chemins zipfs sont lus avec Tcl lui-même. Aucun Python n’est à installer dans Hyper-V pour faire fonctionner le résultat.
@@ -14,7 +14,7 @@ Les fichiers `build_tk_support.py` et `main.pyw` fournis doivent rester dans le 
 
 # Créer l'installateur avec Inno Setup
 
-Ce guide correspond à la version **1.6.12 / build 60** du projet.
+Ce guide correspond à la version **1.6.32 / build 79** du projet.
 
 ## 1. Préparer l'exécutable Windows
 
@@ -75,7 +75,7 @@ Les deux scripts contiennent actuellement :
 
 ```ini
 #define MyAppName "Mes Recettes, Mes Courses"
-#define MyAppVersion "1.6.12"
+#define MyAppVersion "1.6.32"
 #define MyAppPublisher "Majogari"
 ```
 
@@ -89,7 +89,7 @@ ne modifie pas automatiquement un MSIX déjà créé.
 
 Pour une mise à jour, conservez l'identité de l'application publiée et
 choisissez une version de paquet supérieure à celle distribuée aux utilisateurs
-visés. `1.6.13.0` n'est utilisable comme nouvelle version que si cette condition
+visés. `1.6.33.0` n'est utilisable comme nouvelle version que si cette condition
 est satisfaite. Consultez les
 [exigences et règles de version Microsoft](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements).
 

@@ -151,6 +151,11 @@ python -m pip install -r requirements.txt
   cuisine" — s'appuie sur la synthèse vocale déjà installée sur votre
   système (aucune installation supplémentaire à faire, contrairement à
   Tesseract OCR ci-dessous)
+- **pypdfium2** : affiche les pages PDF (import d'une recette depuis un PDF,
+  impression Windows)
+- **opencv-python-headless** : permet de scanner un QR code ou un code-barres
+  avec la webcam
+- **arabic-reshaper** : lie correctement les lettres arabes dans les PDF
 
 Si vous ne les installez pas, l'application fonctionne quand même, mais sans
 les fonctionnalités correspondantes (un message vous le rappelle au
@@ -183,7 +188,11 @@ internet, eux, fonctionnent toujours sans dépendance supplémentaire.
 > l'extraction échoue avec un message d'erreur plutôt qu'un résultat
 > incorrect.
 >
-> **Exécutable `.exe` sans rien installer séparément** : si un dossier
+> **Exécutable `.exe` sans rien installer séparément** : `Construire_le_exe.bat`
+> lance `preparer_tesseract.py`, qui copie le Tesseract installé sur le PC
+> de construction dans un dossier `tesseract-ocr` et y télécharge le paquet
+> de chacune des 11 langues de l'interface. L'utilisateur du `.exe` n'a alors
+> rien à installer. De la même façon, si un dossier
 > `tesseract-ocr` (contenant `tesseract.exe` et son sous-dossier `tessdata`
 > avec les langues voulues, par exemple récupérés depuis une installation
 > Windows existante ou une version portable du lien ci-dessus) est placé à
@@ -283,7 +292,10 @@ propose un choix direct entre les onze langues disponibles pour toute
 l'interface : page d'accueil, chaque fenêtre, chaque message d'erreur ou
 de confirmation, y compris le texte légal de la clause de
 responsabilité. D'autres langues pourront être ajoutées de la même façon
-par la suite. Votre choix est mémorisé automatiquement, avec le même
+par la suite. En arabe, les fenêtres sont disposées de droite à gauche
+(boutons, colonnes, tableaux, onglets et barres de défilement en miroir) et
+les chiffres arabo-indiens tapés au clavier sont convertis automatiquement.
+Votre choix est mémorisé automatiquement, avec le même
 fonctionnement que le thème et le texte agrandi (une fenêtre secondaire
 déjà ouverte doit être refermée puis rouverte pour refléter le
 changement).
@@ -488,6 +500,9 @@ son unité de référence (**kg**, **L**, **pièce**, **cuillère à soupe** ou
 retire le prix enregistré. Un prix au kg s'applique automatiquement aux
 recettes utilisant des grammes (Gr), un prix au litre aux recettes utilisant
 des centilitres (cl) ; les prix en pièce/cuillère s'appliquent tels quels.
+Le menu **"Devise"** de cette fenêtre choisit le symbole utilisé pour tous
+les prix de l'application (€, $, £, ...) ; les prix déjà saisis ne sont pas
+convertis.
 
 > Il n'existe aucune source de prix fiable en ligne pour ce type
 > d'application locale (les prix varient trop selon le magasin, la région,
@@ -593,6 +608,11 @@ réutilise automatiquement votre ingrédient existant au lieu d'en créer un
 doublon, aussi bien dans la liste que dans la recette importée elle-même —
 ce qui permet aussi de conserver la détection des allergènes et des valeurs
 nutritionnelles pour cet ingrédient.
+
+Pas encore de lien ? Le champ **"🌐 Rechercher sur Internet"** de la même
+fenêtre ouvre une recherche Google dans votre navigateur avec les mots
+saisis (laissé vide, il ouvre simplement le moteur de recherche) : copiez
+ensuite l'adresse de la recette trouvée et collez-la ci-dessus.
 
 <a id="import-photo"></a>
 **📷 Importer une recette depuis une photo**
@@ -825,6 +845,10 @@ liste de toutes vos listes sauvegardées (avec leur nombre d'ingrédients et
 leur date), pour en **charger** une (elle remplace alors la liste
 actuellement affichée, quelle que soit la fenêtre depuis laquelle vous
 l'avez enregistrée) ou en **supprimer** une définitivement.
+
+**📱 Partager la liste par QR code** : dans le mode "cocher au fur et à
+mesure", ce bouton affiche la liste de courses sous forme de QR code, à
+scanner avec l'application mobile pour emporter la liste au magasin.
 
 <a id="ajouter-ingredient-liste"></a>
 **➕ Ajouter un ingrédient à la liste de courses**
@@ -1126,6 +1150,14 @@ fiable à celle de la recette (par exemple des "pièces" contre des grammes)
 — et signaler sur la page d'accueil les articles presque épuisés (voir "📦
 Rappel garde-manger" plus haut, mis à jour dès que vous fermez cette
 fenêtre, sans avoir besoin de relancer l'application).
+
+**🏷️ Code-barres** : tapez le code-barres d'un produit (une douchette USB
+le tape toute seule), lisez-le sur une photo ou présentez-le à la webcam
+("📷 Webcam"). Le nom du produit est recherché sur Open Food Facts, puis
+associé à un ingrédient ; un code déjà connu ajoute directement +1 au
+stock. **Date de péremption** : le bouton photo à côté du champ "À consommer
+avant" lit la date sur une photo de l'étiquette (en écartant la date de
+fabrication) — vérifiez-la toujours avant d'enregistrer.
 
 <a id="planning-semaine"></a>
 **📅 Planning de la semaine**
