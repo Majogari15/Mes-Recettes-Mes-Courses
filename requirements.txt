@@ -5,7 +5,7 @@ qrcode==8.2
 pyzbar==0.1.9
 pytesseract==0.3.13
 pyttsx3==2.99
-tkinterdnd2==0.6.3
+tkinterdnd2==0.6.4
 PyInstaller==6.22.3
 pypdfium2==5.13.0
 opencv-python-headless==5.0.0.93
