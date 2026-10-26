@@ -1,4 +1,4 @@
-Pillow==12.3.0
+Pillow==13.0.0
 reportlab==5.0.1
 openpyxl==3.1.5
 qrcode==8.2
