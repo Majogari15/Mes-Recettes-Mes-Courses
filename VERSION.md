@@ -1,3 +1,7 @@
+# Build 81 — 1.6.34 (MSIX 1.6.34.0)
+
+Sécurité : Pillow 13.0.0 (39 failles connues de la 12.3.0). Dépendances : tkinterdnd2 0.7.0, reportlab 5.1.0, pypdfium2 5.14.0. Licence d'arabic-reshaper jointe. Voir CHANGELOG.md.
+
 # Build 80 — 1.6.33 (MSIX 1.6.33.0)
 
 11 langues : chinois simplifié et arabe ajoutés (interface, catalogue, substituts, OCR, import, PDF) ; fenêtres disposées de droite à gauche en arabe. Documentation et scripts de construction mis à jour. Voir CHANGELOG.md.
