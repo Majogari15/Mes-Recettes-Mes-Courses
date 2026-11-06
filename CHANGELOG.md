@@ -1,3 +1,7 @@
+# Non publié
+
+- Sécurité : Pillow 13.0.0 (corrige les 39 failles connues signalées par pip-audit sur Pillow 12.3.0).
+
 # Build 80 — 1.6.33 (MSIX 1.6.33.0)
 
 - Arabe (11e langue) : interface, 9 992 ingrédients et 1 530 substituts traduits (repris du mobile), clause, drapeau ; fenêtres disposées de droite à gauche (boutons, colonnes, tableaux, onglets, barres de défilement et listes en miroir).
