@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write # créer la Release et y déposer les fichiers
+
 jobs:
   build:
     runs-on: windows-latest
@@ -35,32 +38,39 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path dist\* -DestinationPath MesRecettesMesCourses.zip
 
+      # gh plutôt qu'une action tierce : le nom de l'exe contient une virgule,
+      # et une Release déjà créée à la main garde ses notes (fichiers ajoutés).
       - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            MesRecettesMesCourses.zip
-            dist/Mes Recettes, Mes Courses.exe
-          body: |
-            ## Changements
-
-            Voir le CHANGELOG.md pour les détails.
-
-            ## Installation
-
-            1. Télécharger MesRecettesMesCourses.zip
-            2. Décompresser dans le dossier de votre choix
-            3. Lancer "Mes Recettes, Mes Courses.exe"
-
-            ## Notes
-
-            - Tesseract OCR est requis pour l'import photo, sauf si le
-              dossier tesseract-ocr portable a été fourni avant la
-              construction (voir la section OCR de LISEZ-MOI.md).
-            - Vos données sont enregistrées à côté de l'exécutable (ou dans
-              %LocalAppData%\MesRecettesMesCourses si ce dossier n'est pas
-              accessible en écriture).
-          draft: false
-          prerelease: false
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $files = @("MesRecettesMesCourses.zip", "dist/Mes Recettes, Mes Courses.exe")
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @files --clobber
+          } else {
+            $notes = @'
+          ## Changements
+
+          Voir le CHANGELOG.md pour les détails.
+
+          ## Installation
+
+          1. Télécharger MesRecettesMesCourses.zip
+          2. Décompresser dans le dossier de votre choix
+          3. Lancer "Mes Recettes, Mes Courses.exe"
+
+          ## Notes
+
+          - Tesseract OCR est requis pour l'import photo, sauf si le
+            dossier tesseract-ocr portable a été fourni avant la
+            construction (voir la section OCR de LISEZ-MOI.md).
+          - Vos données sont enregistrées à côté de l'exécutable (ou dans
+            %LocalAppData%\MesRecettesMesCourses si ce dossier n'est pas
+            accessible en écriture).
+          '@
+            gh release create $env:TAG @files --title $env:TAG --verify-tag --notes $notes
+          }
+          exit $LASTEXITCODE
