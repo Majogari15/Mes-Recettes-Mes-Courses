@@ -1,6 +1,7 @@
 # Non publié
 
 - Sécurité : Pillow 13.0.0 (corrige les 39 failles connues signalées par pip-audit sur Pillow 12.3.0).
+- Dépendances : tkinterdnd2 0.7.0, reportlab 5.1.0, pypdfium2 5.14.0.
 
 # Build 80 — 1.6.33 (MSIX 1.6.33.0)
 
